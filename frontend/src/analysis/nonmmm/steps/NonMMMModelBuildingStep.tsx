@@ -58,6 +58,7 @@ import {
 import { NonMMMStateService } from '@/analysis/nonmmm/services/NonMMMStateService';
 import { NonMMMModelingService } from '@/analysis/nonmmm/services/NonMMMModelingService';
 import { NonMMMModelStateService, NonMMMModelState } from '@/analysis/nonmmm/services/NonMMMModelStateService';
+import { DataStructureSummary } from '@/components/DataStructureSummary';
 
 interface ModelBuildingStepState {
   selectedModelType: NonMMMModelType | null;
@@ -628,6 +629,15 @@ export function NonMMMModelBuildingStep() {
       <div className="text-center">
         <h1 className="text-2xl font-bold text-gray-900">Model Building</h1>
       </div>
+
+      {/* Data Structure Summary - Persistent Component */}
+      {stepState.availableVariables.length > 0 && targetVariable && (
+        <DataStructureSummary
+          columns={[targetVariable, ...stepState.availableVariables]}
+          rowCount={0}
+          className="max-w-4xl mx-auto"
+        />
+      )}
 
       {/* Error Alert */}
       {stepState.error && (

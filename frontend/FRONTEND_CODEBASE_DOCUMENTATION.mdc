@@ -1,5 +1,58 @@
 # BrandBloom Insights Frontend Codebase Documentation
 
+## 🆕 New Features (2025-10-03)
+
+### ✅ Persistent Data Structure Summary Component (2025-10-03)
+
+#### Overview:
+Added a persistent data structure summary component that displays column names, row count, and helpful guidance throughout the non-MMM analysis workflow. This component addresses the user's need to have constant visibility of their data structure after CSV upload.
+
+#### Component Details:
+
+**DataStructureSummary Component** (`frontend/src/components/DataStructureSummary.tsx`):
+- **Purpose**: Display persistent summary of uploaded data structure
+- **Props**:
+  - `columns`: Array of column names from the dataset
+  - `rowCount`: Total number of rows in the dataset
+  - `className`: Optional className for styling
+- **Features**:
+  - Shows total columns and rows with file icon
+  - Displays column names as interactive pill-style tags
+  - Includes lightbulb icon with helpful guidance text
+  - Consistent styling with brand design
+  - Persists across analysis steps
+
+#### Integration Points:
+
+**NonMMMDataSummaryStep** (`frontend/src/analysis/nonmmm/steps/NonMMMDataSummaryStep.tsx`):
+- Added component right after header section
+- Displays all variable names and row count
+- Visible throughout all sub-steps (Target Variable, Statistical Summary, Histograms, Correlation Matrix)
+
+**NonMMMChartAnalysisStep** (`frontend/src/analysis/nonmmm/steps/NonMMMChartAnalysisStep.tsx`):
+- Added component after hero header
+- Shows target variable and all independent variables
+- Provides context during chart analysis
+
+**NonMMMModelBuildingStep** (`frontend/src/analysis/nonmmm/steps/NonMMMModelBuildingStep.tsx`):
+- Added component after header section
+- Displays target variable and available independent variables
+- Helps users understand data structure during modeling
+
+#### User Benefits:
+1. **Constant Visibility**: Users always know what columns are in their dataset
+2. **Data Context**: Provides quick reference without scrolling
+3. **Professional UI**: Matches brand design with clean, modern styling
+4. **Helpful Guidance**: Lightbulb icon with text encourages user interaction
+5. **Persistent Display**: Component doesn't disappear during analysis workflow
+
+#### Technical Implementation:
+- Reusable React component with TypeScript
+- Uses shadcn/ui components (Card, Badge)
+- Lucide React icons (FileText, Lightbulb)
+- Tailwind CSS for styling
+- Responsive design that works on all screen sizes
+
 ## 🆕 New Features (2025-01-31)
 
 ### ✅ PROJECT B Dashboard Integration (2025-01-31)

@@ -110,8 +110,11 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
   };
 
   const handleDeleteChart = (chartId: string, dashboardId: string) => {
-    console.log('handleDeleteChart called:', { chartId, dashboardId });
+    console.log('🗑️ DELETING ENTIRE CHART:', { chartId, dashboardId });
+    console.log('This will remove the chart AND all its insights (key findings + recommendations)');
+    console.log('📊 Current dashboards before deletion:', dashboards.map(d => ({ id: d.id, name: d.name, chartCount: d.charts.length })));
     onDeleteChart(dashboardId, chartId);
+    console.log('✅ Delete chart function called successfully');
     // Regenerate layout after deletion
     setTimeout(() => {
       const dashboard = dashboards.find(d => d.id === dashboardId);
@@ -125,8 +128,11 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
   };
 
   const handleDeleteInsight = (chartId: string, insightType: 'keyfinding' | 'recommendation', dashboardId: string) => {
-    console.log('handleDeleteInsight called:', { chartId, insightType, dashboardId });
+    console.log(`🗑️ DELETING ${insightType.toUpperCase()} ONLY:`, { chartId, insightType, dashboardId });
+    console.log(`This will remove only the ${insightType} while keeping the chart and other insights`);
+    console.log('📊 Current dashboards before insight deletion:', dashboards.map(d => ({ id: d.id, name: d.name, chartCount: d.charts.length })));
     onDeleteInsight(dashboardId, chartId, insightType);
+    console.log('✅ Delete insight function called successfully');
     // Regenerate layout after deletion
     setTimeout(() => {
       const dashboard = dashboards.find(d => d.id === dashboardId);
@@ -155,12 +161,25 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
             <h3 className="text-sm font-semibold text-gray-900">{chart.title}</h3>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  console.log('🔥 BUTTON CLICKED - Chart Delete');
+                  e.preventDefault();
+                  e.stopPropagation();
                   console.log('Delete chart button clicked!', { chartId: chart.id, dashboardId });
-                  handleDeleteChart(chart.id, dashboardId || 'unknown');
+                  if (dashboardId) {
+                    console.log('✅ Calling handleDeleteChart with:', { chartId: chart.id, dashboardId });
+                    handleDeleteChart(chart.id, dashboardId);
+                  } else {
+                    console.error('❌ DashboardId is missing for chart deletion');
+                  }
                 }}
-                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
-                title="Delete Chart"
+                onMouseDown={(e) => {
+                  console.log('🖱️ MOUSE DOWN on chart delete button');
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200 cursor-pointer grid-delete-button"
+                title="Delete Entire Chart (Chart + All Insights)"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -239,12 +258,21 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
           <div className="flex items-center space-x-2">
             {dashboardId && (
               <button
-                onClick={() => {
+                onClick={(e) => {
+                  console.log('🔥 BUTTON CLICKED - KPI Delete');
+                  e.preventDefault();
+                  e.stopPropagation();
                   console.log('Delete KPI chart button clicked!', { chartId: chart.id, dashboardId });
+                  console.log('✅ Calling handleDeleteChart with:', { chartId: chart.id, dashboardId });
                   handleDeleteChart(chart.id, dashboardId);
                 }}
-                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
-                title="Delete KPI"
+                onMouseDown={(e) => {
+                  console.log('🖱️ MOUSE DOWN on KPI delete button');
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200 cursor-pointer grid-delete-button"
+                title="Delete Entire KPI (KPI + All Insights)"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -502,7 +530,7 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                     paddingTop: '15px',
                     fontSize: '12px'
                   }}
-                  formatter={(value: string, entry: any) => {
+                  formatter={(value: string, entry: { payload?: { value?: number } }) => {
                     if (entry.payload && entry.payload.value) {
                       const total = formattedData.reduce((sum: number, item: Record<string, unknown>) => sum + (Number(item[chart.config.valueKey || 'value']) || 0), 0);
                       const percentage = ((Number(entry.payload.value) / total) * 100).toFixed(0);
@@ -981,12 +1009,21 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                               <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-semibold text-gray-900">Key Finding</h3>
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    console.log('🔥 BUTTON CLICKED - Key Finding Delete');
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     console.log('Delete keyfinding button clicked!', { chartId: chart.id, dashboardId: dashboard.id });
+                                    console.log('✅ Calling handleDeleteInsight with:', { chartId: chart.id, insightType: 'keyfinding', dashboardId: dashboard.id });
                                     handleDeleteInsight(chart.id, 'keyfinding', dashboard.id);
                                   }}
-                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
-                                  title="Delete Key Finding"
+                                  onMouseDown={(e) => {
+                                    console.log('🖱️ MOUSE DOWN on keyfinding delete button');
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200 cursor-pointer grid-delete-button"
+                                  title="Delete Key Finding Only (Chart Remains)"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>
@@ -1023,12 +1060,21 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                               <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-semibold text-gray-900">Recommendation</h3>
                                 <button
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    console.log('🔥 BUTTON CLICKED - Recommendation Delete');
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     console.log('Delete recommendation button clicked!', { chartId: chart.id, dashboardId: dashboard.id });
+                                    console.log('✅ Calling handleDeleteInsight with:', { chartId: chart.id, insightType: 'recommendation', dashboardId: dashboard.id });
                                     handleDeleteInsight(chart.id, 'recommendation', dashboard.id);
                                   }}
-                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
-                                  title="Delete Recommendation"
+                                  onMouseDown={(e) => {
+                                    console.log('🖱️ MOUSE DOWN on recommendation delete button');
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200 cursor-pointer grid-delete-button"
+                                  title="Delete Recommendation Only (Chart Remains)"
                                 >
                                   <X className="w-4 h-4" />
                                 </button>

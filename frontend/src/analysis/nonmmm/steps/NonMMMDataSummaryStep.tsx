@@ -51,6 +51,7 @@ import { useAnalysis } from '@/context/AnalysisContext';
 import { NonMMMFileService } from '@/analysis/nonmmm/services/NonMMMFileService';
 import { nonMMMStateService, NonMMMStateService } from '@/analysis/nonmmm/services/NonMMMStateService';
 import { formatHistogramBinLabel, formatNumberForDisplay, formatPercentage } from '@/utils/numberFormatter';
+import { DataStructureSummary } from '@/components/DataStructureSummary';
 
 // Mock data interfaces for development
 interface VariableSummary {
@@ -1213,6 +1214,15 @@ export function NonMMMDataSummaryStep() {
           Statistical overview of your dataset with type controls and distributions
         </p>
       </div>
+
+      {/* Data Structure Summary - Persistent Component */}
+      {summaryData.length > 0 && (
+        <DataStructureSummary
+          columns={summaryData.map(v => v.name)}
+          rowCount={summaryData[0]?.count || 0}
+          className="max-w-4xl mx-auto"
+        />
+      )}
 
       {/* Step Progress Indicator */}
       <Card className="mb-6">

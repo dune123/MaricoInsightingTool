@@ -372,4 +372,32 @@
       transform: scale(1.05);
     }
   }
+
+  /* Grid Layout Delete Button Styles */
+  .grid-delete-button {
+    position: relative !important;
+    z-index: 1000 !important;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+  }
+
+  .grid-delete-button:hover {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    color: rgb(220, 38, 38) !important;
+  }
+
+  /* Ensure delete buttons are clickable in grid layout */
+  .react-grid-item .grid-delete-button {
+    pointer-events: auto !important;
+    z-index: 1001 !important;
+  }
+
+  /* Prevent grid drag on delete button area */
+  .grid-delete-button * {
+    pointer-events: none !important;
+  }
+
+  .grid-delete-button {
+    pointer-events: auto !important;
+  }
 }

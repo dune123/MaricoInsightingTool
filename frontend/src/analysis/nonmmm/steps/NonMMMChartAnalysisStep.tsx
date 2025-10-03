@@ -43,6 +43,7 @@ import { useToast } from '@/hooks/use-toast';
 import { NonMMMChartContainer } from '../components/NonMMMChartContainer';
 import { NonMMMChartAnalysisService, ChartData } from '../services/NonMMMChartAnalysisService';
 import { NonMMMStateService } from '../services/NonMMMStateService';
+import { DataStructureSummary } from '@/components/DataStructureSummary';
 
 export function NonMMMChartAnalysisStep() {
   const { state: analysisContext } = useAnalysis();
@@ -769,6 +770,15 @@ export function NonMMMChartAnalysisStep() {
             </div>
           </div>
         </div>
+
+        {/* Data Structure Summary - Persistent Component */}
+        {charts.length > 0 && (
+          <DataStructureSummary
+            columns={[targetVariable, ...charts.map(c => c.variable)]}
+            rowCount={charts[0]?.lineChartData?.datasets[0]?.data.length || 0}
+            className="max-w-4xl mx-auto"
+          />
+        )}
 
         {/* Delete Mode Indicator */}
         {isDeleteMode && (
