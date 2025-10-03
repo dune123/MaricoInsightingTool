@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Navigation Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧪 Navigation Test</h1>
+        <p>This page tests the navigation behavior to ensure it works correctly.</p>
+        
+        <div class="status info">
+            <strong>Current Tab:</strong> This test page (should never change)
+        </div>
+        
+        <div class="status info">
+            <strong>Expected Behavior:</strong> Clicking the button should open localhost:8082 in a NEW tab while keeping this tab unchanged.
+        </div>
+        
+        <button onclick="testNavigation()">🚀 Test Navigation to Dashboard</button>
+        <button onclick="checkApps()">🔍 Check App Status</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // Copy the exact navigation function from the app
+        const navigateToDashboard = () => {
+            const isDevelopment = true; // Always true for this test
+            let dashboardUrl = 'http://localhost:8082';
+            
+            try {
+                // Open PROJECT B in a new tab while keeping current tab active
+                const newWindow = window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
+                
+                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+                    // If popup was blocked, show user a message but DON'T redirect current tab
+                    console.warn('Popup blocked. Please allow popups for this site to open the dashboard.');
+                    alert(`Popup blocked! Please allow popups for this site and try again.\n\nOr manually visit: ${dashboardUrl}`);
+                    return false;
+                } else {
+                    // Successfully opened in new tab - don't focus it, keep current tab active
+                    console.log('Dashboard opened in new tab:', dashboardUrl);
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error navigating to dashboard:', error);
+                alert(`Unable to open dashboard. Please manually visit: ${dashboardUrl}`);
+                return false;
+            }
+        };
+
+        function testNavigation() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<div class="status info">Testing navigation...</div>';
+            
+            const success = navigateToDashboard();
+            
+            if (success) {
+                results.innerHTML = `
+                    <div class="status success">
+                        ✅ SUCCESS: New tab should have opened with localhost:8082<br>
+                        ✅ This tab should remain unchanged<br>
+                        ✅ Check if a new tab opened with the dashboard
+                    </div>
+                `;
+            } else {
+                results.innerHTML = `
+                    <div class="status error">
+                        ❌ Navigation failed - check console for details
+                    </div>
+                `;
+            }
+        }
+
+        async function checkApps() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<div class="status info">Checking app status...</div>';
+            
+            try {
+                // Check main app
+                const mainResponse = await fetch('http://localhost:8081', { mode: 'no-cors' });
+                const mainStatus = '✅ Main app (8081) is running';
+                
+                // Check dashboard
+                const dashResponse = await fetch('http://localhost:8082', { mode: 'no-cors' });
+                const dashStatus = '✅ Dashboard (8082) is running';
+                
+                results.innerHTML = `
+                    <div class="status success">
+                        ${mainStatus}<br>
+                        ${dashStatus}<br>
+                        🎯 Both apps are ready for testing!
+                    </div>
+                `;
+            } catch (error) {
+                results.innerHTML = `
+                    <div class="status error">
+                        ❌ Error checking apps: ${error.message}<br>
+                        Make sure both apps are running:<br>
+                        • Terminal 1: cd frontend && npm run dev<br>
+                        • Terminal 2: cd PROJECTB/maricoinsight-Dashboarding && npm run dev
+                    </div>
+                `;
+            }
+        }
+
+        // Auto-check apps on load
+        window.onload = checkApps;
+    </script>
+</body>
+</html>

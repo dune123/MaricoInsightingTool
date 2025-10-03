@@ -1,0 +1,19 @@
+# Environment Configuration Example for PROJECTB Dashboard
+# Copy this file to create your environment variables
+
+# For Development (.env.development):
+VITE_PORT=8082
+VITE_MAIN_APP_URL=http://localhost:8081
+
+# For Production (.env.production):
+VITE_MAIN_APP_URL=https://brandbloom-insights.azurestaticapps.net
+
+# Azure OpenAI Configuration (if needed)
+VITE_AZURE_API_KEY=your-azure-openai-key
+VITE_AZURE_ENDPOINT=https://your-resource.cognitiveservices.azure.com/
+VITE_AZURE_DEPLOYMENT_NAME=gpt-4o-mini
+
+# Instructions:
+# 1. Create .env.development with development values
+# 2. Create .env.production with production values
+# 3. Update production URLs after Azure deployment

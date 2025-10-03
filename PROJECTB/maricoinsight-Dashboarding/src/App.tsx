@@ -1,10 +1,8 @@
-import React, { useState } from 'react';
-import { FileUpload } from './components/FileUpload';
+import { useState } from 'react';
 import { InsightsChatbot } from './components/InsightsChatbot';
-import { ChartingChatbot } from './components/ChartingChatbot';
+import { ChartingChatbotWithThinking } from './components/ChartingChatbotWithThinking';
 import { Settings } from './components/Settings';
 import { DashboardCharts } from './components/DashboardCharts';
-import { AzureOpenAIService } from './lib/azure-openai';
 import { AnalysisResult, DashboardHistoryItem, Dashboard, ChartData } from './types/chart';
 import { 
   FileText, 
@@ -14,8 +12,6 @@ import {
   Menu,
   X,
   BarChart3,
-  Brain,
-  Home,
   Folder,
   History,
   HelpCircle,
@@ -23,6 +19,7 @@ import {
 } from 'lucide-react';
 import { DashboardBot } from './components/DashboardBot';
 import { AddChartToDashboardModal } from './components/AddChartToDashboardModal';
+
 
 export interface Document {
   id: string;
@@ -41,14 +38,13 @@ function App() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [activePanel, setActivePanel] = useState<'insightsBot' | 'documents' | 'history' | 'settings' | 'dashboardBot'>('insightsBot');
-  const [insightsAssistantId, setInsightsAssistantId] = useState<string | null>(null);
-  const [insightsThreadId, setInsightsThreadId] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<'insightsBot' | 'documents' | 'history' | 'settings' | 'dashboardBot'>('documents');
   const [dashboardHistory, setDashboardHistory] = useState<DashboardHistoryItem[]>([]);
   const [selectedDashboardIndex, setSelectedDashboardIndex] = useState<number | null>(null);
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [showAddChartModal, setShowAddChartModal] = useState(false);
   const [chartToAdd, setChartToAdd] = useState<ChartData | null>(null);
+  const [firstUserMessage, setFirstUserMessage] = useState<string>('');
   const [azureConfig, setAzureConfig] = useState({
     apiKey: import.meta.env.VITE_AZURE_API_KEY || 'REPLACE_WITH_YOUR_API_KEY',
     endpoint: import.meta.env.VITE_AZURE_ENDPOINT || 'https://your-resource.cognitiveservices.azure.com/',
@@ -56,6 +52,17 @@ function App() {
   });
 
   const handleDocumentUpload = (file: File) => {
+    // Allow only CSV or Excel files
+    const fileName = file.name.toLowerCase();
+    const isCsv = fileName.endsWith('.csv');
+    const isXlsx = fileName.endsWith('.xlsx');
+    const isXls = fileName.endsWith('.xls');
+
+    if (!isCsv && !isXlsx && !isXls) {
+      alert('Please upload only CSV or Excel files (.csv, .xlsx, .xls).');
+      return;
+    }
+
     const newDoc: Document = {
       id: crypto.randomUUID(),
       name: file.name,
@@ -66,7 +73,8 @@ function App() {
       file: file
     };
     
-    setDocuments(prev => [...prev, newDoc]);
+    // Keep only one CSV/Excel document at a time: replace any existing
+    setDocuments([newDoc]);
     setSelectedDocument(newDoc);
     // Don't auto-switch panels - let user stay in current bot
   };
@@ -81,16 +89,22 @@ function App() {
       
       // If document just completed analysis, add to dashboard history
       if (updatedDoc.status === 'completed' && updatedDoc.analysis && 
-          !dashboardHistory.some(item => item.question === 'Initial Analysis' && item.analysis === updatedDoc.analysis)) {
+          !dashboardHistory.some(item => item.question === (firstUserMessage || 'Initial Analysis') && item.analysis === updatedDoc.analysis)) {
         console.log('Adding initial analysis to dashboard history:', updatedDoc.analysis);
         const newHistoryItem: DashboardHistoryItem = {
-          question: 'Initial Analysis',
+          question: firstUserMessage || 'Initial Analysis',
           analysis: updatedDoc.analysis,
           timestamp: new Date()
         };
         setDashboardHistory(prev => [newHistoryItem, ...prev]);
         setSelectedDashboardIndex(0);
       }
+    }
+  };
+
+  const handleFirstUserMessage = (message: string) => {
+    if (!firstUserMessage) {
+      setFirstUserMessage(message);
     }
   };
 
@@ -152,17 +166,53 @@ function App() {
     setDashboards(prev => prev.filter(dashboard => dashboard.id !== dashboardId));
   };
 
+  const handleDeleteChart = (dashboardId: string, chartId: string) => {
+    console.log('App handleDeleteChart called:', { dashboardId, chartId });
+    setDashboards(prev => prev.map(dashboard => 
+      dashboard.id === dashboardId 
+        ? { 
+            ...dashboard, 
+            charts: dashboard.charts.filter(chart => chart.id !== chartId),
+            updatedAt: new Date()
+          }
+        : dashboard
+    ));
+  };
+
+  const handleDeleteInsight = (dashboardId: string, chartId: string, insightType: 'keyfinding' | 'recommendation') => {
+    console.log('App handleDeleteInsight called:', { dashboardId, chartId, insightType });
+    setDashboards(prev => prev.map(dashboard => 
+      dashboard.id === dashboardId 
+        ? { 
+            ...dashboard, 
+            charts: dashboard.charts.map(chart => 
+              chart.id === chartId 
+                ? {
+                    ...chart,
+                    insights: chart.insights ? (() => {
+                      const newInsights = { ...chart.insights };
+                      delete newInsights[insightType as keyof typeof newInsights];
+                      return Object.keys(newInsights).length > 0 ? newInsights : undefined;
+                    })() : undefined
+                  }
+                : chart
+            ),
+            updatedAt: new Date()
+          }
+        : dashboard
+    ));
+  };
+
   const handleAddChartRequest = (chart: ChartData) => {
     setChartToAdd(chart);
     setShowAddChartModal(true);
   };
 
   const sidebarButtons = [
-    { id: 'insightsBot', icon: Brain, label: 'Insights Bot' },
-    { id: 'dashboardBot', icon: LayoutDashboard, label: 'Dashboards' },
+    //{ id: 'insightsBot', icon: Brain, label: 'Insights Bot' },
     { id: 'documents', icon: Folder, label: 'Documents' },
-    { id: 'history', icon: History, label: 'History' },
-    { id: 'settings', icon: SettingsIcon, label: 'Settings' }
+    { id: 'dashboardBot', icon: LayoutDashboard, label: 'Dashboards' },
+    { id: 'history', icon: History, label: 'History' }
   ];
 
   return (
@@ -201,7 +251,7 @@ function App() {
               <button
                 key={button.id}
                 onClick={() => {
-                  setActivePanel(button.id as any);
+                  setActivePanel(button.id as 'insightsBot' | 'documents' | 'history' | 'settings' | 'dashboardBot');
                   if (button.id === 'settings') {
                     setShowSettings(true);
                   }
@@ -219,28 +269,32 @@ function App() {
           })}
         </div>
 
-        {/* Help Button */}
-        <button className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-lg mt-4">
-          <HelpCircle className="w-5 h-5" />
+        {/* Settings Shortcut Button (replaces help) */}
+        <button
+          onClick={() => setShowSettings(true)}
+          className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-lg mt-4"
+          title="Settings"
+        >
+          <SettingsIcon className="w-5 h-5" />
         </button>
       </div>
 
       {/* Middle Chat Panel */}
-      <div className={`${activePanel === 'insightsBot' || activePanel === 'dashboardBot' ? 'flex-1' : 'w-96'} bg-white ${activePanel !== 'insightsBot' && activePanel !== 'dashboardBot' ? 'border-r border-gray-200' : ''} flex flex-col flex-shrink-0 h-screen overflow-hidden`}>
+      <div className={`${activePanel === 'insightsBot' || activePanel === 'dashboardBot' ? 'flex-1' : 'w-[480px]'} bg-white ${activePanel !== 'insightsBot' && activePanel !== 'dashboardBot' ? 'border-r border-gray-200' : ''} flex flex-col flex-shrink-0 h-screen overflow-hidden`}>
         {/* Chat Header */}
         <div className="p-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              {activePanel === 'insightsBot' ? (
+              {/*activePanel === 'insightsBot' ? (
                 <Brain className="w-5 h-5 text-white" />
-              ) : activePanel === 'dashboardBot' ? (
+              ) :*/ activePanel === 'dashboardBot' ? (
                 <LayoutDashboard className="w-5 h-5 text-white" />
               ) : (
                 <MessageCircle className="w-5 h-5 text-white" />
               )}
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">
+              <h1 className="text-base font-medium text-gray-900">
                 {activePanel === 'insightsBot' ? 'Business Insights' : 
                  activePanel === 'dashboardBot' ? 'Custom Dashboards' : 'AI Assistant'}
               </h1>
@@ -249,7 +303,7 @@ function App() {
                   ? 'Strategic advice and market intelligence'
                   : activePanel === 'dashboardBot'
                   ? 'Create and manage your custom dashboards'
-                  : selectedDocument ? selectedDocument.name : 'Select a document to start'
+                  : selectedDocument ? selectedDocument.name : 'Upload a file to start'
                 }
               </p>
             </div>
@@ -309,6 +363,7 @@ function App() {
               onSelectDocument={setSelectedDocument}
               onDocumentUpload={handleDocumentUpload}
               onDocumentUpdate={handleDocumentUpdate}
+              onFirstUserMessage={handleFirstUserMessage}
             />
           ) : activePanel === 'dashboardBot' ? (
             <DashboardBot 
@@ -317,12 +372,13 @@ function App() {
               onAddChartToDashboard={handleAddChartToDashboard}
               onUpdateDashboardCharts={handleUpdateDashboardCharts}
               onDeleteDashboard={handleDeleteDashboard}
-              onAddChartRequest={handleAddChartRequest}
+              onDeleteChart={handleDeleteChart}
+              onDeleteInsight={handleDeleteInsight}
               chartToAdd={chartToAdd}
               onClearChartToAdd={() => setChartToAdd(null)}
             />
           ) : (
-            <ChartingChatbot 
+            <ChartingChatbotWithThinking 
               azureConfig={azureConfig}
               selectedDocument={selectedDocument}
               documents={documents}
@@ -330,6 +386,7 @@ function App() {
               onDocumentUpload={handleDocumentUpload}
               onDocumentUpdate={handleDocumentUpdate}
               onNewAnalysis={handleNewAnalysis}
+              onFirstUserMessage={handleFirstUserMessage}
             />
           )}
         </div>
@@ -346,16 +403,16 @@ function App() {
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Data Visualizations</h2>
-                <p className="text-sm text-gray-500">
-                  {dashboardHistory.length > 0 ? `${dashboardHistory.length} analysis available` : 'Select a document to view insights'}
+                <h2 className="text-lg font-medium text-gray-900">Data Visualizations</h2>
+                <p className="text-xs text-gray-500">
+                  {dashboardHistory.length > 0 ? `${dashboardHistory.length} analysis available` : 'Upload another file'}
                 </p>
               </div>
             </div>
             
             {dashboardHistory.length > 0 && selectedDashboardIndex !== null && (
               <div className="flex items-center space-x-2">
-                <div className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
+                <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
                   {dashboardHistory[selectedDashboardIndex].analysis.charts.length} Charts
                 </div>
               </div>
@@ -366,17 +423,17 @@ function App() {
           {dashboardHistory.length > 0 && (
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Analysis History
+                Change File
               </label>
               <select
                 value={selectedDashboardIndex ?? ''}
                 onChange={(e) => setSelectedDashboardIndex(e.target.value ? parseInt(e.target.value) : null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               >
-                <option value="">Select an analysis...</option>
+                <option value="">Select a question...</option>
                 {dashboardHistory.map((item, index) => (
                   <option key={index} value={index}>
-                    {item.question} ({item.timestamp.toLocaleTimeString()})
+                    {item.question}
                   </option>
                 ))}
               </select>
@@ -399,7 +456,7 @@ function App() {
                   <BarChart3 className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">No Analysis Available</h3>
-                <p className="text-gray-600 mb-6">Upload a document and ask questions to see AI-powered visualizations here.</p>
+                <p className="text-gray-600 mb-6">Upload a file and ask questions to see AI-powered visualizations here.</p>
                 <label className="cursor-pointer">
                   <input
                     type="file"
@@ -413,7 +470,7 @@ function App() {
                   />
                   <div className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200 inline-flex items-center space-x-2">
                     <Plus className="w-4 h-4" />
-                    <span>Upload Document</span>
+                    <span>Upload File</span>
                   </div>
                 </label>
               </div>
@@ -451,7 +508,10 @@ function App() {
         <AddChartToDashboardModal
           chartToAdd={chartToAdd}
           dashboards={dashboards}
-          onClose={() => { setShowAddChartModal(false); setChartToAdd(null); }}
+          onClose={() => { 
+            setShowAddChartModal(false); 
+            setChartToAdd(null); 
+          }}
           onAddChartToDashboard={handleAddChartToDashboard}
           onCreateNewDashboard={handleCreateNewDashboard}
         />

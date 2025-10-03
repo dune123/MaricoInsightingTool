@@ -19,7 +19,7 @@ import {
   Cell
 } from 'recharts';
 import { ChartData, AnalysisResult } from '../types/chart';
-import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity, Zap, Target, ArrowUp, ArrowDown, Minus, Lightbulb, TrendingDown, AlertTriangle, Plus } from 'lucide-react';
+import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity, Target, ArrowUp, ArrowDown, Minus, Lightbulb, Plus } from 'lucide-react';
 
 interface DashboardChartsProps {
   analysis: AnalysisResult | null;
@@ -380,58 +380,97 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         );
 
       case 'pie':
-      case 'donut':
+      case 'donut': {
+        // Ensure data is properly formatted for pie chart
+        const formattedData = chart.data.map((item, index) => ({
+          ...item,
+          fill: colors[index % colors.length]
+        }));
+
+        console.log('Pie chart data:', formattedData);
+        console.log('Pie chart config:', chart.config);
+        console.log('Original chart data:', chart.data);
+        
+        // Validate data structure
+        if (!formattedData || formattedData.length === 0) {
+          console.error('No data available for pie chart');
+          return (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              No data available for pie chart
+            </div>
+          );
+        }
+        
+        // Check if data has required fields
+        const hasValidData = formattedData.every((item: Record<string, unknown>) => 
+          (item[chart.config.valueKey || 'value'] !== undefined) && 
+          (item[chart.config.nameKey || 'name'] !== undefined)
+        );
+        
+        if (!hasValidData) {
+          console.error('Invalid data structure for pie chart:', formattedData);
+          return (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              Invalid data structure for pie chart
+            </div>
+          );
+        }
+
         return (
           <ResponsiveContainer width="100%" height={isInGrid ? "calc(100% - 60px)" : 300}>
             <PieChart>
               <Pie
-                data={chart.data}
+                data={formattedData}
                 cx="50%"
                 cy="50%"
                 outerRadius={isInGrid ? "60%" : (chart.type === 'donut' ? 90 : 100)}
                 innerRadius={isInGrid ? (chart.type === 'donut' ? "30%" : 0) : (chart.type === 'donut' ? 45 : 0)}
                 fill="#8884d8"
-                dataKey={chart.config.valueKey}
-                nameKey={chart.config.nameKey}
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                dataKey={chart.config.valueKey || 'value'}
+                nameKey={chart.config.nameKey || 'name'}
+                label={false}
                 labelLine={false}
+                stroke="#fff"
+                strokeWidth={2}
               >
-                {chart.data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                {formattedData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill || colors[index % colors.length]} />
                 ))}
               </Pie>
-              {chart.config.showTooltip && (
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#fff', 
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}
-                />
-              )}
-              {chart.config.showLegend && (
-                <Legend 
-                  verticalAlign="bottom"
-                  height={40}
-                  iconType="circle"
-                  wrapperStyle={{ 
-                    paddingTop: '15px',
-                    fontSize: '12px'
-                  }}
-                  formatter={(value, entry) => {
-                    if (entry.payload && entry.payload.value) {
-                      const total = chart.data.reduce((sum, item) => sum + (item[chart.config.valueKey || 'value'] || 0), 0);
-                      const percentage = ((entry.payload.value / total) * 100).toFixed(0);
-                      return `${value} ${percentage}%`;
-                    }
-                    return value;
-                  }}
-                />
-              )}
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#fff', 
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}
+                formatter={(value: number, name: string) => {
+                  const total = formattedData.reduce((sum: number, item: Record<string, unknown>) => sum + (Number(item[chart.config.valueKey || 'value']) || 0), 0);
+                  const percentage = ((value / total) * 100).toFixed(1);
+                  return [`${value} (${percentage}%)`, name];
+                }}
+              />
+              <Legend 
+                verticalAlign="bottom"
+                height={40}
+                iconType="circle"
+                wrapperStyle={{ 
+                  paddingTop: '15px',
+                  fontSize: '12px'
+                }}
+                formatter={(value: string, entry: any) => {
+                  if (entry.payload && entry.payload.value) {
+                    const total = formattedData.reduce((sum: number, item: Record<string, unknown>) => sum + (Number(item[chart.config.valueKey || 'value']) || 0), 0);
+                    const percentage = ((Number(entry.payload.value) / total) * 100).toFixed(0);
+                    return `${value} ${percentage}%`;
+                  }
+                  return value;
+                }}
+              />
             </PieChart>
           </ResponsiveContainer>
         );
+      }
 
       case 'scatter':
         return (
@@ -531,21 +570,21 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
       {kpiCards.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {kpiCards.map((chart) => (
-            <div key={chart.id}>
+            <div key={chart.id} data-chart-id={chart.id}>
               {renderKpiCard(chart)}
             </div>
           ))}
         </div>
       )}
       
-      {/* Regular Charts Grid */}
+      {/* Regular Charts - One per row */}
       {regularCharts.length > 0 && (
-        <div className={`${isInGrid ? 'h-full' : regularCharts.length === 1 ? 'w-full' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3'} gap-4`}>
+        <div className={`${isInGrid ? 'h-full' : 'space-y-6'}`}>
           {regularCharts.map((chart) => {
             const Icon = getChartIcon(chart.type);
             const parsedDescription = parseChartDescription(chart.description || '');
             return (
-              <div key={chart.id} className={`${isInGrid ? 'h-full flex flex-col' : 'bg-white rounded-xl shadow-sm border border-gray-200'} p-4 ${regularCharts.length === 1 && !isInGrid ? 'w-full' : ''}`}>
+              <div key={chart.id} data-chart-id={chart.id} className={`${isInGrid ? 'h-full flex flex-col' : 'bg-white rounded-xl shadow-sm border border-gray-200 w-full'} p-4`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -558,7 +597,17 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   <div className="flex items-center space-x-2">
                     {onAddChartRequest && (
                       <button
-                        onClick={() => onAddChartRequest(chart)}
+                        onClick={() => {
+                          // Create chart with insights data
+                          const chartWithInsights = {
+                            ...chart,
+                            insights: {
+                              keyFinding: parsedDescription.keyFinding,
+                              recommendation: parsedDescription.recommendation
+                            }
+                          };
+                          onAddChartRequest(chartWithInsights);
+                        }}
                         className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                         title="Add to Dashboard"
                       >
@@ -571,61 +620,66 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   </div>
                 </div>
                 
-                {chart.type === 'kpi' ? (
-                  <div className="mb-4">
-                    {renderKpiCard(chart)}
-                  </div>
-                ) : (
-                  <div className={`bg-gray-50 rounded-lg p-3 ${isInGrid ? 'flex-1' : ''}`} style={{ height: isInGrid ? 'auto' : (regularCharts.length === 1 ? '400px' : '320px') }}>
-                    {renderChart(chart)}
+                {/* Main Content - Side by Side Layout */}
+                {!isInGrid && (
+                  <div className="flex gap-6 h-96">
+                    {/* Chart Section - Left 2/3 */}
+                    <div className="flex-1 flex flex-col">
+                      {chart.type === 'kpi' ? (
+                        <div className="mb-4">
+                          {renderKpiCard(chart)}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-lg p-3 flex-1">
+                          {renderChart(chart)}
+                        </div>
+                      )}
+                      
+                      {/* Chart Footer */}
+                      <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+                        <span>{chart.data?.length || 0} data points</span>
+                        <span>Interactive • Responsive</span>
+                      </div>
+                    </div>
+
+                    {/* Insights Section - Right 1/3 */}
+                    <div className="w-1/3 flex flex-col space-y-4">
+                      <div className="flex-1">
+                        <InsightCard
+                          icon={Lightbulb}
+                          title="Key Finding"
+                          content={parsedDescription.keyFinding}
+                          color="text-amber-600"
+                          bgColor="bg-amber-50"
+                        />
+                      </div>
+                      
+                      <div className="flex-1">
+                        <InsightCard
+                          icon={Target}
+                          title="Recommendation"
+                          content={parsedDescription.recommendation}
+                          color="text-green-600"
+                          bgColor="bg-green-50"
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
-                
-                {/* Insights Section */}
-                {!isInGrid && (
-                <div className="p-4 bg-white">
-                  <InsightCard
-                    icon={Lightbulb}
-                    title="Key Finding"
-                    content={parsedDescription.keyFinding}
-                    color="text-amber-600"
-                    bgColor="bg-amber-50"
-                  />
-                  
-                  <InsightCard
-                    icon={TrendingUp}
-                    title="Business Impact"
-                    content={parsedDescription.businessImpact}
-                    color="text-blue-600"
-                    bgColor="bg-blue-50"
-                  />
-                  
-                  <InsightCard
-                    icon={Target}
-                    title="Recommendation"
-                    content={parsedDescription.recommendation}
-                    color="text-green-600"
-                    bgColor="bg-green-50"
-                  />
-                  
-                  {parsedDescription.supportingData && (
-                    <InsightCard
-                      icon={BarChart3}
-                      title="Supporting Data"
-                      content={parsedDescription.supportingData}
-                      color="text-purple-600"
-                      bgColor="bg-purple-50"
-                    />
-                  )}
-                </div>
-                )}
-                
-                {/* Chart Footer */}
-                {!isInGrid && (
-                <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                  <span>{chart.data?.length || 0} data points</span>
-                  <span>Interactive • Responsive</span>
-                </div>
+
+                {/* Grid Layout (for dashboard view) */}
+                {isInGrid && (
+                  <>
+                    {chart.type === 'kpi' ? (
+                      <div className="mb-4">
+                        {renderKpiCard(chart)}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-lg p-3 flex-1" style={{ height: 'auto' }}>
+                        {renderChart(chart)}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );

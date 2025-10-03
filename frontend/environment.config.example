@@ -1,0 +1,19 @@
+# Environment Configuration Example
+# Copy this file to create your environment variables
+
+# For Development (.env.development):
+VITE_DASHBOARD_URL=http://localhost:8082
+VITE_NODEJS_API_URL=http://localhost:3001
+VITE_PYTHON_API_URL=http://localhost:8000
+VITE_DEBUG_MODE=true
+
+# For Production (.env.production):
+VITE_DASHBOARD_URL=https://brandbloom-dashboard.azurestaticapps.net
+VITE_NODEJS_API_URL=https://your-nodejs-api.azurewebsites.net
+VITE_PYTHON_API_URL=https://your-python-api.azurewebsites.net
+VITE_DEBUG_MODE=false
+
+# Instructions:
+# 1. Create .env.development with development values
+# 2. Create .env.production with production values
+# 3. Update production URLs after Azure deployment

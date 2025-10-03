@@ -22,7 +22,8 @@ import {
   Cell
 } from 'recharts';
 import { Dashboard, ChartData } from '../types/chart';
-import { LayoutDashboard, Plus, Trash2, CreditCard as Edit3, ChevronDown, ChevronRight, BarChart3, Calendar, Clock, GripVertical, X, Target, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { LayoutDashboard, Plus, Trash2, CreditCard as Edit3, ChevronDown, ChevronRight, BarChart3, Calendar, Clock, X, Target, ArrowUp, ArrowDown, Minus, Download, Lightbulb } from 'lucide-react';
+import { useExportToPPT } from '../hooks/useExportToPPT';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -37,7 +38,8 @@ interface DashboardBotProps {
   onAddChartToDashboard: (dashboardId: string, chart: ChartData) => void;
   onUpdateDashboardCharts: (dashboardId: string, updatedCharts: ChartData[]) => void;
   onDeleteDashboard: (dashboardId: string) => void;
-  onAddChartRequest: (chart: ChartData) => void;
+  onDeleteChart: (dashboardId: string, chartId: string) => void;
+  onDeleteInsight: (dashboardId: string, chartId: string, insightType: 'keyfinding' | 'recommendation') => void;
   chartToAdd: ChartData | null;
   onClearChartToAdd: () => void;
 }
@@ -48,7 +50,8 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
   onAddChartToDashboard,
   onUpdateDashboardCharts,
   onDeleteDashboard,
-  onAddChartRequest,
+  onDeleteChart,
+  onDeleteInsight,
   chartToAdd,
   onClearChartToAdd
 }) => {
@@ -58,17 +61,123 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
   const [editingDashboard, setEditingDashboard] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [layouts, setLayouts] = useState<Record<string, Layout[]>>({});
+  const { isExporting, exportProgress, error, success, exportToPPT, resetExport } = useExportToPPT();
 
-  const renderSingleChart = (chart: ChartData) => {
-    if (chart.type === 'kpi') {
-      return renderKpiCard(chart);
+  const handleExportDashboard = async (dashboard: Dashboard) => {
+    if (isExporting || dashboard.charts.length === 0) return;
+    
+    try {
+      // Debug: Log dashboard charts and their layout
+      console.log('Exporting dashboard:', dashboard.name);
+      console.log('Dashboard charts:', dashboard.charts.map(c => ({ 
+        id: c.id, 
+        title: c.title, 
+        type: c.type, 
+        layout: c.layout 
+      })));
+      
+      // Debug: Check for chart elements in DOM
+      const chartElements = document.querySelectorAll('[data-chart-id]');
+      console.log('Found chart elements in DOM:', chartElements.length);
+      chartElements.forEach((el, index) => {
+        const chartId = el.getAttribute('data-chart-id');
+        const hasSvg = el.querySelector('svg');
+        const hasRecharts = el.querySelector('.recharts-wrapper');
+        const hasCanvas = el.querySelector('canvas');
+        console.log(`Element ${index}: chart-id="${chartId}", hasSvg=${!!hasSvg}, hasRecharts=${!!hasRecharts}, hasCanvas=${!!hasCanvas}`);
+      });
+      
+      // Debug: Check for any recharts elements
+      const rechartsElements = document.querySelectorAll('.recharts-wrapper');
+      console.log('Found recharts elements:', rechartsElements.length);
+      
+      // Debug: Check for any SVG elements
+      const svgElements = document.querySelectorAll('svg');
+      console.log('Found SVG elements:', svgElements.length);
+      
+      await exportToPPT(dashboard.charts, {
+        fileName: `${dashboard.name.replace(/[^a-zA-Z0-9]/g, '_')}_Export_${new Date().toISOString().split('T')[0]}.pptx`,
+        slideTitle: dashboard.name,
+        includeInsights: true,
+        includeRecommendations: true,
+        includeActionItems: true,
+        includeRiskFactors: true,
+        includeOpportunities: true
+      });
+    } catch (err) {
+      console.error('Export failed:', err);
     }
-    return renderChart(chart);
   };
 
-  const renderKpiCard = (chart: ChartData) => {
+  const handleDeleteChart = (chartId: string, dashboardId: string) => {
+    console.log('handleDeleteChart called:', { chartId, dashboardId });
+    onDeleteChart(dashboardId, chartId);
+    // Regenerate layout after deletion
+    setTimeout(() => {
+      const dashboard = dashboards.find(d => d.id === dashboardId);
+      if (dashboard) {
+        setLayouts(prev => ({
+          ...prev,
+          [dashboardId]: getLayoutForDashboard(dashboardId)
+        }));
+      }
+    }, 100);
+  };
+
+  const handleDeleteInsight = (chartId: string, insightType: 'keyfinding' | 'recommendation', dashboardId: string) => {
+    console.log('handleDeleteInsight called:', { chartId, insightType, dashboardId });
+    onDeleteInsight(dashboardId, chartId, insightType);
+    // Regenerate layout after deletion
+    setTimeout(() => {
+      const dashboard = dashboards.find(d => d.id === dashboardId);
+      if (dashboard) {
+        setLayouts(prev => ({
+          ...prev,
+          [dashboardId]: getLayoutForDashboard(dashboardId)
+        }));
+      }
+    }, 100);
+  };
+
+  const renderSingleChart = (chart: ChartData, dashboardId?: string) => {
+    console.log('renderSingleChart called with:', { chart, dashboardId });
+    
+    if (chart.type === 'kpi') {
+      return renderKpiCard(chart, dashboardId);
+    }
+    
+    // Always show delete button for charts, regardless of insights
+    return (
+      <div className="h-full flex flex-col">
+        {/* Chart Section */}
+        <div className="flex-1 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">{chart.title}</h3>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  console.log('Delete chart button clicked!', { chartId: chart.id, dashboardId });
+                  handleDeleteChart(chart.id, dashboardId || 'unknown');
+                }}
+                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                title="Delete Chart"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3" style={{ height: '300px' }}>
+            {renderChart(chart)}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderKpiCard = (chart: ChartData, dashboardId?: string) => {
     // Extract KPI values from config or try to parse from description
-    let { value, trend, trendDirection, period, unit, target } = chart.config;
+    let { value, trend, trendDirection, unit, target } = chart.config;
+    const period = chart.config.period;
     
     // If no value in config, try to extract from description
     if (!value && chart.description) {
@@ -127,8 +236,22 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
       <div className="h-full flex flex-col p-4 bg-white">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-gray-600 truncate">{cleanTitle}</h3>
-          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-            <Target className="w-4 h-4 text-blue-600" />
+          <div className="flex items-center space-x-2">
+            {dashboardId && (
+              <button
+                onClick={() => {
+                  console.log('Delete KPI chart button clicked!', { chartId: chart.id, dashboardId });
+                  handleDeleteChart(chart.id, dashboardId);
+                }}
+                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                title="Delete KPI"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Target className="w-4 h-4 text-blue-600" />
+            </div>
           </div>
         </div>
         
@@ -306,7 +429,7 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                 ) : (
                   <Area 
                     type="monotone" 
-                    dataKey={chart.config.yKey} 
+                    dataKey={chart.config.yKey || 'value'} 
                     stroke={colors[0]}
                     fill={colors[0]}
                     fillOpacity={0.6}
@@ -317,41 +440,81 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
           );
 
         case 'pie':
-        case 'donut':
+        case 'donut': {
+          // Ensure data is properly formatted for pie chart
+          const formattedData = chart.data.map((item, index) => ({
+            ...item,
+            fill: colors[index % colors.length]
+          }));
+
+          console.log('DashboardBot Pie chart data:', formattedData);
+          console.log('DashboardBot Pie chart config:', chart.config);
+
+          // Validate data structure
+          if (!formattedData || formattedData.length === 0) {
+            return (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                No data available for pie chart
+              </div>
+            );
+          }
+
           return (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={chart.data}
+                  data={formattedData}
                   cx="50%"
                   cy="50%"
                   outerRadius="70%"
                   innerRadius={chart.type === 'donut' ? "35%" : 0}
                   fill="#8884d8"
-                  dataKey={chart.config.valueKey}
-                  nameKey={chart.config.nameKey}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  dataKey={chart.config.valueKey || 'value'}
+                  nameKey={chart.config.nameKey || 'name'}
+                  label={false}
                   labelLine={false}
-                  fontSize={10}
+                  stroke="#fff"
+                  strokeWidth={2}
                 >
-                  {chart.data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+                  {formattedData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill || colors[index % colors.length]} />
                   ))}
                 </Pie>
-                {chart.config.showTooltip && (
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#fff', 
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      fontSize: '12px'
-                    }}
-                  />
-                )}
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: '#fff', 
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    fontSize: '12px'
+                  }}
+                  formatter={(value: number, name: string) => {
+                    const total = formattedData.reduce((sum: number, item: Record<string, unknown>) => sum + (Number(item[chart.config.valueKey || 'value']) || 0), 0);
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return [`${value} (${percentage}%)`, name];
+                  }}
+                />
+                <Legend 
+                  verticalAlign="bottom"
+                  height={40}
+                  iconType="circle"
+                  wrapperStyle={{ 
+                    paddingTop: '15px',
+                    fontSize: '12px'
+                  }}
+                  formatter={(value: string, entry: any) => {
+                    if (entry.payload && entry.payload.value) {
+                      const total = formattedData.reduce((sum: number, item: Record<string, unknown>) => sum + (Number(item[chart.config.valueKey || 'value']) || 0), 0);
+                      const percentage = ((Number(entry.payload.value) / total) * 100).toFixed(0);
+                      return `${value} ${percentage}%`;
+                    }
+                    return value;
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           );
+        }
 
         case 'scatter':
           return (
@@ -456,7 +619,7 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
     setEditName(currentName);
   };
 
-  const handleSaveEdit = (dashboardId: string) => {
+  const handleSaveEdit = () => {
     setEditingDashboard(null);
     setEditName('');
   };
@@ -490,7 +653,7 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
     }
   };
 
-  const getLayoutForDashboard = (dashboardId: string): Layout[] => {
+  const getLayoutForDashboard = React.useCallback((dashboardId: string): Layout[] => {
     const dashboard = dashboards.find(d => d.id === dashboardId);
     if (!dashboard) return [];
     
@@ -499,18 +662,59 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
       return layouts[dashboardId];
     }
     
-    // Otherwise, generate layout from chart data
-    const layout = dashboard.charts.map((chart, index) => ({
-      i: chart.id,
-      x: chart.layout?.x ?? (index % 2) * 6, // 2 columns by default
-      y: chart.layout?.y ?? Math.floor(index / 2) * 4,
-      w: chart.layout?.w ?? (chart.type === 'kpi' ? 3 : 6), // KPIs are smaller
-      h: chart.layout?.h ?? (chart.type === 'kpi' ? 2 : 4),
-      minW: chart.type === 'kpi' ? 2 : 3,
-      minH: chart.type === 'kpi' ? 1 : 2,
-      maxW: 12,
-      maxH: 8
-    }));
+    // Generate layout for all components (charts + insights)
+    const layout: Layout[] = [];
+    let currentY = 0;
+    
+    dashboard.charts.forEach((chart) => {
+      // Add main chart - takes up left 2/3 (8 columns out of 12)
+      layout.push({
+        i: chart.id,
+        x: chart.layout?.x ?? 0, // Always start at left edge
+        y: chart.layout?.y ?? currentY,
+        w: chart.layout?.w ?? (chart.type === 'kpi' ? 4 : 8), // 8 columns for charts, 4 for KPIs
+        h: chart.layout?.h ?? (chart.type === 'kpi' ? 2 : 6),
+        minW: chart.type === 'kpi' ? 2 : 6,
+        minH: chart.type === 'kpi' ? 1 : 4,
+        maxW: 12,
+        maxH: 10
+      });
+      
+      // Add insights as separate components on the right 1/3 (4 columns)
+      if (chart.insights?.keyFinding) {
+        layout.push({
+          i: `${chart.id}-keyfinding`,
+          x: chart.layout?.x ?? 8, // Start at column 8 (right 1/3)
+          y: chart.layout?.y ?? currentY,
+          w: 4, // 4 columns for insights
+          h: 3, // Height for key finding
+          minW: 3,
+          minH: 2,
+          maxW: 6,
+          maxH: 6
+        });
+      }
+      
+      if (chart.insights?.recommendation) {
+        layout.push({
+          i: `${chart.id}-recommendation`,
+          x: chart.layout?.x ?? 8, // Start at column 8 (right 1/3)
+          y: chart.layout?.y ?? currentY + (chart.insights?.keyFinding ? 3 : 0), // Below key finding if it exists
+          w: 4, // 4 columns for insights
+          h: 3, // Height for recommendation
+          minW: 3,
+          minH: 2,
+          maxW: 6,
+          maxH: 6
+        });
+      }
+      
+      // Move down for next chart - calculate based on chart height and insights
+      const chartHeight = chart.type === 'kpi' ? 2 : 6;
+      const insightsHeight = (chart.insights?.keyFinding ? 3 : 0) + (chart.insights?.recommendation ? 3 : 0);
+      const maxHeight = Math.max(chartHeight, insightsHeight);
+      currentY += maxHeight + 1; // Add 1 for spacing
+    });
     
     // Store the generated layout
     setLayouts(prev => ({
@@ -519,29 +723,8 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
     }));
     
     return layout;
-  };
+  }, [dashboards, layouts]);
 
-  const addChartToLayout = (dashboardId: string, chart: ChartData) => {
-    const currentLayout = getLayoutForDashboard(dashboardId);
-    const maxY = currentLayout.length > 0 ? Math.max(...currentLayout.map(l => l.y + l.h)) : 0;
-    
-    const newLayoutItem: Layout = {
-      i: chart.id,
-      x: 0,
-      y: maxY,
-      w: chart.type === 'kpi' ? 3 : 6,
-      h: chart.type === 'kpi' ? 2 : 4,
-      minW: chart.type === 'kpi' ? 2 : 3,
-      minH: chart.type === 'kpi' ? 1 : 2,
-      maxW: 12,
-      maxH: 8
-    };
-    
-    setLayouts(prev => ({
-      ...prev,
-      [dashboardId]: [...currentLayout, newLayoutItem]
-    }));
-  };
 
   // Initialize layouts when dashboards change
   React.useEffect(() => {
@@ -550,7 +733,7 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
         getLayoutForDashboard(dashboard.id);
       }
     });
-  }, [dashboards]);
+  }, [dashboards, layouts, getLayoutForDashboard]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString([], { 
@@ -688,8 +871,8 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
-                        onBlur={() => handleSaveEdit(dashboard.id)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit(dashboard.id)}
+                        onBlur={() => handleSaveEdit()}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSaveEdit()}
                         className="text-lg font-semibold text-gray-900 bg-transparent border-b border-blue-500 focus:outline-none"
                         autoFocus
                       />
@@ -716,6 +899,16 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                 </div>
                 
                 <div className="flex items-center space-x-2">
+                  {dashboard.charts.length > 0 && (
+                    <button
+                      onClick={() => handleExportDashboard(dashboard)}
+                      disabled={isExporting}
+                      className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Export to PPT"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEditDashboard(dashboard.id, dashboard.name)}
                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
@@ -750,20 +943,113 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                     margin={[16, 16]}
                     containerPadding={[0, 0]}
                   >
-                    {dashboard.charts.map((chart) => (
-                      <div
-                        key={chart.id}
-                        className="bg-white rounded-lg border border-gray-200 shadow-sm"
-                        style={{ 
-                          display: 'flex',
-                          flexDirection: 'column',
-                          height: '100%',
-                          overflow: 'hidden'
-                        }}
-                      >
-                        {renderSingleChart(chart)}
-                      </div>
-                    ))}
+                    {dashboard.charts.flatMap((chart) => {
+                      const components = [];
+                      
+                      // Add the main chart
+                      components.push(
+                        <div
+                          key={chart.id}
+                          data-chart-id={chart.id}
+                          className="bg-white rounded-lg border border-gray-200 shadow-sm"
+                          style={{ 
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '100%',
+                            overflow: 'hidden'
+                          }}
+                        >
+                          {renderSingleChart(chart, dashboard.id)}
+                        </div>
+                      );
+                      
+                      // Add insights as separate components if they exist
+                      if (chart.insights?.keyFinding) {
+                        components.push(
+                          <div
+                            key={`${chart.id}-keyfinding`}
+                            data-chart-id={`${chart.id}-keyfinding`}
+                            className="bg-white rounded-lg border border-gray-200 shadow-sm"
+                            style={{ 
+                              display: 'flex',
+                              flexDirection: 'column',
+                              height: '100%',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <div className="p-4 h-full flex flex-col">
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-semibold text-gray-900">Key Finding</h3>
+                                <button
+                                  onClick={() => {
+                                    console.log('Delete keyfinding button clicked!', { chartId: chart.id, dashboardId: dashboard.id });
+                                    handleDeleteInsight(chart.id, 'keyfinding', dashboard.id);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                                  title="Delete Key Finding"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="bg-amber-50 rounded-lg p-3 flex-1">
+                                <div className="flex items-start space-x-2">
+                                  <div className="w-5 h-5 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <Lightbulb className="w-3 h-3 text-amber-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-amber-700">{chart.insights.keyFinding}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      if (chart.insights?.recommendation) {
+                        components.push(
+                          <div
+                            key={`${chart.id}-recommendation`}
+                            data-chart-id={`${chart.id}-recommendation`}
+                            className="bg-white rounded-lg border border-gray-200 shadow-sm"
+                            style={{ 
+                              display: 'flex',
+                              flexDirection: 'column',
+                              height: '100%',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            <div className="p-4 h-full flex flex-col">
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-semibold text-gray-900">Recommendation</h3>
+                                <button
+                                  onClick={() => {
+                                    console.log('Delete recommendation button clicked!', { chartId: chart.id, dashboardId: dashboard.id });
+                                    handleDeleteInsight(chart.id, 'recommendation', dashboard.id);
+                                  }}
+                                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors duration-200"
+                                  title="Delete Recommendation"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="bg-green-50 rounded-lg p-3 flex-1">
+                                <div className="flex items-start space-x-2">
+                                  <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                    <Target className="w-3 h-3 text-green-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm text-green-700">{chart.insights.recommendation}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return components;
+                    })}
                   </ResponsiveGridLayout>
                 ) : (
                   <div className="text-center py-8">
@@ -779,6 +1065,57 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Export Status Indicator */}
+      {isExporting && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg border border-gray-200 p-4 z-50">
+          <div className="flex items-center space-x-3">
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">Exporting to PPT...</p>
+              <p className="text-xs text-gray-500">{exportProgress}% complete</p>
+            </div>
+          </div>
+          <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
+            <div 
+              className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+              style={{ width: `${exportProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Export Success/Error Messages */}
+      {success && (
+        <div className="fixed bottom-4 right-4 bg-green-50 border border-green-200 rounded-lg shadow-lg p-4 z-50">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full"></div>
+            </div>
+            <p className="text-sm text-green-700">PowerPoint exported successfully!</p>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 rounded-lg shadow-lg p-4 z-50">
+          <div className="flex items-center space-x-2">
+            <div className="w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full"></div>
+            </div>
+            <div>
+              <p className="text-sm text-red-700">Export failed</p>
+              <p className="text-xs text-red-600">{error}</p>
+            </div>
+            <button
+              onClick={resetExport}
+              className="text-red-600 hover:text-red-800 text-xs underline ml-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal for when there are existing dashboards */}
       {showCreateModal && (

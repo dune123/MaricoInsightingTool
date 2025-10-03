@@ -34,30 +34,28 @@ export const navigateToDashboard = (): void => {
   let dashboardUrl: string;
   
   if (isDevelopment) {
-    // Development URLs
+    // Development URLs - PROJECTB runs on root path, not /dashboard
     dashboardUrl = 'http://localhost:8082';
   } else {
-    // Production URLs (Azure deployment)
-    // TODO: Update with actual production URLs when deployed
-    dashboardUrl = 'https://your-dashboard.azurestaticapps.net';
+    // Production URLs - Use environment variable or fallback
+    dashboardUrl = import.meta.env.VITE_DASHBOARD_URL || 'https://brandbloom-dashboard.azurestaticapps.net';
   }
   
   try {
-    // Open PROJECT B in a new tab
+    // Open PROJECT B in a new tab while keeping current tab active
     const newWindow = window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
     
-    if (!newWindow) {
-      // Fallback if popup was blocked
-      console.warn('Popup blocked, redirecting in same window');
-      window.location.href = dashboardUrl;
+    if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+      // If popup was blocked, show user a message but DON'T redirect current tab
+      console.warn('Popup blocked. Please allow popups for this site to open the dashboard.');
+      alert(`Popup blocked! Please allow popups for this site and try again.\n\nOr manually visit: ${dashboardUrl}`);
     } else {
-      // Focus the new window
-      newWindow.focus();
+      // Successfully opened in new tab - don't focus it, keep current tab active
+      console.log('Dashboard opened in new tab:', dashboardUrl);
     }
   } catch (error) {
     console.error('Error navigating to dashboard:', error);
-    // Fallback: redirect in same window
-    window.location.href = dashboardUrl;
+    alert(`Unable to open dashboard. Please manually visit: ${dashboardUrl}`);
   }
 };
 
@@ -95,8 +93,8 @@ export const getDashboardUrl = (): string => {
   if (isDevelopment) {
     return 'http://localhost:8082';
   } else {
-    // Production URL - update when deployed
-    return 'https://your-dashboard.azurestaticapps.net';
+    // Production URL - Use environment variable or fallback
+    return import.meta.env.VITE_DASHBOARD_URL || 'https://brandbloom-dashboard.azurestaticapps.net';
   }
 };
 

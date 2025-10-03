@@ -3,7 +3,7 @@ export interface ChartData {
   type: 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'donut' | 'kpi';
   title: string;
   description?: string;
-  data: any[];
+  data: Record<string, unknown>[];
   config: {
     xKey?: string;
     yKey?: string | string[];
@@ -28,13 +28,24 @@ export interface ChartData {
     w: number;
     h: number;
   };
+  // Insights data for dashboard display
+  insights?: {
+    keyFinding?: string;
+    businessImpact?: string;
+    recommendation?: string;
+    supportingData?: string;
+    quantifiedRecommendation?: string;
+    actionItems?: string[];
+    riskFactors?: string[];
+    opportunities?: string[];
+  };
 }
 
 export interface AnalysisResult {
   summary: string;
   insights: string[];
   charts: ChartData[];
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface DashboardHistoryItem {

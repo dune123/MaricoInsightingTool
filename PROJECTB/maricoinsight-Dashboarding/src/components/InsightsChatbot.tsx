@@ -2,21 +2,21 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Document } from '../App';
 import { AzureOpenAIService } from '../lib/azure-openai';
 import { FileParser } from '../lib/file-parser';
-import { AnalysisResult } from '../types/chart';
 import { 
+  MessageCircle, 
   Send, 
   Bot, 
   User, 
   Loader, 
   AlertCircle,
-  TrendingUp,
-  BarChart3,
   Lightbulb,
+  Brain,
   FileSpreadsheet,
-  Plus
+  Plus,
+  FileText,
 } from 'lucide-react';
 
-interface ChartingChatbotProps {
+interface InsightsChatbotProps {
   azureConfig: {
     apiKey: string;
     endpoint: string;
@@ -27,25 +27,24 @@ interface ChartingChatbotProps {
   onSelectDocument: (doc: Document) => void;
   onDocumentUpload: (file: File) => void;
   onDocumentUpdate: (doc: Document) => void;
-  onNewAnalysis: (question: string, analysis: AnalysisResult) => void;
+  onFirstUserMessage?: (message: string) => void;
 }
 
 interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  charts?: import('../types/chart').ChartData[];
   timestamp: Date;
 }
 
-export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
+export const InsightsChatbot: React.FC<InsightsChatbotProps> = ({
   azureConfig,
   selectedDocument,
   documents,
   onSelectDocument,
   onDocumentUpload,
   onDocumentUpdate,
-  onNewAnalysis
+  onFirstUserMessage
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -93,20 +92,29 @@ export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
       // Only set welcome message if messages array is empty or only has old welcome messages
       setMessages(prev => {
         const hasWelcomeMessage = prev.some(msg => msg.id === 'welcome' || msg.id === 'welcome-ready');
+        const hasColumnMessage = prev.some(msg => 
+          msg.id === 'welcome-ready' && msg.content.includes('I can see you\'ve selected') && msg.content.includes('columns')
+        );
+        
+        // If there's a column message, preserve it and don't replace it
+        if (hasColumnMessage) {
+          return prev;
+        }
+        
         if (hasWelcomeMessage && prev.length === 1) {
           return [{
             id: 'welcome',
             role: 'assistant',
-            content: `Hello! I'm your FMCG business insights consultant. I've analyzed your document "${selectedDocument.name}" and I'm ready to help you discover actionable insights.
+            content: `Hello! I'm your business insights consultant. I've analyzed your document "${selectedDocument.name}" and I'm ready to provide detailed strategic recommendations and actionable insights.
 
-Here are some questions you can ask me:
-• What are the key trends in this data?
-• How is our product performing compared to competitors?
-• What opportunities do you see for growth?
-• Can you analyze the seasonal patterns?
-• What recommendations do you have for improving sales?
+Here are some strategic questions you can ask me:
+• What are the key business opportunities in this data?
+• How can we improve our competitive positioning?
+• What strategic recommendations do you have?
+• What market trends should we be aware of?
+• How can we optimize our business performance?
 
-Feel free to ask me anything about your data!`,
+I focus on providing detailed business insights and strategic advice without generating charts or visualizations.`,
             timestamp: new Date()
           }];
         }
@@ -119,7 +127,12 @@ Feel free to ask me anything about your data!`,
           return [{
             id: 'welcome-ready',
             role: 'assistant',
-            content: `Hello! I can see you've selected "${selectedDocument.name}"${columnInfo.columns.length > 0 ? ` with ${columnInfo.columns.length} columns` : ''}. I'm ready to help you analyze your data and discover insights.`,
+            content: `Hello! I can see you've selected "${selectedDocument.name}"${columnInfo.columns.length > 0 ? ` with ${columnInfo.columns.length} columns` : ''}. I'm ready to provide detailed business insights and strategic recommendations based on your data.
+
+**Column Names:**
+${columnInfo.columns.length > 0 ? columnInfo.columns.map((col, index) => `${index + 1}. ${col}`).join('\n') : 'No columns detected'}
+
+You can ask me questions about any of these columns or request strategic analysis of your data.`,
             timestamp: new Date()
           }];
         }
@@ -140,7 +153,12 @@ Feel free to ask me anything about your data!`,
         if (prev.length === 1 && prev[0].id === 'welcome-ready') {
           return [{
             ...prev[0],
-            content: `Hello! I can see you've selected "${selectedDocument.name}" with ${columnInfo.columns.length} columns. I'm ready to help you analyze your data and discover insights.`,
+            content: `Hello! I can see you've selected "${selectedDocument.name}" with ${columnInfo.columns.length} columns. I'm ready to provide detailed business insights and strategic recommendations based on your data.
+
+**Column Names:**
+${columnInfo.columns.map((col, index) => `${index + 1}. ${col}`).join('\n')}
+
+You can ask me questions about any of these columns or request strategic analysis of your data.`,
           }];
         }
         return prev;
@@ -198,9 +216,14 @@ Feel free to ask me anything about your data!`,
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
+    
+    // Capture first user message
+    if (onFirstUserMessage && messages.length === 0) {
+      onFirstUserMessage(userMessageContent);
+    }
+    
     setIsLoading(true);
     setError(null);
-
     try {
       if (!selectedDocument?.assistantId || !selectedDocument?.threadId) {
         // If document hasn't been analyzed yet, analyze it first
@@ -212,55 +235,65 @@ Feel free to ask me anything about your data!`,
         
         const azureService = new AzureOpenAIService(azureConfig);
         
-        const { analysis, assistantId, threadId } = await azureService.analyzeDocument(selectedDocument!.file!);
+        // Create insights bot session and send first message with file
+        const assistantResponse = await azureService.createInsightsBotSessionWithFile(
+          selectedDocument!.file!,
+          userMessageContent
+        );
         
-        // Update the document with analysis results
+        // Update the document with session info (no analysis since this is insights bot)
         const completedDoc = {
           ...selectedDocument!,
-          assistantId,
-          threadId,
-          analysis,
+          assistantId: assistantResponse.assistantId,
+          threadId: assistantResponse.threadId,
+          analysis: {
+            summary: 'Insights bot session created - ready for strategic analysis',
+            insights: [],
+            charts: [],
+            metadata: {}
+          },
           status: 'completed' as const
         };
         onDocumentUpdate(completedDoc);
         setIsAnalyzing(false);
         
-        // Now send the chat message with the newly created assistant
-        const assistantResponse = await azureService.sendChatMessage(
-          threadId,
-          assistantId,
-          userMessageContent
-        );
-        
-        setMessages(prev => [...prev, assistantResponse]);
+        // Preserve the initial column analysis message if it exists
+        setMessages(prev => {
+          // Find the column analysis message (usually the first assistant message with welcome-ready ID)
+          const columnAnalysisMessage = prev.find(msg => 
+            (msg.id === 'welcome-ready' || msg.id === 'welcome') ||
+            (msg.role === 'assistant' && (
+              msg.content.includes('I can see you\'ve selected') ||
+              msg.content.includes('with') && msg.content.includes('columns') ||
+              msg.content.includes('COLUMNS:') || 
+              msg.content.includes('columns:') ||
+              msg.content.includes('Column names:') ||
+              msg.content.includes('Here are the columns')
+            ))
+          );
+          
+          if (columnAnalysisMessage) {
+            // Keep the column analysis message and add the new response
+            return [...prev, assistantResponse.message];
+          } else {
+            // No column analysis to preserve, just add the new response
+            return [...prev, assistantResponse.message];
+          }
+        });
       } else {
-        // Document already analyzed, send message directly
+        // Document already analyzed, send message directly using insights method
         const azureService = new AzureOpenAIService(azureConfig);
-        const assistantResponse = await azureService.sendChatMessage(
+        
+        const assistantResponse = await azureService.sendInsightsChatMessage(
           selectedDocument!.threadId,
           selectedDocument!.assistantId,
           userMessageContent
         );
 
         setMessages(prev => [...prev, assistantResponse]);
-        
-        // If the response contains charts, create a new analysis result and add to dashboard history
-        if (assistantResponse.charts && assistantResponse.charts.length > 0) {
-          const newAnalysis: AnalysisResult = {
-            summary: assistantResponse.content,
-            insights: [], // Could extract insights from content if needed
-            charts: assistantResponse.charts,
-            metadata: {
-              questionAsked: userMessageContent,
-              responseTime: new Date().toISOString(),
-              chartCount: assistantResponse.charts.length
-            }
-          };
-          onNewAnalysis(userMessageContent, newAnalysis);
-        }
       }
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error('Insights chat error:', error);
       setError(error instanceof Error ? error.message : 'Failed to send message');
       
       // If analysis failed, update document status back to ready
@@ -295,17 +328,40 @@ Feel free to ask me anything about your data!`,
   };
 
   const suggestedQuestions = [
-    "What are the key performance indicators in this data?",
-    "Can you identify any seasonal trends or patterns?",
-    "What recommendations do you have for improving sales?",
-    "How does our product performance compare to benchmarks?",
-    "What opportunities do you see for market expansion?"
+    "What strategic opportunities do you see in this data?",
+    "How can we improve our competitive positioning?",
+    "What are the key business risks we should address?",
+    "What market trends should influence our strategy?",
+    "How can we optimize our business performance?"
   ];
 
   return (
     <div className="flex flex-col h-full bg-white">
       {/* FIXED HEADER */}
       <div className="p-4 border-b border-gray-100 flex-shrink-0 bg-white">
+        {/* Document Selection */}
+        {availableDocuments.length > 0 && (
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Document
+            </label>
+            <select
+              value={selectedDocument?.id || ''}
+              onChange={(e) => {
+                const doc = documents.find(d => d.id === e.target.value);
+                if (doc) onSelectDocument(doc);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white"
+            >
+              <option value="">Select a document...</option>
+              {availableDocuments.map((doc) => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.name} ({doc.status})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* SCROLLABLE MESSAGES */}
@@ -321,37 +377,22 @@ Feel free to ask me anything about your data!`,
                 }`}
               >
                 {message.role === 'assistant' && (
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                    <Bot className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                    <Brain className="w-4 h-4 text-purple-600" />
                   </div>
                 )}
                 
                 <div
                   className={`max-w-3xl rounded-lg p-4 ${
                     message.role === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-purple-600 text-white'
                       : 'bg-gray-100 text-gray-900'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
-                  
-                  {/* Display chart notifications if available */}
-                  {message.charts && message.charts.length > 0 && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center space-x-2 text-blue-700">
-                        <BarChart3 className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {message.charts.length} chart{message.charts.length !== 1 ? 's' : ''} generated
-                        </span>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1">
-                        Check the dashboard view to see your interactive visualizations
-                      </p>
-                    </div>
-                  )}
+                  <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                   
                   <div className={`text-xs mt-2 ${
-                    message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                    message.role === 'user' ? 'text-purple-100' : 'text-gray-500'
                   }`}>
                     {formatTimestamp(message.timestamp)}
                   </div>
@@ -366,16 +407,16 @@ Feel free to ask me anything about your data!`,
             ))}
 
             {/* Column Information Display */}
-            {selectedDocument && !selectedDocument.assistantId && columnInfo.columns.length > 0 && 
-             messages.length <= 1 && !isLoading && !isAnalyzing && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            {selectedDocument && columnInfo.columns.length > 0 && 
+             !isLoading && !isAnalyzing && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
                 <div className="flex items-center space-x-2 mb-3">
-                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">
+                  <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">
                     Data Structure ({columnInfo.columns.length} columns)
                   </span>
                   {columnInfo.rowCount && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
                       {columnInfo.rowCount} rows
                     </span>
                   )}
@@ -384,28 +425,32 @@ Feel free to ask me anything about your data!`,
                   {columnInfo.columns.map((column, index) => (
                     <div
                       key={index}
-                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-blue-200 whitespace-nowrap"
+                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-purple-200 whitespace-nowrap"
                     >
                       {column}
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 text-xs text-blue-600">
-                  💡 Ask me about specific columns or relationships in your data!
+                <div className="mt-3 text-xs text-purple-600">
+                  💡 Ask me for strategic insights about your data!
                 </div>
               </div>
             )}
 
             {isLoading && (
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Brain className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="bg-gray-100 rounded-lg p-4">
                   <div className="flex items-center space-x-2">
-                    <Loader className="w-4 h-4 animate-spin text-blue-600" />
-                    <span className="text-gray-600">
-                      {isAnalyzing ? 'Analyzing document and processing your question...' : 'Processing your question...'}
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '0ms', animationDuration: '1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '150ms', animationDuration: '1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '300ms', animationDuration: '1s' }}></div>
+                    </div>
+                    <span className="text-gray-700 text-sm font-medium">
+                      {isAnalyzing ? 'Analyzing your document...' : 'Crafting strategic insights...'}
                     </span>
                   </div>
                 </div>
@@ -414,15 +459,15 @@ Feel free to ask me anything about your data!`,
 
             {isAnalyzing && !isLoading && (
               <div className="flex items-start space-x-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Brain className="w-4 h-4 text-purple-600" />
                 </div>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                   <div className="flex items-center space-x-2">
-                    <Loader className="w-4 h-4 animate-spin text-blue-600" />
-                    <span className="text-blue-700 font-medium">Analyzing document...</span>
+                    <Loader className="w-4 h-4 animate-spin text-purple-600" />
+                    <span className="text-purple-700 font-medium">Analyzing document for strategic insights...</span>
                   </div>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-purple-600 mt-1">
                     This may take up to 60 seconds. Your question will be processed once analysis is complete.
                   </p>
                 </div>
@@ -430,18 +475,18 @@ Feel free to ask me anything about your data!`,
             )}
 
             {/* Suggested Questions */}
-            {selectedDocument && messages.length <= 1 && selectedDocument?.assistantId && (
+            {selectedDocument && selectedDocument?.assistantId && (
               <div className="py-3">
                 <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
-                  Suggested Questions
+                  Strategic Questions
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   {suggestedQuestions.map((question, index) => (
                     <button
                       key={index}
                       onClick={() => setInputMessage(question)}
-                      className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-full hover:bg-blue-100 transition-colors duration-200"
+                      className="text-xs bg-purple-50 text-purple-700 px-3 py-2 rounded-full hover:bg-purple-100 transition-colors duration-200"
                     >
                       {question}
                     </button>
@@ -456,10 +501,23 @@ Feel free to ask me anything about your data!`,
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <BarChart3 className="w-6 h-6 text-gray-400" />
+                <Brain className="w-6 h-6 text-gray-400" />
               </div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">Ready to Analyze</h3>
-              <p className="text-xs text-gray-600">Upload a document using the + button to start</p>
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">Ready for Strategic Analysis</h3>
+              <p className="text-xs text-gray-600 mb-4">Upload a document to get detailed business insights</p>
+              <label className="cursor-pointer">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="sr-only"
+                  accept=".pdf,.csv,.xlsx,.xls,.txt,.docx"
+                  onChange={handleFileInputChange}
+                />
+                <div className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-200 inline-flex items-center space-x-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Upload Document</span>
+                </div>
+              </label>
             </div>
           </div>
         )}
@@ -481,8 +539,8 @@ Feel free to ask me anything about your data!`,
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me about your document..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                placeholder="Ask me about business insights..."
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
                 rows={2}
                 disabled={isLoading || !selectedDocument}
               />
@@ -490,7 +548,7 @@ Feel free to ask me anything about your data!`,
             <button
               onClick={handleSendMessage}
               disabled={!inputMessage.trim() || isLoading || !selectedDocument}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-2"
+              className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-2"
             >
               <Send className="w-4 h-4" />
               <span>Send</span>
@@ -499,15 +557,9 @@ Feel free to ask me anything about your data!`,
           
           <div className="flex items-center justify-between mt-3 text-xs text-gray-500">
             <span>Press Enter to send, Shift+Enter for new line</span>
-            <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1">
-                <TrendingUp className="w-3 h-3" />
-                <span>AI Insights</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <BarChart3 className="w-3 h-3" />
-                <span>Data Analysis</span>
-              </div>
+            <div className="flex items-center space-x-1">
+              <Brain className="w-3 h-3" />
+              <span>Business Insights</span>
             </div>
           </div>
         </div>

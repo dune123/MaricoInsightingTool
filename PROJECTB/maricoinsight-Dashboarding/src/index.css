@@ -1,0 +1,375 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  /* Thinking Animation Keyframes */
+  @keyframes thinking-pulse {
+    0%, 100% {
+      opacity: 0.4;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes thinking-bounce {
+    0%, 80%, 100% {
+      transform: translateY(0);
+      opacity: 0.3;
+    }
+    40% {
+      transform: translateY(-8px);
+      opacity: 1;
+    }
+  }
+
+  @keyframes thinking-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes thinking-slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes thinking-progress {
+    from {
+      width: 0%;
+    }
+    to {
+      width: 100%;
+    }
+  }
+
+  /* Thinking Component Styles */
+  .thinking-pulse {
+    animation: thinking-pulse 2s ease-in-out infinite;
+  }
+
+  .thinking-bounce {
+    animation: thinking-bounce 1.4s ease-in-out infinite;
+  }
+
+  .thinking-fade-in {
+    animation: thinking-fade-in 0.3s ease-out;
+  }
+
+  .thinking-slide-in {
+    animation: thinking-slide-in 0.4s ease-out;
+  }
+
+  .thinking-progress {
+    animation: thinking-progress 2s ease-out;
+  }
+
+  /* Thinking Step Transitions */
+  .thinking-step-enter {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  .thinking-step-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: all 0.3s ease-out;
+  }
+
+  .thinking-step-exit {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .thinking-step-exit-active {
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.2s ease-in;
+  }
+
+  /* Thinking Dots Animation */
+  .thinking-dot-1 {
+    animation: thinking-bounce 1.4s ease-in-out infinite;
+    animation-delay: 0ms;
+  }
+
+  .thinking-dot-2 {
+    animation: thinking-bounce 1.4s ease-in-out infinite;
+    animation-delay: 150ms;
+  }
+
+  .thinking-dot-3 {
+    animation: thinking-bounce 1.4s ease-in-out infinite;
+    animation-delay: 300ms;
+  }
+
+  /* Thinking Container Styles - ChatGPT Style */
+  .thinking-container {
+    @apply bg-white border border-gray-200 rounded-lg shadow-sm;
+  }
+
+  .thinking-step-active {
+    @apply bg-blue-50 border-blue-300 shadow-md ring-2 ring-blue-100;
+  }
+
+  .thinking-step-completed {
+    @apply bg-green-50 border-green-300;
+  }
+
+  .thinking-step-error {
+    @apply bg-red-50 border-red-300;
+  }
+
+  /* Thinking Progress Bar */
+  .thinking-progress-bar {
+    @apply w-full bg-gray-200 rounded-full h-1.5 overflow-hidden;
+  }
+
+  .thinking-progress-fill {
+    @apply h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-300 ease-out;
+  }
+
+  /* Thinking Tool Call Styles */
+  .thinking-tool-call {
+    @apply bg-orange-50 border border-orange-200 rounded-lg p-3;
+  }
+
+  .thinking-code-execution {
+    @apply bg-gray-50 border border-gray-300 rounded-lg p-3 font-mono text-sm;
+  }
+
+  /* Thinking Confidence Indicator */
+  .thinking-confidence {
+    @apply flex items-center space-x-2 text-xs text-gray-600;
+  }
+
+  .thinking-confidence-bar {
+    @apply flex-1 bg-gray-200 rounded-full h-1.5 overflow-hidden;
+  }
+
+  .thinking-confidence-fill {
+    @apply h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 rounded-full transition-all duration-500 ease-out;
+  }
+
+  /* ChatGPT-style Code Block */
+  .thinking-code-block {
+    @apply bg-gray-900 text-white rounded-lg p-4 font-mono text-sm;
+  }
+
+  .thinking-code-header {
+    @apply flex items-center justify-between mb-2;
+  }
+
+  .thinking-code-lang {
+    @apply text-xs text-gray-400 uppercase tracking-wide;
+  }
+
+  .thinking-code-badges {
+    @apply flex items-center space-x-2;
+  }
+
+  .thinking-code-badge {
+    @apply text-xs px-2 py-1 rounded;
+  }
+
+  .thinking-code-badge-tool {
+    @apply bg-green-600 text-white;
+  }
+
+  .thinking-code-badge-confidence {
+    @apply bg-blue-600 text-white;
+  }
+
+  /* ChatGPT-style Result Section */
+  .thinking-result {
+    @apply mt-3;
+  }
+
+  .thinking-result-label {
+    @apply text-xs font-medium text-gray-700 mb-2;
+  }
+
+  .thinking-result-success {
+    @apply bg-green-50 border border-green-200 rounded-lg p-3;
+  }
+
+  .thinking-result-error {
+    @apply bg-red-50 border border-red-200 rounded-lg p-3;
+  }
+
+  .thinking-result-content {
+    @apply flex items-center space-x-2;
+  }
+
+  .thinking-result-success-text {
+    @apply text-green-700;
+  }
+
+  .thinking-result-error-text {
+    @apply text-red-700;
+  }
+
+  /* Thinking Timeline */
+  .thinking-timeline {
+    @apply relative;
+  }
+
+  .thinking-timeline::before {
+    content: '';
+    @apply absolute left-4 top-0 bottom-0 w-0.5 bg-gray-300;
+  }
+
+  .thinking-timeline-step {
+    @apply relative pl-8 pb-4;
+  }
+
+  .thinking-timeline-step::before {
+    content: '';
+    @apply absolute left-3 top-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-white shadow-sm;
+  }
+
+  /* Thinking Responsive Design */
+  @media (max-width: 640px) {
+    .thinking-container {
+      @apply mx-2;
+    }
+    
+    .thinking-step {
+      @apply p-2;
+    }
+  }
+
+  /* ChatGPT-like thinking animations */
+  .thinking-step-active {
+    animation: thinkingPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes thinkingPulse {
+    0%, 100% {
+      background-color: rgba(59, 130, 246, 0.05);
+    }
+    50% {
+      background-color: rgba(59, 130, 246, 0.1);
+    }
+  }
+
+  .thinking-typing-cursor {
+    animation: thinkingBlink 1s infinite;
+  }
+
+  @keyframes thinkingBlink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+  }
+
+  .thinking-step-completed {
+    animation: thinkingComplete 0.6s ease-out;
+  }
+
+  @keyframes thinkingComplete {
+    0% {
+      background-color: rgba(34, 197, 94, 0.1);
+      transform: scale(1);
+    }
+    50% {
+      background-color: rgba(34, 197, 94, 0.2);
+      transform: scale(1.02);
+    }
+    100% {
+      background-color: rgba(34, 197, 94, 0.05);
+      transform: scale(1);
+    }
+  }
+
+  /* Thinking Dark Mode Support */
+  @media (prefers-color-scheme: dark) {
+    .thinking-container {
+      @apply bg-gray-800 border-gray-700;
+    }
+    
+    .thinking-step-active {
+      @apply bg-blue-900 border-blue-700;
+    }
+    
+    .thinking-step-completed {
+      @apply bg-green-900 border-green-700;
+    }
+    
+    .thinking-step-error {
+      @apply bg-red-900 border-red-700;
+    }
+
+    .thinking-code-block {
+      @apply bg-gray-950;
+    }
+  }
+
+  /* Improved smooth transitions */
+  .thinking-smooth-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .thinking-fade-in-up {
+    animation: thinkingFadeInUp 0.4s ease-out;
+  }
+
+  @keyframes thinkingFadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Compact scrollbar for thinking containers */
+  .thinking-steps-container::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .thinking-steps-container::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 2px;
+  }
+
+  .thinking-steps-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 2px;
+  }
+
+  .thinking-steps-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Improved stuck indicator */
+  .thinking-stuck-indicator {
+    animation: thinkingStuckPulse 1s ease-in-out infinite;
+  }
+
+  @keyframes thinkingStuckPulse {
+    0%, 100% {
+      opacity: 0.6;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.05);
+    }
+  }
+}
