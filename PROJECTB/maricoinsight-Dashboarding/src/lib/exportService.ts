@@ -36,6 +36,10 @@ export interface ExportOptions {
   includeRiskFactors?: boolean;
   includeOpportunities?: boolean;
   imageQuality?: number;
+  chartScale?: number; // Scale factor for chart capture (default: 4)
+  chartWidth?: number; // Chart width in PowerPoint (default: 9.4)
+  chartHeight?: number; // Chart height in PowerPoint (default: 4.5)
+  enableHighDPI?: boolean; // Enable high-DPI rendering (default: true)
 }
 
 export interface ChartImage {
@@ -60,10 +64,16 @@ export interface ChartImage {
  */
 export const captureChartImage = async (
   chartElement: HTMLElement,
-  options: { quality?: number; backgroundColor?: string } = {}
+  options: { 
+    quality?: number; 
+    backgroundColor?: string;
+    scale?: number;
+    enableHighDPI?: boolean;
+  } = {}
 ): Promise<string> => {
   const {
-    backgroundColor = '#ffffff'
+    backgroundColor = '#ffffff',
+    scale = 4
   } = options;
 
   console.log(`🎯 Capturing chart element:`, {
@@ -94,10 +104,10 @@ export const captureChartImage = async (
     let captureMethod = 'html2canvas';
     
     try {
-      // Method 1: Direct html2canvas with minimal options
+      // Method 1: High-quality html2canvas with optimized settings
       canvas = await html2canvas(targetElement, {
         backgroundColor,
-        scale: 1, // Lower scale for better compatibility
+        scale: scale, // Use configurable scale for professional quality
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -109,18 +119,34 @@ export const captureChartImage = async (
         windowHeight: window.innerHeight,
         foreignObjectRendering: false, // Disable for better SVG handling
         removeContainer: false,
-        imageTimeout: 10000
+        imageTimeout: 15000, // Longer timeout for high-res capture
+        // pixelRatio: enableHighDPI ? (window.devicePixelRatio || 1) : 1, // Use device pixel ratio if enabled
+        onclone: (clonedDoc) => {
+          // Ensure all elements are visible and properly styled
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach(el => {
+            if (el instanceof HTMLElement) {
+              el.style.visibility = 'visible';
+              el.style.display = 'block';
+              el.style.opacity = '1';
+              // Ensure text is crisp
+              el.style.textRendering = 'optimizeLegibility';
+              (el.style as unknown as Record<string, string>).webkitFontSmoothing = 'antialiased';
+              (el.style as unknown as Record<string, string>).mozOsxFontSmoothing = 'grayscale';
+            }
+          });
+        }
       });
       
       console.log(`✅ html2canvas capture successful`);
     } catch (error) {
       console.warn(`⚠️ html2canvas failed, trying alternative method:`, error);
       
-      // Method 2: Try with different options
+      // Method 2: Alternative high-quality capture with different settings
       try {
         canvas = await html2canvas(targetElement, {
           backgroundColor,
-          scale: 2,
+          scale: Math.max(scale - 1, 2), // Slightly lower scale for fallback
           useCORS: false,
           allowTaint: false,
           logging: false,
@@ -132,15 +158,24 @@ export const captureChartImage = async (
           windowHeight: window.innerHeight,
           foreignObjectRendering: true,
           removeContainer: false,
-          imageTimeout: 15000,
+          imageTimeout: 20000, // Even longer timeout
+          // pixelRatio: enableHighDPI ? (window.devicePixelRatio || 1) : 1,
           onclone: (clonedDoc) => {
-            // Force all elements to be visible
+            // Force all elements to be visible and optimized
             const allElements = clonedDoc.querySelectorAll('*');
             allElements.forEach(el => {
               if (el instanceof HTMLElement) {
                 el.style.visibility = 'visible';
                 el.style.display = 'block';
                 el.style.opacity = '1';
+                // Enhanced text rendering
+                el.style.textRendering = 'optimizeLegibility';
+                (el.style as unknown as Record<string, string>).webkitFontSmoothing = 'antialiased';
+                (el.style as unknown as Record<string, string>).mozOsxFontSmoothing = 'grayscale';
+                // Ensure SVG elements are properly rendered
+                if (el.tagName === 'svg') {
+                  el.style.shapeRendering = 'geometricPrecision';
+                }
               }
             });
           }
@@ -154,7 +189,7 @@ export const captureChartImage = async (
       }
     }
 
-    const imageData = canvas.toDataURL('image/png', 0.95);
+    const imageData = canvas.toDataURL('image/png', 1.0); // Maximum quality PNG
     
     console.log(`✅ Chart captured successfully:`, {
       imageSize: imageData.length,
@@ -208,8 +243,18 @@ export const captureChartImage = async (
  */
 export const captureAllCharts = async (
   chartElements: HTMLElement[],
-  chartData: ChartData[]
+  chartData: ChartData[],
+  options: { 
+    chartScale?: number;
+    enableHighDPI?: boolean;
+    backgroundColor?: string;
+  } = {}
 ): Promise<ChartImage[]> => {
+  const {
+    chartScale = 4,
+    enableHighDPI = true,
+    backgroundColor = '#ffffff'
+  } = options;
   console.log(`🚀 Starting capture of ${chartData.length} charts with ${chartElements.length} elements`);
 
   const chartImages: ChartImage[] = [];
@@ -258,8 +303,9 @@ export const captureAllCharts = async (
         const fallbackElement = chartElements[i];
         try {
           const imageData = await captureChartImage(fallbackElement, {
-            quality: 2,
-            backgroundColor: '#ffffff'
+            scale: chartScale,
+            enableHighDPI: enableHighDPI,
+            backgroundColor: backgroundColor
           });
 
           chartImages.push({
@@ -282,8 +328,9 @@ export const captureAllCharts = async (
       console.log(`🎯 Capturing chart: ${chart.title} (ID: ${chart.id})`);
       
       const imageData = await captureChartImage(element, {
-        quality: 2,
-        backgroundColor: '#ffffff'
+        scale: chartScale,
+        enableHighDPI: enableHighDPI,
+        backgroundColor: backgroundColor
       });
 
       // Verify that we actually captured content
@@ -305,8 +352,9 @@ export const captureAllCharts = async (
           console.log(`🔄 Trying alternative capture for: ${chart.title}`);
           try {
             const alternativeImageData = await captureChartImage(rechartsWrapper, {
-              quality: 2,
-              backgroundColor: '#ffffff'
+              scale: chartScale,
+              enableHighDPI: enableHighDPI,
+              backgroundColor: backgroundColor
             });
             
             chartImages.push({
@@ -364,7 +412,9 @@ export const generatePowerPoint = async (
     includeRecommendations = true,
     includeActionItems = true,
     includeRiskFactors = true,
-    includeOpportunities = true
+    includeOpportunities = true,
+    chartWidth = 9.4,
+    chartHeight = 4.5
   } = options;
 
   console.log(`📊 Generating PowerPoint with ${chartImages.length} charts...`);
@@ -468,10 +518,10 @@ export const generatePowerPoint = async (
       try {
         slide.addImage({
           data: chartImage.imageData,
-          x: 0.5,
-          y: 1.5,
-          w: 9,
-          h: 4
+          x: 0.3,
+          y: 1.3,
+          w: chartWidth, // Configurable width for better chart visibility
+          h: chartHeight  // Configurable height for better chart visibility
         });
         
         console.log(`✅ Image added successfully for: ${chartImage.title}`);
@@ -897,8 +947,12 @@ export const exportDashboardToPPT = async (
     console.log(`📊 Charts to export: ${chartData.length}`);
     console.log(`🔍 Elements found: ${chartElements.length}`);
     
-    // Capture all charts as images
-    const chartImages = await captureAllCharts(chartElements, chartData);
+    // Capture all charts as images with quality options
+    const chartImages = await captureAllCharts(chartElements, chartData, {
+      chartScale: options.chartScale || 4,
+      enableHighDPI: options.enableHighDPI !== false,
+      backgroundColor: '#ffffff'
+    });
     
     if (chartImages.length === 0) {
       throw new Error('No charts found to export');
