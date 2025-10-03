@@ -1,0 +1,27 @@
+{
+  "analysisId": "x-men-non-mmm",
+  "brandName": "X-Men",
+  "analysisType": "NON_MMM",
+  "createdAt": "2025-09-17T05:32:28.012Z",
+  "lastModified": "2025-09-17T05:32:31.415Z",
+  "currentStep": 1,
+  "status": "in_progress",
+  "files": {
+    "originalFileName": null,
+    "concatenatedFileName": null,
+    "uploadedFiles": [],
+    "processedFiles": []
+  },
+  "progress": {
+    "dataUploaded": false,
+    "concatenationCompleted": false,
+    "targetVariableSelected": false,
+    "filtersApplied": false,
+    "brandCategorized": false,
+    "modelBuilt": false,
+    "resultsGenerated": false
+  },
+  "concatenationState": null,
+  "filterState": null,
+  "modelState": null
+}

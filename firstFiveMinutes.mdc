@@ -1,0 +1,394 @@
+---
+alwaysApply: false
+---
+Objectives
+
+Accept an Excel workbook, a user chosen sheet, and a user chosen target.
+
+Infer schema and FMCG semantics with only the target chosen by the user.
+
+Detect the task type quickly: regression, classification, or time series.
+
+Produce a First Five Minutes pack that includes a profile, top drivers, charts, and short recommendations.
+
+Return a compact JSON that the frontend can render.
+
+System flow
+
+Node owns session, routing, and caching. It calls Python with file path, sheet name, and target.
+
+Python reads the sheet, profiles, applies FMCG rules, chooses task, computes light stats and tiny baselines, writes insights, and returns JSON.
+
+Column universe in FMCG
+
+Your app should expect these column families and learn to recognize them by names and simple value checks.
+
+Time
+
+Examples: Date, Month, Year, ISO Week, Quarter, Fiscal Month, Fiscal Week
+Checks: parse to datetime, infer frequency, fix mixed formats, create standard keys like Year, Month, Week
+
+Product and pack
+
+Examples: Brand, Subbrand, SKU, Variant, Pack Size, Unit Size, Flavor, Category, Subcategory, Product Code, HSN
+Checks: split pack size into numeric and unit, normalize units to gram and milliliter, derive pack band, map product code formats, mark identifiers with very high uniqueness
+
+Geography
+
+Examples: Country, Region, Zone, State, City, Pincode, Store ID, Store Cluster
+Checks: whitelist known regions, normalize case, detect store code patterns, build hierarchical keys like State to City
+
+Channel and retailer
+
+Examples: Modern Trade, General Trade, Ecom, Quick Commerce, Pharmacy, Retailer Name, Banner, Store Tier
+Checks: unify channel labels, group long tails into Other, detect online versus offline flags
+
+Price and promotion
+
+Examples: MRP, List Price, Net Price, Effective Price, Discount Percent, Deal Depth, Promo Flag, TPR, Coupon, Feature, Display, Bundle, BOGO
+Checks: price greater than zero, net less than or equal to list, discount in zero to one, derive price per unit, expand promo flags into separate columns
+
+Distribution and availability
+
+Examples: Numeric Distribution ND, Weighted Distribution WD or ACV, TDP Total Distribution Points, SOS Share of Shelf, OSA On Shelf Availability, Stock, Days of Supply, OOS Percent
+Checks: values in zero to one for shares, ND less than or equal to one, WD less than or equal to one, flag OOS weeks, compute boolean In Stock
+
+Media and awareness
+
+Examples: TV GRPs, TV Reach 1 plus, 3 plus, 5 plus, Digital Impressions, Clicks, CTR, Video Views, View Rate, Paid Search Spend, Social Spend, Total Media Spend, SOV, SOE, TOM, Spontaneous Awareness, Ad Recall, Consideration
+Checks: spend greater than or equal to zero, GRPs greater than or equal to zero, awareness in zero to one or zero to one hundred, normalize to percent, compute CPM and CPC if possible
+
+Sales, volume, share
+
+Examples: Sales Value, Net Revenue, Gross Revenue, Units, Volume in liters or kilograms, Average Selling Price, Value Share, Volume Share, Category Size, Brand Rank
+Checks: revenue equals price times volume when possible, shares in zero to one, fill missing ASP as value divided by units
+
+Ecom signals
+
+Examples: PDP Views, Basket Size, Conversion Rate, Ratings, Reviews, Buy Box Percent
+Checks: conversion in zero to one, ratings in one to five, reviews greater than or equal to zero
+
+Macro and events
+
+Examples: CPI, Inflation, Temperature, Rainfall, Festival Flag, Holiday, School Reopen Flag
+Checks: fill missing with external defaults if present, otherwise keep as optional features
+
+Competition
+
+Examples: Competitor Price, Competitor Promo Flag, Competitor Share, Category GRPs, Category SOV
+Checks: align competitor columns by brand code, compute simple price premium versus key rival
+
+Schema and semantics
+
+Type inference
+Use pandas inference plus rules for percent, currency, and codes.
+Promote mixed numeric text to numeric after cleaning symbols.
+Parse date like columns even when written as text.
+
+FMCG semantic tags
+Map with name rules and simple regex.
+Examples:
+Price columns contain price, mrp, net, asp.
+Promotion columns contain promo, tpr, coupon, display, feature.
+Distribution columns contain nd, wd, acv, tdp, sos, osa, oos.
+Media columns contain grps, reach, impressions, clicks, views, spend.
+Awareness columns contain tom, spont, recall, consideration.
+
+Sanity rules
+Shares and rates sit in zero to one after normalization.
+Price per unit stays within a reasonable band per category after unit conversion.
+Distribution metrics never exceed one.
+Remove exact duplicates and flag near duplicates by id.
+
+Task type choice
+
+If target is numeric with many unique values: regression.
+
+If target is categorical with few levels: classification.
+
+If a regular date column is present with one observation per period for the target: time series.
+
+Data quality profile
+
+Missingness by column and overall.
+
+Duplicates and suspected identifier collisions.
+
+Outliers on numeric columns using IQR and on categorical columns using rare levels.
+
+Correlation for numeric pairs and Cramers V for categorical pairs.
+
+FMCG driver scan and tiny baselines
+
+Focus on fast signals every brand team cares about.
+
+Price and elasticity
+
+Create price per unit after unit normalization.
+
+Rank correlation of price to target.
+
+Simple elasticity proxy
+Compute percent change in volume versus percent change in price within comparable windows.
+Report a first pass elasticity if sample size passes a threshold.
+
+Promotion uplift
+
+Compare average volume on promo weeks versus non promo weeks.
+
+Separate depth bands if Discount Percent exists.
+
+Report uplift percent and significance from a simple t test.
+
+Distribution effect
+
+Correlate ND and WD or ACV with sales.
+
+Report the slope of sales versus WD on a log scale if needed.
+
+Identify regions where distribution is low versus potential.
+
+Media effect with carryover proxy
+
+Build an adstocked version of media spend and GRPs using a simple geometric decay with a short half life preset.
+
+Correlate adstocked media with sales and with awareness when those columns exist.
+
+Surface the strongest channel and the current saturation hint if marginal correlation declines at higher spend.
+
+Awareness to sales link
+
+Scatter TOM or Spontaneous Awareness versus sales.
+
+Report the slope and any threshold effects.
+
+Competition
+
+Compute price premium versus key rival if a rival price exists.
+
+Flag weeks where rival had promo and brand did not, then measure the dip.
+
+Stock and OOS
+
+Identify weeks with OOS greater than zero or OSA below a threshold.
+
+Quantify lost sales proxy by comparing to nearby in stock weeks.
+
+Tiny baseline models
+
+Regression: fit a small gradient boosted tree on the sample with price, promo flags, WD, media, awareness, seasonality dummies, and competition flags. Use permutation importance to rank drivers.
+
+Classification: if the target is a flag such as OOS or win or loss, fit logistic regression and show odds ratios for top features.
+
+Time series: add a seasonal naive baseline and a moving average. Decompose trend and seasonality with STL or a similar method.
+
+Chart picker for FMCG
+
+Always include
+
+Target distribution or class share
+
+Missingness bar chart
+
+Add by task and signal
+
+Price versus volume scatter with a trend line
+
+Promo uplift bar: non promo versus promo, also by depth band if available
+
+Sales versus WD or ACV line or scatter
+
+Media adstock versus sales line for top one or two channels
+
+TOM or Spontaneous Awareness versus sales scatter
+
+Market share over time line by brand
+
+Pack size mix stacked bar
+
+Region heatmap of sales per capita or share
+
+Time series with rolling mean and seasonal plot when seasonality is present
+
+Correlation heatmap for numeric features when there are at least five
+
+Insight templates for FMCG
+
+Keep each line short and factual. Fill placeholders in Python.
+
+Price and promotion
+
+Effective price per unit is rising while volume is falling. Elasticity proxy is {elas}.
+
+Promo weeks lift volume by {uplift_pct}. Depth band {band} shows the best return.
+
+High promo frequency with low depth shows diminishing returns.
+
+Distribution
+
+Weighted distribution has a strong link to sales. A one point gain in WD is associated with {lift_pct} change in sales.
+
+Regions with WD below {wd_thresh} are under distributed relative to potential.
+
+Media and awareness
+
+Adstocked TV or digital spend explains part of the short term movement in sales. Correlation is {r}.
+
+Awareness is trending up, yet conversion to sales is flat in {regions}. Consider in store execution checks.
+
+Competition
+
+Price premium versus {competitor} is {premium_pct}. Volume declines are steeper when the rival runs promotions.
+
+Supply and OOS
+
+Stockouts in {weeks} likely suppressed sales by about {lost_pct} based on nearby weeks.
+
+OSA below {osa_thresh} appears on shelves even when stock exists in the back room.
+
+Season and events
+
+A seasonal spike repeats around {festival}. Media and trade plans can lean into this window.
+
+Recommendation templates for FMCG
+
+Normalize pack size and report price per unit inside all dashboards.
+
+Reduce promo events with low depth and low uplift. Concentrate into fewer, deeper events.
+
+Increase WD in {regions} first. These areas show the largest gap versus potential.
+
+Shift media toward the channel with the highest marginal correlation, then retest.
+
+Introduce basic in store audits where OSA falls below threshold.
+
+Watch price premium versus {competitor}. Test small price steps rather than a large move.
+
+If elasticity is very high in a pack band, consider launching a bridge pack size.
+
+
+
+Output JSON contract with FMCG fields
+
+Your Python service should return a single payload like this. Keep arrays short and chart specs compact.
+
+{
+  "summary": {
+    "task_type": "regression",
+    "rows_full": 84230,
+    "rows_sample": 5000,
+    "target": "Sales_Value",
+    "time_grain": "weekly",
+    "category": "Hair Oil"
+  },
+  "semantics": {
+    "time_cols": ["Week_Ending"],
+    "product_cols": ["Brand", "SKU", "Pack_Size_ml"],
+    "geo_cols": ["Region", "State"],
+    "channel_cols": ["Channel"],
+    "price_cols": ["Net_Price_per_Unit"],
+    "promo_cols": ["Promo_Flag", "Discount_Pct", "Display_Flag"],
+    "distribution_cols": ["WD", "ND", "TDP", "OSA"],
+    "media_cols": ["TV_GRPs", "Digital_Spend"],
+    "awareness_cols": ["TOM", "SPONT"],
+    "competition_cols": ["Rival_Price", "Rival_Promo"]
+  },
+  "quality": {
+    "missing_by_col": [{"col": "WD", "pct": 0.08}],
+    "duplicates_pct": 0.01,
+    "outlier_cols": ["Discount_Pct", "Units"]
+  },
+  "drivers": [
+    {"feature": "WD", "score": 0.46, "method": "perm_importance"},
+    {"feature": "Net_Price_per_Unit", "score": 0.31, "method": "perm_importance"},
+    {"feature": "Promo_Flag", "score": 0.22, "method": "perm_importance"}
+  ],
+  "fmcg_signals": {
+    "price_elasticity": -1.4,
+    "promo_uplift": {"overall": 0.18, "by_depth": [{"band": "10 to 20", "uplift": 0.22}]},
+    "wd_lift_slope": 0.015,
+    "media_r": {"TV_Adstock": 0.28, "Digital_Adstock": 0.19},
+    "awareness_to_sales_r": 0.21,
+    "oos_lost_sales_pct": 0.06
+  },
+  "insights": [
+    "Weighted distribution is the top driver on the sample.",
+    "Elasticity proxy suggests that a one percent rise in unit price is associated with a one point four percent drop in volume.",
+    "Promo weeks lift volume by eighteen percent on average."
+  ],
+  "recommendations": [
+    "Raise WD in low coverage states first. Start with Maharashtra and Karnataka.",
+    "Consolidate shallow promos and increase depth to ten to twenty percent on key weeks.",
+    "Track unit price and test smaller steps to avoid sharp elastic response."
+  ],
+  "charts": [
+    {"id": "wd_vs_sales", "type": "scatter", "x_col": "WD", "y_col": "Sales_Value"},
+    {"id": "price_vs_volume", "type": "scatter", "x_col": "Net_Price_per_Unit", "y_col": "Units"},
+    {"id": "promo_uplift", "type": "bar", "x": ["Non_Promo", "Promo"], "y": [1.0, 1.18]},
+    {"id": "media_adstock", "type": "line", "x_col": "Week_Ending", "y_cols": ["TV_Adstock", "Sales_Value"]},
+    {"id": "share_over_time", "type": "line", "x_col": "Week_Ending", "y_cols": ["Value_Share"]}
+  ]
+}
+
+Node and Python interface
+
+Request from Node to Python
+file path, sheet name, target, sample ratio, random state, plus an optional category name for unit rules.
+
+Response from Python
+Use the JSON contract above. Keep payload small by sending chart specs, not pixels.
+
+Minimal acceptance checks
+
+Numeric sales target returns a pack in under a few seconds for up to fifty thousand rows.
+
+At least three insights and three charts across any FMCG dataset.
+
+Time series target returns a trend and seasonal diagnostic when a regular date exists.
+
+Clear messages for empty sheet, password protected file, mixed types, and missing target.
+
+Suggested Python layout
+
+smart_insights package with these modules
+
+io_utils: load Excel, guess header row, sample
+
+type_infer: types and FMCG semantic tags
+
+task_pick: task selection
+
+profile: quality stats
+
+fmcg_rules: price per unit, promo flags, distribution checks, media adstock
+
+driver_rank: simple models and permutation importance
+
+chart_pick: FMCG chart specs
+
+insight_rules: FMCG text templates
+
+contract: final JSON build and validation
+FastAPI app with a single endpoint called first_look
+
+Suggested Node layout
+
+Route called firstLook that exposes POST and GET
+
+Service called pyClient that calls Python and maps timeouts and errors
+
+Cache service that stores the last payload per session
+
+Types that mirror the JSON schema
+
+Edge cases to handle first
+
+Target not found or is constant
+
+SKU level files with extreme width: cap the first pass to two hundred features
+
+Mixed date formats in a single column
+
+Units mixed between gram and kilogram or milliliter and liter
+
+WD or ND above one due to scaling, fix by dividing by one hundred if detected confidently

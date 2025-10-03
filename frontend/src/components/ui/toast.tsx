@@ -1,0 +1,222 @@
+/**
+ * ========================================
+ * TOAST UI COMPONENT
+ * ========================================
+ * 
+ * Purpose: Non-intrusive notification system with swipe gestures and variants
+ * 
+ * Description:
+ * This is a toast component from shadcn/ui that provides a non-intrusive
+ * notification system with swipe gestures, variants, and smooth animations.
+ * It's built on Radix UI primitives for accessibility and proper toast
+ * behavior, supporting different variants and interactive actions.
+ * 
+ * Key Features:
+ * - Non-intrusive notifications
+ * - Swipe gestures for dismissal
+ * - Multiple variants (default, destructive)
+ * - Interactive actions
+ * - Smooth animations
+ * - Responsive positioning
+ * 
+ * Components:
+ * - ToastProvider: Context provider for toast system
+ * - ToastViewport: Container for toast notifications
+ * - Toast: Individual toast notification
+ * - ToastAction: Interactive action button
+ * - ToastClose: Close button
+ * - ToastTitle: Toast title text
+ * - ToastDescription: Toast description text
+ * 
+ * Toast Variants:
+ * - default: Standard notification styling
+ * - destructive: Error/warning notification styling
+ * - Custom variants through class-variance-authority
+ * 
+ * Interaction Features:
+ * - Swipe gestures for dismissal
+ * - Click to dismiss
+ * - Action button interactions
+ * - Close button functionality
+ * - Touch-friendly interactions
+ * - Keyboard navigation support
+ * 
+ * Visual Characteristics:
+ * - Clean, modern design
+ * - Consistent with design system
+ * - Smooth animations and transitions
+ * - Proper spacing and alignment
+ * - Variant-specific styling
+ * - Shadow and border effects
+ * 
+ * Animation Features:
+ * - Slide-in animations
+ * - Fade-out effects
+ * - Swipe gesture animations
+ * - Smooth transitions
+ * - State-based animations
+ * - Performance-optimized
+ * 
+ * Accessibility Features:
+ * - ARIA attributes and roles
+ * - Focus management
+ * - Screen reader support
+ * - Keyboard navigation
+ * - Touch gesture support
+ * - Proper notification semantics
+ * 
+ * Usage Examples:
+ * - Success notifications
+ * - Error messages
+ * - Warning alerts
+ * - Information updates
+ * - Action confirmations
+ * - System status updates
+ * 
+ * Used by:
+ * - Form submissions
+ * - API responses
+ * - User actions
+ * - System notifications
+ * - Error handling
+ * - Success feedback
+ * 
+ * Dependencies:
+ * - Radix UI Toast primitives
+ * - React forwardRef for composition
+ * - class-variance-authority for variants
+ * - Lucide React icons
+ * - cn utility for conditional styling
+ * - Tailwind CSS for styling
+ * 
+ * Last Updated: 2025-01-27
+ * Author: BrandBloom Frontend Team (shadcn/ui)
+ */
+
+import * as React from "react"
+import * as ToastPrimitives from "@radix-ui/react-toast"
+import { cva, type VariantProps } from "class-variance-authority"
+import { X } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+
+const ToastProvider = ToastPrimitives.Provider
+
+const ToastViewport = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Viewport>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
+>(({ className, ...props }, ref) => (
+  <ToastPrimitives.Viewport
+    ref={ref}
+    className={cn(
+      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      className
+    )}
+    {...props}
+  />
+))
+ToastViewport.displayName = ToastPrimitives.Viewport.displayName
+
+const toastVariants = cva(
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[swipe=cancel]:translate-x-0 data-[swipe=end]:translate-x-[var(--radix-toast-swipe-end-x)] data-[swipe=move]:translate-x-[var(--radix-toast-swipe-move-x)] data-[swipe=move]:transition-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-top-full data-[state=open]:sm:slide-in-from-bottom-full",
+  {
+    variants: {
+      variant: {
+        default: "border bg-background text-foreground",
+        destructive:
+          "destructive group border-destructive bg-destructive text-destructive-foreground",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+)
+
+const Toast = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Root>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
+    VariantProps<typeof toastVariants>
+>(({ className, variant, ...props }, ref) => {
+  return (
+    <ToastPrimitives.Root
+      ref={ref}
+      className={cn(toastVariants({ variant }), className)}
+      {...props}
+    />
+  )
+})
+Toast.displayName = ToastPrimitives.Root.displayName
+
+const ToastAction = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Action>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Action>
+>(({ className, ...props }, ref) => (
+  <ToastPrimitives.Action
+    ref={ref}
+    className={cn(
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium ring-offset-background transition-colors hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 group-[.destructive]:border-muted/40 group-[.destructive]:hover:border-destructive/30 group-[.destructive]:hover:bg-destructive group-[.destructive]:hover:text-destructive-foreground group-[.destructive]:focus:ring-destructive",
+      className
+    )}
+    {...props}
+  />
+))
+ToastAction.displayName = ToastPrimitives.Action.displayName
+
+const ToastClose = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Close>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Close>
+>(({ className, ...props }, ref) => (
+  <ToastPrimitives.Close
+    ref={ref}
+    className={cn(
+      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-destructive/70 group-[.destructive]:hover:text-destructive/90 group-[.destructive]:focus:ring-destructive group-[.destructive]:focus:ring-offset-destructive",
+      className
+    )}
+    toast-close=""
+    {...props}
+  >
+    <X className="h-4 w-4" />
+  </ToastPrimitives.Close>
+))
+ToastClose.displayName = ToastPrimitives.Close.displayName
+
+const ToastTitle = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Title>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
+>(({ className, ...props }, ref) => (
+  <ToastPrimitives.Title
+    ref={ref}
+    className={cn("text-sm font-semibold", className)}
+    {...props}
+  />
+))
+ToastTitle.displayName = ToastPrimitives.Title.displayName
+
+const ToastDescription = React.forwardRef<
+  React.ElementRef<typeof ToastPrimitives.Description>,
+  React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>
+>(({ className, ...props }, ref) => (
+  <ToastPrimitives.Description
+    ref={ref}
+    className={cn("text-sm opacity-90", className)}
+    {...props}
+  />
+))
+ToastDescription.displayName = ToastPrimitives.Description.displayName
+
+type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>
+
+type ToastActionElement = React.ReactElement<typeof ToastAction>
+
+export {
+  type ToastProps,
+  type ToastActionElement,
+  ToastProvider,
+  ToastViewport,
+  Toast,
+  ToastTitle,
+  ToastDescription,
+  ToastClose,
+  ToastAction,
+}

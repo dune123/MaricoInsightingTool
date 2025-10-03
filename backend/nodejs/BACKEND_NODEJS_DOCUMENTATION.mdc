@@ -1,0 +1,997 @@
+# BrandBloom Insights - Node.js Backend Documentation
+
+## Table of Contents
+1. [System Overview](#system-overview)
+2. [Architecture & Structure](#architecture--structure)
+3. [Core Components](#core-components)
+4. [Data Flow & Process](#data-flow--process)
+5. [API Endpoints](#api-endpoints)
+6. [File Processing Pipeline](#file-processing-pipeline)
+7. [Data Storage & Management](#data-storage--management)
+8. [Error Handling & Validation](#error-handling--validation)
+9. [Security & Best Practices](#security--best-practices)
+10. [Integration Points](#integration-points)
+
+## System Overview
+
+The BrandBloom Insights Node.js backend is a comprehensive data processing and analytics system designed to handle Excel and CSV file uploads, process data through intelligent filtering, and manage brand metadata throughout the analytics workflow. The system provides a RESTful API interface for frontend applications and integrates with Python backend services for advanced data processing.
+
+### Key Features
+- **File Upload & Processing**: Secure file upload with validation and timestamped processing
+- **Intelligent Filtering**: AI-powered column suggestions and validation for data filtering
+- **Brand Management**: Comprehensive brand name processing, validation, and storage
+- **Metadata Tracking**: Complete processing history and state persistence
+- **State Management**: Concatenation state persistence for seamless workflow navigation
+- **Multi-format Support**: Excel (.xlsx) and CSV file processing capabilities
+- **Variable Deletion Support**: Frontend integration for variable deletion in Non-MMM analysis
+
+## 🆕 New Features (2025-01-31)
+
+### Variable Deletion Feature Integration
+
+#### Feature Overview:
+The Node.js backend now supports variable deletion functionality for Non-MMM analysis through integration with the Python backend's column deletion API. This feature enables users to permanently remove unwanted variables from data files during the chart analysis step.
+
+#### Implementation Details:
+
+**Frontend Integration Support:**
+- **State Management**: Node.js backend maintains non-MMM state files that are checked by Python backend for target variable protection
+- **API Coordination**: Frontend calls Python backend directly for column deletion while Node.js manages state persistence
+- **State Cleanup**: Node.js backend handles cleanup of expected signs and chart data when variables are deleted
+
+**Key Components:**
+1. **Non-MMM State Management**: Maintains state files in `metadata/nonmmm_states/` directory
+2. **Expected Signs Tracking**: Stores and updates expected signs for variables
+3. **Chart Data Persistence**: Manages chart analysis state and data
+4. **State Synchronization**: Ensures consistency between frontend and backend states
+
+**Integration Flow:**
+1. **Frontend Request**: User clicks delete button in chart container
+2. **Confirmation**: Browser confirmation dialog prevents accidental deletion
+3. **Python Backend Call**: Frontend calls Python backend to delete column from file
+4. **State Update**: Node.js backend updates non-MMM state to remove deleted variable
+5. **UI Update**: Frontend removes chart from interface and updates state
+
+**Benefits:**
+- ✅ **Seamless Integration**: Works with existing Node.js state management
+- ✅ **Data Consistency**: Maintains synchronization between frontend and backend
+- ✅ **State Persistence**: Proper cleanup of deleted variables from state files
+- ✅ **Workflow Continuity**: Maintains analysis progress after variable deletion
+
+## Architecture & Structure
+
+### Directory Structure
+```
+backend/nodejs/
+├── server.js                 # Main Express server and entry point
+├── package.json             # Dependencies and scripts
+├── config/
+│   └── constants.js         # Centralized configuration constants
+├── routes/                  # API endpoint definitions
+│   ├── fileRoutes.js        # File upload and processing endpoints
+│   ├── filterRoutes.js      # Filter management endpoints
+│   ├── brandRoutes.js       # Brand processing endpoints
+│   └── metadataRoutes.js    # Metadata and state management endpoints
+├── services/                # Business logic and core functionality
+│   ├── fileUploadHandler.js # File upload processing service
+│   ├── fileReader.js        # File reading and data extraction
+│   ├── filterManager.js     # Filter selection and validation
+│   ├── brandHandler.js      # Brand processing and validation
+│   └── metadataManager.js   # Metadata file management
+├── utils/                   # Utility functions and helpers
+│   ├── fileValidator.js     # File and input validation
+│   └── timestampGenerator.js # Timestamp and naming utilities
+├── uploads/                 # Temporary file storage
+├── processed/               # Processed file storage
+└── metadata/                # Metadata file storage
+    └── concatenation_states/ # State persistence storage
+```
+
+### Technology Stack
+- **Runtime**: Node.js with ES6 modules
+- **Web Framework**: Express.js for RESTful API
+- **File Processing**: XLSX library for Excel operations
+- **File System**: fs-extra for enhanced file operations
+- **Validation**: Custom validation middleware and utilities
+- **CORS**: Cross-origin request handling for frontend integration
+
+## Core Components
+
+### 1. Server (server.js)
+**Purpose**: Main application entry point and Express server configuration
+
+**Key Functions**:
+- Express server initialization with middleware configuration
+- Directory structure initialization (uploads, processed, metadata)
+- API route registration and middleware setup
+- Health check endpoints and API documentation
+- Graceful shutdown handling
+- Request logging and monitoring
+
+**Configuration**:
+- Port: 3001 (configurable via environment)
+- Host: localhost (configurable via environment)
+- API Prefix: /api
+- File size limit: 50MB for JSON and URL-encoded data
+- CORS enabled for cross-origin requests
+
+### 2. Configuration (constants.js)
+**Purpose**: Centralized configuration management
+
+**Key Constants**:
+- **FILE_CONFIG**: File handling settings (size limits, extensions, directories)
+- **EXCEL_CONFIG**: Excel sheet structure and limits
+- **API_CONFIG**: Server configuration (port, host, prefix)
+- **ERROR_MESSAGES**: Standardized error messages
+
+**File Limits**:
+- Maximum file size: 10MB
+- Allowed extensions: .xlsx, .csv
+- Maximum columns: 1,000
+- Maximum rows: 100,000
+
+### 3. Routes Layer
+**Purpose**: HTTP API endpoint definitions and request handling
+
+#### File Routes (fileRoutes.js)
+- **POST /api/files/upload**: File upload with processing
+- **GET /api/files/:filename/columns**: Extract column information
+- **GET /api/files/:filename/sample**: Get sample data preview
+- **GET /api/files/:filename/info**: Get file metadata
+- **GET /api/files/:filename/sheets**: Get Excel sheet information
+
+#### Filter Routes (filterRoutes.js)
+- **GET /api/filters/:filename/suggestions**: Get intelligent column suggestions
+- **POST /api/filters/:filename/validate**: Validate filter selections
+- **POST /api/filters/:filename/save**: Save filter selections to metadata
+- **GET /api/filters/:filename/available**: List all available columns
+
+#### Brand Routes (brandRoutes.js)
+- **POST /api/brands/validate**: Validate brand names with suggestions
+- **POST /api/brands/save**: Save brand information
+- **PUT /api/brands/update**: Update existing brand names
+- **GET /api/brands/:metadataFilename/export**: Export brand data
+- **POST /api/brands/suggestions**: Get brand name suggestions
+
+#### Metadata Routes (metadataRoutes.js)
+- **POST /api/metadata/create**: Create new metadata files
+- **GET /api/metadata/:filename/info**: Get metadata information
+- **POST /api/metadata/:filename/log**: Add processing log entries
+- **GET /api/metadata/health**: Health check for metadata service
+- **POST /api/metadata/state/save**: Save concatenation state
+- **GET /api/metadata/state/:filename**: Retrieve saved state
+- **DELETE /api/metadata/state/:filename**: Delete saved state
+- **GET /api/metadata/:filename/download**: Download metadata files
+
+### 4. Services Layer
+**Purpose**: Business logic implementation and core functionality
+
+#### File Upload Handler (fileUploadHandler.js)
+**Key Functions**:
+- `handleFileUpload(file)`: Process uploaded files and create timestamped copies
+- `fileExists(filename)`: Check if processed file exists
+- `getFileInfo(filename)`: Get detailed file information
+- `ensureUploadDirectories()`: Create necessary directory structure
+
+**Process Flow**:
+1. Validate uploaded file (type, size, format)
+2. Generate timestamped filename
+3. Copy file to processed directory
+4. Clean up temporary upload file
+5. Return file information and metadata
+
+#### File Reader (fileReader.js)
+**Key Functions**:
+- `readFileColumns(filename)`: Extract column headers from files
+- `getFileSampleData(filename, sampleSize)`: Get sample data rows
+- `readAllExcelSheets(filename)`: Get information about all Excel sheets
+- `readExcelColumns(filePath)`: Read Excel file columns
+- `readCsvColumns(filePath)`: Read CSV file columns
+
+**Supported Formats**:
+- **Excel (.xlsx)**: Multi-sheet support with XLSX library
+- **CSV**: Comma-separated values with proper quote handling
+- **Data Extraction**: Headers, sample data, file statistics
+
+#### Filter Manager (filterManager.js)
+**Key Functions**:
+- `validateFilterColumns(selectedColumns, availableColumns)`: Validate user selections
+- `suggestFilterColumns(availableColumns)`: Generate intelligent suggestions
+- `processFilterSelection(selectedColumns, availableColumns)`: Process and format selections
+- `formatFilterDataForStorage(selectedColumns, availableColumns, userId)`: Prepare data for storage
+
+**Intelligent Features**:
+- Pattern-based column suggestions (date, brand, category, region, channel)
+- Priority-based recommendation system
+- Confidence scoring for suggestions
+- Comprehensive validation with detailed feedback
+
+#### Brand Handler (brandHandler.js)
+**Key Functions**:
+- `processBrandInput(brandName, metadataFilename, userId)`: Process and store brand names
+- `updateBrandName(newBrandName, metadataFilename, userId)`: Update existing brands
+- `validateBrandNameWithSuggestions(brandName)`: Comprehensive validation with suggestions
+- `formatBrandInfoForDisplay(brandInfo)`: Format brand data for display
+- `exportBrandInfo(metadataFilename)`: Export brand information
+
+**Validation Features**:
+- Length validation (2-100 characters)
+- Special character handling
+- Format consistency checking
+- Business rule validation
+- Warning system for potential issues
+
+#### Metadata Manager (metadataManager.js)
+**Key Functions**:
+- `createMetadataFile(originalFilename)`: Create new metadata Excel files
+- `addFilterColumnsToMetadata(metadataFilename, filterData)`: Store filter selections
+- `addBrandInfoToMetadata(metadataFilename, brandName, userId)`: Store brand information
+- `addProcessingLogEntry(metadataFilename, action, details)`: Log processing activities
+- `getMetadataInfo(metadataFilename)`: Retrieve metadata information
+
+**Metadata Structure**:
+- **FileInfo Sheet**: Original file details and processing status
+- **FilterColumns Sheet**: Selected columns and selection metadata
+- **BrandInfo Sheet**: Brand information and entry details
+- **ProcessingLog Sheet**: Chronological activity log
+
+### 5. Utilities Layer
+**Purpose**: Helper functions and validation utilities
+
+#### File Validator (fileValidator.js)
+**Key Functions**:
+- `validateUploadedFile(file)`: Comprehensive file validation
+- `isValidFileExtension(filename)`: Check file type
+- `isValidFileSize(fileSize)`: Check file size limits
+- `validateBrandName(brandName)`: Brand name validation
+
+**Validation Rules**:
+- File extensions: .xlsx, .csv only
+- File size: Maximum 10MB
+- Brand names: 2-100 characters, no special characters
+
+#### Timestamp Generator (timestampGenerator.js)
+**Key Functions**:
+- `generateTimestamp()`: Create standardized timestamps (YYYYMMDD_HHMMSS)
+- `generateTimestampedFilename(originalName, extension)`: Create unique filenames
+- `getBaseFilename(filename)`: Extract base name without extension
+- `getFileExtension(filename)`: Extract file extension
+
+**Naming Convention**:
+- Format: `{originalName}_{YYYYMMDD_HHMMSS}.{extension}`
+- Example: `sales_data_20241220_143052.xlsx`
+
+## Data Flow & Process
+
+### 1. File Upload Workflow
+```
+Frontend Upload → Multer Processing → File Validation → Timestamped Copy → Metadata Creation → Column Extraction → Response
+```
+
+**Detailed Steps**:
+1. **Frontend Request**: File upload via POST /api/files/upload
+2. **Multer Processing**: Multipart file handling and temporary storage
+3. **File Validation**: Type, size, and format validation
+4. **File Processing**: Create timestamped copy in processed directory
+5. **Metadata Creation**: Generate corresponding metadata Excel file
+6. **Column Extraction**: Read file headers and structure
+7. **Response**: Return file info, metadata, and column data
+
+### 2. Filter Selection Workflow
+```
+Column Analysis → Intelligent Suggestions → User Selection → Validation → Storage → Metadata Update
+```
+
+**Detailed Steps**:
+1. **Column Analysis**: Read available columns from processed file
+2. **Intelligent Suggestions**: Generate pattern-based column recommendations
+3. **User Selection**: Frontend presents suggestions and allows user selection
+4. **Validation**: Validate selected columns against available options
+5. **Storage**: Format and store filter selections in metadata
+6. **Metadata Update**: Update metadata file with filter information
+
+### 3. Brand Processing Workflow
+```
+Brand Input → Validation → Cleaning → Storage → Metadata Update → Logging
+```
+
+**Detailed Steps**:
+1. **Brand Input**: User provides brand name
+2. **Validation**: Check format, length, and business rules
+3. **Cleaning**: Standardize and format brand name
+4. **Storage**: Store in metadata file
+5. **Metadata Update**: Update brand information sheet
+6. **Logging**: Add processing log entry
+
+### 4. State Persistence Workflow
+```
+Concatenation Process → State Collection → JSON Storage → State Retrieval → Workflow Restoration
+```
+
+**Detailed Steps**:
+1. **State Collection**: Gather all user selections and processing data
+2. **JSON Storage**: Store complete state in concatenation_states directory
+3. **State Retrieval**: Retrieve saved state for workflow continuation
+4. **Workflow Restoration**: Restore previous processing state
+
+## API Endpoints
+
+### Base URL
+```
+http://localhost:3001/api
+```
+
+### File Management Endpoints
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| POST | `/files/upload` | Upload and process file | `file` (multipart) | File info, metadata, columns |
+| GET | `/files/:filename/columns` | Get file columns | - | Column names, statistics |
+| GET | `/files/:filename/sample` | Get sample data | `?size=5` | Sample rows, headers |
+| GET | `/files/:filename/info` | Get file information | - | File metadata, stats |
+| GET | `/files/:filename/sheets` | Get Excel sheet info | - | Sheet names, columns |
+
+### Filter Management Endpoints
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| GET | `/filters/:filename/suggestions` | Get column suggestions | - | Suggested columns, reasoning |
+| POST | `/filters/:filename/validate` | Validate selections | `{selectedColumns: []}` | Validation result, feedback |
+| POST | `/filters/:filename/save` | Save filter selections | `{selectedColumns: [], metadataFilename: ""}` | Save confirmation |
+| GET | `/filters/:filename/available` | Get all columns | - | Available columns, statistics |
+
+### Brand Management Endpoints
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| POST | `/brands/validate` | Validate brand name | `{brandName: ""}` | Validation result, suggestions |
+| POST | `/brands/save` | Save brand information | `{brandName: "", metadataFilename: ""}` | Save confirmation |
+| PUT | `/brands/update` | Update brand name | `{brandName: "", metadataFilename: ""}` | Update confirmation |
+| GET | `/brands/:metadataFilename/export` | Export brand data | - | Brand information export |
+| POST | `/brands/suggestions` | Get brand suggestions | `{partialBrandName: ""}` | Brand name suggestions |
+
+### Metadata Management Endpoints
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| POST | `/metadata/create` | Create metadata file | `{originalFilename: ""}` | Metadata file info |
+| GET | `/metadata/:filename/info` | Get metadata info | - | Metadata file details |
+| POST | `/metadata/:filename/log` | Add log entry | `{action: "", details: ""}` | Log confirmation |
+| GET | `/metadata/health` | Health check | - | Service health status |
+| POST | `/metadata/state/save` | Save concatenation state | State object | Save confirmation |
+| GET | `/metadata/state/:filename` | Retrieve state | - | Saved state data |
+| DELETE | `/metadata/state/:filename` | Delete state | - | Deletion confirmation |
+| GET | `/metadata/:filename/download` | Download metadata | - | File download |
+
+### System Endpoints
+| Method | Endpoint | Description | Response |
+|--------|----------|-------------|----------|
+| GET | `/health` | System health check | Health status, version |
+| GET | `/api` | API documentation | Complete endpoint documentation |
+
+## File Processing Pipeline
+
+### 1. Upload Phase
+```
+File Selection → Frontend Validation → Upload Request → Backend Processing → File Storage
+```
+
+**Frontend Validation**:
+- File type checking (.xlsx, .csv)
+- File size validation (max 10MB)
+- Basic format validation
+
+**Backend Processing**:
+- Multer multipart handling
+- Comprehensive file validation
+- Timestamped filename generation
+- Directory structure creation
+- File copying and cleanup
+
+### 2. Processing Phase
+```
+File Reading → Column Extraction → Data Analysis → Metadata Generation → Response Preparation
+```
+
+**File Reading**:
+- Excel: XLSX library with sheet parsing
+- CSV: Custom parser with quote handling
+- Error handling for malformed files
+
+**Column Extraction**:
+- Header row identification
+- Column name extraction
+- Data type inference
+- File statistics calculation
+
+**Data Analysis**:
+- Row and column counting
+- Data structure analysis
+- Sample data generation
+- Format validation
+
+### 3. Metadata Phase
+```
+Excel Workbook Creation → Sheet Structure → Data Population → File Writing → Storage
+```
+
+**Workbook Structure**:
+- FileInfo: Original file details
+- FilterColumns: Column selection tracking
+- BrandInfo: Brand information storage
+- ProcessingLog: Activity logging
+
+**Data Population**:
+- Structured data formatting
+- Timestamp generation
+- User tracking
+- Validation results
+
+## Data Storage & Management
+
+### 1. File Storage Structure
+```
+backend/nodejs/
+├── uploads/                 # Temporary upload storage
+├── processed/               # Processed file storage
+│   ├── filename_timestamp.xlsx
+│   └── filename_timestamp.csv
+└── metadata/                # Metadata file storage
+    ├── filename_metadata_timestamp.xlsx
+    └── concatenation_states/
+        └── filename_state.json
+```
+
+### 2. Metadata File Structure
+**Excel Workbook with Multiple Sheets**:
+
+#### FileInfo Sheet
+| Property | Value |
+|----------|-------|
+| Original Filename | sales_data.xlsx |
+| Upload Timestamp | 2024-12-20T14:30:52.000Z |
+| Processing Status | Initialized |
+| Metadata Version | 1.0 |
+| Created By | System |
+
+#### FilterColumns Sheet
+| Column Name | Index | Selected | Selection Order | Timestamp |
+|-------------|-------|----------|-----------------|-----------|
+| Date | 0 | Yes | 1 | 2024-12-20T14:30:52.000Z |
+| Brand | 1 | Yes | 2 | 2024-12-20T14:30:52.000Z |
+| Sales | 2 | No | | 2024-12-20T14:30:52.000Z |
+
+#### BrandInfo Sheet
+| Property | Value |
+|----------|-------|
+| Brand Name | Nike |
+| Entered By | user123 |
+| Entry Timestamp | 2024-12-20T14:30:52.000Z |
+| Status | Active |
+| Last Updated | 2024-12-20T14:30:52.000Z |
+
+#### ProcessingLog Sheet
+| Timestamp | Action | Details | User |
+|-----------|--------|---------|------|
+| 2024-12-20T14:30:52.000Z | Metadata File Created | Initial metadata file creation | System |
+| 2024-12-20T14:31:15.000Z | Filter Columns Selected | 2 columns selected for filtering | user123 |
+
+### 3. State Persistence Structure
+**JSON State Files**:
+```json
+{
+  "originalFileName": "sales_data.xlsx",
+  "concatenatedFileName": "sales_data_20241220_143052.xlsx",
+  "selectedSheets": ["Sheet1", "Sheet2"],
+  "targetVariable": "sales_amount",
+  "brandMetadata": {
+    "brandName": "Nike",
+    "userId": "user123",
+    "timestamp": "2024-12-20T14:30:52.000Z"
+  },
+  "previewData": {...},
+  "columnCategories": {...},
+  "totalRows": 15000,
+  "processedAt": "2024-12-20T14:30:52.000Z",
+  "savedAt": "2024-12-20T14:35:20.000Z",
+  "status": "completed"
+}
+```
+
+## Error Handling & Validation
+
+### 1. Error Response Format
+```json
+{
+  "success": false,
+  "error": "Error message description",
+  "timestamp": "2024-12-20T14:30:52.000Z"
+}
+```
+
+### 2. Success Response Format
+```json
+{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": {...},
+  "timestamp": "2024-12-20T14:30:52.000Z"
+}
+```
+
+### 3. Validation Layers
+**File Level Validation**:
+- File type checking (.xlsx, .csv only)
+- File size limits (max 10MB)
+- File format validation
+- File corruption detection
+
+**Data Level Validation**:
+- Column structure validation
+- Data type consistency
+- Empty file detection
+- Malformed data handling
+
+**Input Level Validation**:
+- Brand name format validation
+- Filter column selection validation
+- User input sanitization
+- Business rule validation
+
+### 4. Error Categories
+**File Errors**:
+- Invalid file type
+- File too large
+- File not found
+- File corruption
+- Unsupported format
+
+**Validation Errors**:
+- Invalid column selection
+- Missing required fields
+- Format violations
+- Business rule violations
+
+**System Errors**:
+- Directory access issues
+- File system errors
+- Memory limitations
+- Processing timeouts
+
+## Security & Best Practices
+
+### 1. File Security
+- File type validation (whitelist approach)
+- File size limits to prevent DoS attacks
+- Temporary file cleanup after processing
+- Secure file naming (no path traversal)
+- Directory access restrictions
+
+### 2. Input Validation
+- Comprehensive input sanitization
+- Type checking and validation
+- Length and format restrictions
+- Business rule enforcement
+- SQL injection prevention
+
+### 3. Error Handling
+- Generic error messages (no system details)
+- Proper HTTP status codes
+- Structured error responses
+- Logging without exposing sensitive data
+- Graceful degradation
+
+### 4. API Security
+- CORS configuration for frontend access
+- Request size limits
+- Input validation middleware
+- Rate limiting considerations
+- Authentication ready (extensible)
+
+## Integration Points
+
+### 1. Frontend Integration
+**React Application**:
+- File upload components
+- Data preview interfaces
+- Filter selection components
+- Brand management forms
+- Progress tracking
+
+**API Communication**:
+- RESTful API calls
+- File upload handling
+- Real-time validation
+- Error handling and display
+- State management
+
+### 2. Python Backend Integration
+**Complementary Services**:
+- File processing and analysis
+- Advanced data manipulation
+- Statistical computations
+- Machine learning algorithms
+- Report generation
+
+**Data Flow**:
+- Node.js handles metadata and state
+- Python handles file processing
+- Shared file storage
+- Coordinated workflow management
+
+### 3. External Systems
+**File Storage**:
+- Local file system (extensible to cloud)
+- Structured directory organization
+- Backup and recovery considerations
+- File lifecycle management
+
+**Monitoring & Logging**:
+- Request logging with timestamps
+- Error tracking and reporting
+- Performance monitoring
+- Health check endpoints
+
+## Performance Considerations
+
+### 1. File Processing
+- Asynchronous file operations
+- Stream-based file handling
+- Memory-efficient data processing
+- Batch processing capabilities
+- Progress tracking and cancellation
+
+### 2. API Performance
+- Response caching strategies
+- Database optimization (future)
+- Connection pooling (future)
+- Load balancing considerations
+- Horizontal scaling preparation
+
+### 3. Resource Management
+- Memory usage optimization
+- File handle management
+- Temporary file cleanup
+- Directory size monitoring
+- Resource usage tracking
+
+## Future Enhancements
+
+### 1. Planned Features
+- Database integration for metadata storage
+- User authentication and authorization
+- Advanced analytics capabilities
+- Real-time collaboration features
+- API rate limiting and throttling
+
+### 2. Scalability Improvements
+- Microservices architecture
+- Message queue integration
+- Distributed file storage
+- Load balancing and clustering
+- Performance monitoring and alerting
+
+### 3. Integration Opportunities
+- Cloud storage providers (AWS S3, Google Cloud)
+- Analytics platforms (Tableau, Power BI)
+- Machine learning services
+- Business intelligence tools
+- Third-party data sources
+
+## Conclusion
+
+The BrandBloom Insights Node.js backend provides a robust, scalable foundation for data processing and analytics workflows. With its comprehensive API, intelligent filtering capabilities, and state persistence features, it enables seamless data processing experiences while maintaining data integrity and security.
+
+The system's modular architecture makes it easy to extend and enhance, while its comprehensive error handling and validation ensure reliable operation. The integration with Python backend services provides a powerful combination of metadata management and advanced data processing capabilities.
+
+For developers working with this system, the key is understanding the data flow from file upload through processing to metadata storage, and leveraging the intelligent features like column suggestions and state persistence to create optimal user experiences.
+
+## ✅ BACKEND SPLIT IMPLEMENTATION COMPLETE (2025-08-31)
+
+**PRODUCTION STATUS**: All state management operations successfully migrated from Python backend to Node.js backend.
+
+### Implementation Results:
+- **✅ Smart Backend Routing**: Frontend automatically routes state operations to Node.js (port 3001) and data operations to Python (port 8000)
+- **✅ Complete API Coverage**: All required state management endpoints implemented and tested
+- **✅ State Migration**: Existing Python state files successfully migrated to Node.js backend
+- **✅ Performance Optimized**: JSON-native Node.js provides faster state operations than Python
+- **✅ Workflow Verified**: Complete end-to-end testing confirms all operations work correctly
+
+### Verified Operations:
+1. State listing (`GET /api/metadata/states`) - ✅ Working
+2. State retrieval (`GET /api/metadata/state/:filename`) - ✅ Working  
+3. State saving (`POST /api/metadata/state/save`) - ✅ Working
+4. State updating (`PUT /api/metadata/state/:filename`) - ✅ Working
+5. State deletion (`DELETE /api/metadata/state/:filename`) - ✅ Working
+6. State cleanup (`POST /api/metadata/cleanup`) - ✅ Working
+7. State export (`GET /api/metadata/state/:filename/export`) - ✅ Working
+
+The backend split is **production-ready** and delivers the intended performance improvements and architectural separation.
+
+## ✅ COMPREHENSIVE ANALYSIS DELETION SYSTEM (2025-01-31)
+
+**PRODUCTION STATUS**: Analysis deletion now performs comprehensive cleanup across all data storage locations.
+
+### Implementation Results:
+- **✅ Complete Data Cleanup**: Analysis deletion now removes ALL related data
+- **✅ Cross-Backend Coordination**: Node.js backend cleans up its own state files
+- **✅ localStorage Instructions**: Provides cleanup instructions for frontend localStorage
+- **✅ Detailed Logging**: Comprehensive cleanup summary for debugging
+- **✅ Prevention System**: Prevents orphaned data from affecting new analyses
+
+### Enhanced Deletion Process:
+
+#### 1. **Analysis Metadata Cleanup**:
+   - `DELETE /api/brands/analyses/:analysisId` - Enhanced with comprehensive cleanup
+   - Removes analysis metadata file (`metadata/analyses/{analysisId}.json`)
+   - Provides detailed cleanup summary
+
+#### 2. **Concatenation States Cleanup**:
+   - Removes all concatenation state files containing the analysis ID
+   - Searches in `metadata/concatenation_states/` directory
+   - Matches files by analysis ID or brand name
+
+#### 3. **Non-MMM States Cleanup**:
+   - Removes all non-MMM state files containing the analysis ID
+   - Searches in `metadata/nonmmm_states/` directory
+   - Ensures no orphaned non-MMM workflow states
+
+#### 4. **Non-MMM Preferences Cleanup**:
+   - Removes all non-MMM preference files containing the analysis ID
+   - Searches in `metadata/nonmmm_preferences/` directory
+   - Cleans up user-specific non-MMM settings
+
+### API Response Enhancement:
+```json
+{
+  "success": true,
+  "message": "Analysis deleted successfully with comprehensive cleanup",
+  "data": {
+    "analysisId": "x-men",
+    "brandName": "X-Men",
+    "deletedAt": "2025-01-31T10:30:00.000Z",
+    "cleanupSummary": [
+      "Analysis metadata: x-men.json",
+      "Concatenation state: X-Men_state.json",
+      "Non-MMM state: x-men-analysis.json",
+      "Non-MMM preferences: x-men-prefs.json"
+    ],
+    "totalItemsCleaned": 4
+  }
+}
+```
+
+### Files Enhanced:
+- `backend/nodejs/routes/brandRoutes.js` - Enhanced deletion with comprehensive cleanup
+
+### Benefits:
+- **🎯 Complete Cleanup**: No orphaned data left in Node.js backend
+- **📋 Detailed Reporting**: Comprehensive summary of what was cleaned
+- **🔗 Cross-Backend**: Works with Python backend for complete data removal
+- **⚡ Prevention**: Stops orphaned state data from affecting new analyses
+- **🛡️ Data Integrity**: Ensures clean state for future analyses
+
+### Cleanup Process Coordination:
+1. **Python Backend**: Initiates deletion and cleans brand directories
+2. **Node.js Backend**: Receives cleanup request and removes state files
+3. **Frontend**: Receives localStorage cleanup instructions and clears browser data
+4. **Complete**: All analysis data removed from entire system
+
+The comprehensive deletion system ensures that when an analysis is deleted, **EVERYTHING** related to that analysis is properly cleaned up across all storage locations.
+
+## ✅ DATA SCIENTIST PORTAL STATE MANAGEMENT INTEGRATION (2025-01-31)
+
+**PRODUCTION STATUS**: Data Scientist portal now properly integrates with Node.js backend for complete analysis state management.
+
+### Implementation Results:
+- **✅ Full Analysis Listing**: Data Scientist portal now displays existing MMM and Non-MMM analyses from Node.js backend
+- **✅ State Persistence**: Complete integration with Node.js state management for analysis creation, resume, and overwrite
+- **✅ Brand Management**: Proper brand name input and validation through Node.js backend
+- **✅ Analysis Lifecycle**: Full support for analysis creation, resume, overwrite, and deletion workflows
+- **✅ Cross-Backend Coordination**: Seamless integration between Node.js (state) and Python (data processing) backends
+
+### Enhanced Data Scientist Portal Features:
+
+#### 1. **Existing Analyses Display**:
+   - Lists all existing MMM and Non-MMM analyses from Node.js backend
+   - Shows analysis progress, brand names, and last modified dates
+   - Provides direct resume functionality for existing analyses
+   - Includes delete functionality with comprehensive cleanup
+
+#### 2. **Brand Name Input Management**:
+   - Brand name input fields for both MMM and Non-MMM analysis types
+   - Proper validation and error handling
+   - Integration with analysis creation workflow
+   - Support for analysis overwrite when brand already exists
+
+#### 3. **Analysis Creation Workflow**:
+   - New analysis creation with proper state initialization
+   - Existing analysis resume with state restoration
+   - Analysis overwrite with complete data cleanup
+   - Proper navigation to appropriate analysis workflows
+
+#### 4. **State Management Integration**:
+   - Uses Node.js backend for all state operations (port 3001)
+   - Coordinates with Python backend for data processing (port 8000)
+   - Maintains analysis metadata and progress tracking
+   - Provides comprehensive cleanup on analysis deletion
+
+### API Integration:
+- **Analysis Listing**: `GET /api/brands/analyses` - Lists all existing analyses
+- **Analysis Creation**: `POST /api/brands/analyses` - Creates new analysis with state
+- **Analysis Retrieval**: `GET /api/brands/analyses/:id` - Loads existing analysis data
+- **Analysis Deletion**: `DELETE /api/brands/analyses/:id` - Comprehensive cleanup
+- **State Management**: Full integration with concatenation states and non-MMM states
+
+### Benefits:
+- **🎯 Complete Functionality**: Data Scientist portal now has full analysis management capabilities
+- **📋 State Persistence**: Proper state management for analysis workflows
+- **🔗 Cross-Backend**: Seamless integration between Node.js and Python backends
+- **⚡ Performance**: Fast state operations through Node.js JSON-native processing
+- **🛡️ Data Integrity**: Comprehensive cleanup and state management
+
+The Data Scientist portal now provides a complete analysis management experience with proper state persistence, existing analysis handling, and seamless integration with both backend systems.
+
+## ✅ NON-MMM ANALYSIS RESUME FIX (2025-01-31)
+
+**ISSUE RESOLVED**: Non-MMM analysis was always starting at step 1 (data upload) when resuming, even when the analysis had progressed through multiple steps including model building.
+
+**ROOT CAUSE**: 
+1. **Directory Structure Mismatch**: Backend was looking for files in the old global directory structure instead of the brand-specific structure
+2. **Progress Detection Failure**: The progress detection couldn't find uploaded files, so `progress.dataUploaded` remained `false`
+3. **Incorrect Step Calculation**: The step calculation method was designed for MMM analysis and didn't account for non-MMM workflow differences
+4. **Frontend Navigation Issue**: Frontend always navigated to `/nonmmm/upload` regardless of actual progress
+
+**SOLUTION IMPLEMENTED**:
+
+##### 1. **Fixed Node.js Backend Progress Detection**:
+- **Added `detectAndUpdateProgress()` function**: Detects progress from actual files in brand-specific directories
+- **Enhanced `calculateCurrentStep()` function**: Now handles both MMM and NON_MMM analysis types with different step progressions
+- **Updated Analysis Endpoints**: All analysis endpoints now detect and update progress before returning data
+
+##### 2. **Fixed Frontend State Loading**:
+- **Fixed Analysis Data Loading**: Non-MMM analysis resume now properly loads and sets analysis data in context
+- **Added Non-MMM State Loading**: Ensures both analysis data and non-MMM state are loaded when resuming
+- **Fixed Step Completion Logic**: Model building step now properly updates currentStep to 9 when models are completed
+
+##### 3. **Fixed Directory Structure Detection**:
+- **Brand-Specific File Detection**: Backend now correctly looks in brand-specific directories (`{brandname}/data/uploads/raw/`)
+- **Non-MMM State Detection**: Added detection for non-MMM state files in brand-specific metadata directories
+- **Model File Detection**: Checks for model files in brand-specific directories
+
+##### 4. **Updated Step Calculation for Non-MMM**:
+- **Non-MMM Step Progression**: Steps 3-9 instead of 1-13
+- **Proper Step Mapping**: Upload → Data Summary → Target Variable → Expected Signs → Chart Analysis → Model Building → Model Results
+- **Analysis Type Awareness**: Different logic for MMM vs NON_MMM analysis types
+
+##### 5. **Fixed Frontend Navigation**:
+- **Smart Step Detection**: Frontend now reads the correct `currentStep` from updated backend data
+- **Proper Route Mapping**: Each step number maps to the correct route
+- **Dynamic Navigation**: Navigates to the correct step based on actual progress
+
+**FILES MODIFIED**:
+- `backend/nodejs/routes/brandRoutes.js` - **NEW**: Added progress detection and non-MMM step calculation
+- `backend/python/app/services/brand_analysis_service.py` - Fixed directory structure detection and step calculation
+- `frontend/src/analysis/nonmmm/steps/NonMMMAnalysisTypeStep.tsx` - Fixed navigation logic and analysis data loading
+- `frontend/src/analysis/nonmmm/steps/NonMMMModelBuildingStep.tsx` - Fixed step completion logic when models are trained
+
+**IMPACT**:
+- ✅ **Fixed Resume Functionality**: Non-MMM analysis now resumes at the correct step
+- ✅ **Proper Progress Detection**: Backend correctly detects uploaded files and completed steps
+- ✅ **Accurate Step Calculation**: Non-MMM analysis uses appropriate step progression
+- ✅ **Smart Navigation**: Frontend navigates to the correct step based on progress
+- ✅ **Brand-Specific Structure**: Properly uses brand-specific directory structure
+
+## ✅ NON-MMM ANALYSIS DELETE FIX (2025-09-01)
+
+**ISSUE RESOLVED**: Non-MMM analysis deletion was failing with `__dirname is not defined` error.
+
+**ROOT CAUSE**: The `brandRoutes.js` file was using ES6 modules but missing the proper `__dirname` setup required for ES6 modules.
+
+**SOLUTION IMPLEMENTED**:
+Added proper ES6 module `__dirname` setup to `backend/nodejs/routes/brandRoutes.js`:
+
+```javascript
+import { fileURLToPath } from 'url';
+
+// ES6 module __dirname setup
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+```
+
+**FILES MODIFIED**:
+- `backend/nodejs/routes/brandRoutes.js` - Added missing ES6 __dirname setup
+
+**IMPACT**:
+- ✅ **Non-MMM Delete Fixed**: Delete functionality now works for Non-MMM analyses
+- ✅ **MMM Delete Unaffected**: MMM delete continues to work as before  
+- ✅ **Consistent ES6 Modules**: All route files now properly handle ES6 module paths
+- ✅ **Comprehensive Cleanup**: Full cleanup of concatenation states, non-MMM states, and preferences
+
+The fix ensures that Non-MMM analysis deletion works identically to MMM analysis deletion, providing complete cleanup of all associated data files and metadata.
+
+## ✅ NON-MMM ANALYSIS INTEGRATION (2025-01-31)
+
+**PRODUCTION STATUS**: Non-MMM analysis routes and state management successfully implemented.
+
+### Implementation Results:
+- **✅ Non-MMM State Management**: Complete state persistence for Non-MMM analysis workflow
+- **✅ User Preferences**: Dedicated preference storage for Non-MMM analysis users
+- **✅ API Integration**: Full integration with Node.js backend routing system
+- **✅ ES6 Module Support**: Consistent with existing codebase architecture
+- **✅ JSON-Native Operations**: Optimized for fast state operations
+
+### New API Endpoints:
+1. **State Management**:
+   - `POST /api/nonmmm/state/save` - Save Non-MMM analysis state
+   - `GET /api/nonmmm/state/:analysisId` - Load analysis state
+   - `PUT /api/nonmmm/state/:analysisId` - Update analysis state
+   - `DELETE /api/nonmmm/state/:analysisId` - Delete analysis state
+   - `GET /api/nonmmm/states` - List all Non-MMM states
+
+2. **User Preferences**:
+   - `POST /api/nonmmm/preferences/save` - Save user preferences
+   - `GET /api/nonmmm/preferences/:userId` - Load user preferences
+
+3. **Health Check**:
+   - `GET /api/nonmmm/health` - Service health monitoring
+
+### Features Implemented:
+- **Analysis State Persistence**: Complete workflow state tracking
+- **Step Progress Management**: Current step and completion tracking
+- **User Preference Storage**: Personalized settings and configurations
+- **JSON-Based Storage**: Fast, efficient state operations
+- **Error Handling**: Comprehensive error management and validation
+- **Directory Management**: Automatic directory creation and management
+
+The Non-MMM analysis backend integration provides dedicated state management optimized for statistical modeling workflows, maintaining the performance benefits of the Node.js backend for JSON operations.
+
+### 6. Analysis Deletion and Cleanup (`routes/brandRoutes.js`)
+**Purpose**: Comprehensive analysis deletion with coordinated Python backend cleanup
+
+**Key Functions**:
+- `DELETE /api/brands/analyses/:analysisId`: Main deletion endpoint with comprehensive cleanup
+- **Coordinated Backend Deletion**: Calls Python backend to delete actual data folders
+- **Metadata Cleanup**: Removes all Node.js backend state files
+- **State Cleanup**: Removes concatenation states, non-MMM states, and preferences
+
+**Deletion Process Flow**:
+1. **Python Backend Call**: Node.js calls Python backend to delete data folders (BEFORE deleting metadata)
+2. **Metadata Deletion**: Removes analysis metadata file from Node.js backend (AFTER Python backend processes it)
+3. **State Cleanup**: Removes concatenation states, non-MMM states, and preferences
+4. **Comprehensive Reporting**: Provides detailed cleanup summary from both backends
+
+**Critical Fix (2025-01-31)**: The deletion order was corrected to ensure Python backend can access brand name from Node.js metadata before it's deleted. This fixes the issue where Python backend couldn't find the correct folder to delete.
+
+**Coordinated Backend Architecture**:
+- **Frontend**: Calls Node.js backend for deletion
+- **Node.js Backend**: Manages metadata and coordinates with Python backend
+- **Python Backend**: Handles actual data folder deletion and comprehensive cleanup
+- **Result**: Complete cleanup across both backends with no orphaned data
+
+**Cleanup Coverage**:
+- Analysis metadata files (Node.js backend)
+- Concatenation states (Node.js backend)
+- Non-MMM states and preferences (Node.js backend)
+- Brand data folders (Python backend via API call)
+- Global metadata files (Python backend)
+- Pending analysis files (Python backend)
+
+**CRITICAL FIX (2025-01-31)**: Enhanced file matching logic for comprehensive state cleanup
+- **Problem**: State files with different naming patterns (e.g., `nonmmm_ntw_sachet_chart_state.json`, `nonmmm_ntw_sachet_1757596169856_state.json`) were not being properly matched during deletion
+- **Solution**: Implemented robust file matching that handles all naming patterns:
+  - `nonmmm_{brand}_chart_state.json` (chart state files)
+  - `nonmmm_{brand}_{timestamp}_state.json` (timestamped state files)
+  - `{analysisId}_*.json` (analysis-specific files)
+  - `{brand}_*.json` (brand-specific files)
+- **Helper Function**: Added `cleanupFilesByAnalysis()` function for consistent file cleanup across all directories
+- **Result**: Complete cleanup of all state files regardless of naming pattern, ensuring no orphaned data remains
+
+**API Integration**:
+- **Python Backend URL**: `http://localhost:8000`
+- **Endpoint**: `DELETE /api/analyses/{analysis_id}`
+- **Error Handling**: Graceful fallback if Python backend is unavailable
+- **Response Integration**: Includes Python backend cleanup results in summary
+
+**Benefits**:
+- Complete data removal across all storage locations
+- Coordinated cleanup between Node.js and Python backends
+- No orphaned data or metadata files
+- Detailed cleanup reporting for debugging
+- Robust error handling for backend coordination

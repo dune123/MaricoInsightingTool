@@ -1,0 +1,301 @@
+# BrandBloom Insights Backend
+
+A modular Node.js backend service for handling file uploads, data processing, and metadata management for the BrandBloom Insights analytics platform.
+
+## 🏗️ Architecture Overview
+
+This backend follows a **ultra-modular design** where each file has a single responsibility:
+
+```
+backend/
+├── config/
+│   └── constants.js           # Application configuration
+├── utils/
+│   ├── fileValidator.js       # File validation utilities
+│   └── timestampGenerator.js  # Timestamp generation utilities
+├── services/
+│   ├── fileUploadHandler.js   # File upload processing
+│   ├── fileReader.js          # File reading and column extraction
+│   ├── filterManager.js       # Filter column management
+│   ├── metadataManager.js     # Metadata Excel file operations
+│   └── brandHandler.js        # Brand name processing
+├── routes/
+│   ├── fileRoutes.js          # File upload endpoints
+│   ├── filterRoutes.js        # Filter management endpoints
+│   ├── brandRoutes.js         # Brand management endpoints
+│   └── metadataRoutes.js      # Metadata management endpoints
+├── uploads/                   # Temporary upload directory
+├── processed/                 # Timestamped processed files
+├── metadata/                  # Metadata Excel files
+└── server.js                  # Main server entry point
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+
+### Installation
+
+```bash
+# Navigate to backend directory
+cd backend
+
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# For development with auto-reload
+npm run dev
+```
+
+The server will start at `http://localhost:3001`
+
+## 📋 Core Functionality
+
+### 1. File Upload & Processing
+
+**Workflow:**
+1. User uploads `.xlsx` or `.csv` file
+2. File is validated (size, type)
+3. Copy created with timestamp: `<UploadedFileName>_<timestamp>.xlsx`
+4. File stored in `./processed/` directory
+5. Metadata file created: `<uploadedFileName>_metadata_<timestamp>.xlsx`
+
+**API Endpoints:**
+- `POST /api/v1/files/upload` - Upload and process file
+- `GET /api/v1/files/:filename/columns` - Get file columns
+- `GET /api/v1/files/:filename/sample` - Get sample data
+
+### 2. Column Reading & Analysis
+
+**Capabilities:**
+- Extracts column names from Excel/CSV files
+- Provides file statistics (rows, columns)
+- Generates sample data preview
+- Handles various file formats gracefully
+
+### 3. Filter Column Selection
+
+**Features:**
+- Validates column selections
+- Provides intelligent column suggestions
+- Stores selections in metadata file
+- Tracks selection history
+
+**API Endpoints:**
+- `GET /api/v1/filters/:filename/suggestions` - Get suggested columns
+- `POST /api/v1/filters/:filename/validate` - Validate selection
+- `POST /api/v1/filters/:filename/save` - Save to metadata
+
+### 4. Brand Name Management
+
+**Functionality:**
+- Validates brand name input
+- Provides formatting suggestions
+- Stores brand info in metadata
+- Tracks brand entry history
+
+**API Endpoints:**
+- `POST /api/v1/brands/validate` - Validate brand name
+- `POST /api/v1/brands/save` - Save brand to metadata
+- `PUT /api/v1/brands/update` - Update brand name
+
+### 5. Metadata Management
+
+**Metadata File Structure:**
+- **FileInfo Sheet**: Original file information
+- **FilterColumns Sheet**: Selected filter columns
+- **BrandInfo Sheet**: Brand name and details
+- **ProcessingLog Sheet**: All processing activities
+
+**API Endpoints:**
+- `POST /api/v1/metadata/create` - Create metadata file
+- `GET /api/v1/metadata/:filename/info` - Get metadata info
+- `GET /api/v1/metadata/:filename/download` - Download metadata
+
+## 🔧 Configuration
+
+### Environment Variables
+
+```bash
+# Server Configuration
+PORT=3001
+HOST=localhost
+NODE_ENV=development
+
+# File Configuration (optional - defaults in constants.js)
+MAX_FILE_SIZE=10485760  # 10MB
+UPLOAD_DIR=./uploads
+PROCESSED_DIR=./processed
+METADATA_DIR=./metadata
+```
+
+### Constants Configuration
+
+Edit `config/constants.js` to modify:
+- File size limits
+- Allowed file extensions
+- Directory paths
+- Excel sheet names
+
+## 📁 File Management
+
+### Directory Structure
+
+```
+backend/
+├── uploads/     # Temporary files (cleaned after processing)
+├── processed/   # Timestamped copies of uploaded files
+└── metadata/    # Excel files with processing metadata
+```
+
+### File Naming Convention
+
+- **Processed Files**: `OriginalName_YYYYMMDD_HHMMSS.xlsx`
+- **Metadata Files**: `OriginalName_metadata_YYYYMMDD_HHMMSS.xlsx`
+
+## 🔍 API Documentation
+
+### Standard Response Format
+
+```json
+{
+  "success": true|false,
+  "message": "Human readable message",
+  "data": { /* Response data */ },
+  "error": "Error message (if success=false)"
+}
+```
+
+### Example Usage
+
+#### Upload File
+```bash
+curl -X POST http://localhost:3001/api/v1/files/upload \
+  -F "file=@data.xlsx"
+```
+
+#### Get Columns
+```bash
+curl http://localhost:3001/api/v1/files/data_20241220_143022.xlsx/columns
+```
+
+#### Save Filter Selection
+```bash
+curl -X POST http://localhost:3001/api/v1/filters/data_20241220_143022.xlsx/save \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selectedColumns": ["Date", "Revenue", "TV_Spend"],
+    "metadataFilename": "data_metadata_20241220_143022.xlsx"
+  }'
+```
+
+#### Save Brand Name
+```bash
+curl -X POST http://localhost:3001/api/v1/brands/save \
+  -H "Content-Type: application/json" \
+  -d '{
+    "brandName": "Nike",
+    "metadataFilename": "data_metadata_20241220_143022.xlsx"
+  }'
+```
+
+## 🧪 Testing
+
+### Health Check
+```bash
+curl http://localhost:3001/health
+```
+
+### API Documentation
+```bash
+curl http://localhost:3001/api/v1
+```
+
+## 🛠️ Development
+
+### Adding New Features
+
+The modular structure makes it easy to extend:
+
+1. **New Service**: Add to `services/` directory
+2. **New Routes**: Add to `routes/` directory  
+3. **New Utilities**: Add to `utils/` directory
+4. **New Config**: Update `config/constants.js`
+
+### Code Standards
+
+- **Single Responsibility**: Each file does one thing
+- **Clear Naming**: Descriptive function and variable names
+- **Error Handling**: Consistent error response format
+- **Documentation**: JSDoc comments for all functions
+- **Validation**: Input validation for all endpoints
+
+## 🔒 Security Considerations
+
+- File type validation
+- File size limits
+- Input sanitization
+- Path traversal protection
+- CORS configuration
+
+## 📊 Monitoring
+
+### Logs
+- Request logging (timestamp, method, path)
+- Error logging with stack traces
+- Processing activity logging
+
+### Health Checks
+- Directory accessibility
+- Service availability
+- File system permissions
+
+## 🚀 Deployment
+
+### Production Setup
+1. Set `NODE_ENV=production`
+2. Configure proper file permissions
+3. Set up log rotation
+4. Configure reverse proxy (nginx)
+5. Set up monitoring and alerts
+
+### Docker Support
+```dockerfile
+# Dockerfile example
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+EXPOSE 3001
+CMD ["npm", "start"]
+```
+
+## 🔮 Future Enhancements
+
+- Database integration for metadata
+- File encryption/security
+- Batch processing capabilities
+- Real-time processing status
+- Integration with cloud storage
+- Advanced file format support
+- User authentication system
+- Role-based access control
+
+## 📞 Support
+
+For issues or questions:
+1. Check the API documentation: `GET /api/v1`
+2. Verify health status: `GET /health`
+3. Review server logs
+4. Check file permissions and directory access
+
+## 📄 License
+
+This project is part of the BrandBloom Insights platform.

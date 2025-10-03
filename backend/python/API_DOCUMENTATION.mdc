@@ -1,0 +1,1104 @@
+# 📋 BrandBloom Insights API Documentation
+
+## 🌐 Base URL
+```
+http://localhost:8000
+```
+
+## 📖 Interactive Documentation
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+---
+
+## 🏥 Health & Status Endpoints
+
+### GET `/`
+**Purpose**: Welcome message and API information  
+**Description**: Returns API welcome message, version, and current timestamp  
+
+**Response**:
+```json
+{
+  "message": "Welcome to BrandBloom Insights API",
+  "version": "1.0.0",
+  "timestamp": "2025-08-17T16:20:00.000000"
+}
+```
+
+### GET `/health`
+**Purpose**: Health check for monitoring and load balancers  
+**Description**: Simple health status endpoint  
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-08-17T16:20:00.000000",
+  "service": "brandbloom-insights-api"
+}
+```
+
+### GET `/api/status`
+**Purpose**: Detailed API status information  
+**Description**: Comprehensive status including version, environment, and system info  
+
+**Response**:
+```json
+{
+  "status": "running",
+  "version": "1.0.0",
+  "environment": "development",
+  "timestamp": "2025-08-17T16:20:00.000000"
+}
+```
+
+---
+
+## 🏷️ Brand Analysis Management
+
+### POST `/api/analyses`
+**Purpose**: Create a new brand analysis  
+**Description**: Creates brand-specific directory structure and analysis metadata  
+
+**Request Body**:
+```json
+{
+  "brandName": "X-Men",
+  "analysisType": "MMM",
+  "forceOverwrite": false
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Analysis created successfully for brand 'X-Men'",
+  "data": {
+    "brandName": "X-Men",
+    "analysisId": "x-men",
+    "analysisType": "MMM",
+    "status": "created",
+    "currentStep": 1,
+    "createdAt": "2025-08-17T16:20:00.000000",
+    "lastModified": "2025-08-17T16:20:00.000000"
+  }
+}
+```
+
+**Directory Structure Created**:
+```
+x-men/
+└── data/
+    ├── uploads/
+    │   ├── raw/
+    │   ├── intermediate/
+    │   └── concatenated/
+    ├── exports/
+    │   ├── results/
+    │   └── reports/
+    └── metadata/
+        ├── analyses/
+        └── concatenation_states/
+```
+
+### GET `/api/analyses`
+**Purpose**: List all existing analyses  
+**Description**: Returns list of all brand analyses with current progress  
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Found 2 analyses",
+  "data": [
+    {
+      "analysisId": "x-men",
+      "brandName": "X-Men",
+      "lastModified": "2025-08-17T16:20:00.000000",
+      "currentStep": 5,
+      "status": "in_progress",
+      "analysisType": "MMM"
+    }
+  ]
+}
+```
+
+### GET `/api/analyses/{analysis_id}`
+**Purpose**: Get specific analysis details  
+**Description**: Returns complete analysis information with progress  
+
+**Parameters**:
+- `analysis_id` (path): URL-safe analysis identifier (e.g., "x-men")
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Analysis retrieved successfully",
+  "data": {
+    "analysisId": "x-men",
+    "brandName": "X-Men",
+    "analysisType": "MMM",
+    "status": "in_progress",
+    "currentStep": 5,
+    "progress": {
+      "dataUploaded": true,
+      "concatenationCompleted": true,
+      "targetVariableSelected": false,
+      "filtersApplied": false,
+      "modelBuilt": false,
+      "resultsGenerated": false
+    },
+    "concatenationState": { ... },
+    "filterState": { ... },
+    "modelState": { ... }
+  }
+}
+```
+
+### PUT `/api/analyses/{analysis_id}`
+**Purpose**: Update analysis metadata and state  
+**Description**: Updates analysis progress, state information, and metadata  
+
+**Request Body**:
+```json
+{
+  "currentStep": 6,
+  "status": "in_progress",
+  "concatenationState": { ... },
+  "filterState": { ... },
+  "modelState": { ... }
+}
+```
+
+### DELETE `/api/analyses/{analysis_id}`
+**Purpose**: Delete analysis and all associated data  
+**Description**: Removes analysis directory and cleans up all brand-specific files  
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Analysis 'x-men' deleted successfully",
+  "data": null
+}
+```
+
+### GET `/api/analyses/check-brand/{brand_name}`
+**Purpose**: Check if brand analysis already exists  
+**Description**: Validates brand existence before creating new analysis  
+
+**Parameters**:
+- `brand_name` (path): Brand name to check (e.g., "X-Men")
+
+**Response**:
+```json
+{
+  "success": true,
+  "exists": true,
+  "message": "Analysis for brand 'X-Men' already exists",
+  "data": {
+    "analysisId": "x-men",
+    "brandName": "X-Men",
+    "currentStep": 5,
+    "status": "in_progress"
+  }
+}
+```
+
+---
+
+## 📁 File Management
+
+### POST `/api/files/upload`
+**Purpose**: Upload Excel or CSV files  
+**Description**: Uploads files to brand-specific raw directory  
+
+**Request**: `multipart/form-data`
+- `file`: Excel (.xlsx, .xls, .xlsm) or CSV file
+- `metadata`: Optional JSON metadata
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully",
+  "filename": "NIELSEN - X-Men - Data Input.xlsx",
+  "originalFilename": "data.xlsx",
+  "size": 1024000,
+  "path": "x-men/data/uploads/raw/NIELSEN - X-Men - Data Input_1692350400.xlsx"
+}
+```
+
+### GET `/api/files/{filename}/sheets`
+**Purpose**: Get Excel sheet information  
+**Description**: Returns list of sheets and basic metadata for Excel files  
+
+**Parameters**:
+- `filename` (path): Filename (URL encoded)
+
+**Response**:
+```json
+{
+  "success": true,
+  "filename": "data.xlsx",
+  "sheets": [
+    {
+      "name": "Sheet1",
+      "rows": 1000,
+      "columns": 25,
+      "isEmpty": false
+    }
+  ],
+  "totalSheets": 1
+}
+```
+
+### GET `/api/files/list/{directory}`
+**Purpose**: List files in directory  
+**Description**: Returns files in specified directory (raw, intermediate, concatenated)  
+
+**Parameters**:
+- `directory` (path): Directory name (raw, intermediate, concatenated)
+
+**Response**:
+```json
+{
+  "success": true,
+  "directory": "concatenated",
+  "files": [
+    {
+      "filename": "X-Men_concatenated.xlsx",
+      "size": 2048000,
+      "lastModified": "2025-08-17T16:20:00.000000",
+      "path": "x-men/data/uploads/concatenated/"
+    }
+  ],
+  "count": 1
+}
+```
+
+### GET `/api/files/list-concatenated`
+**Purpose**: List all concatenated files  
+**Description**: Returns concatenated files from all brands  
+
+**Response**:
+```json
+{
+  "success": true,
+  "files": [
+    "X-Men_concatenated.xlsx",
+    "Dove_concatenated.xlsx"
+  ],
+  "count": 2
+}
+```
+
+### GET `/api/download/{filename}`
+**Purpose**: Download files  
+**Description**: Downloads files with proper headers and MIME types  
+
+**Parameters**:
+- `filename` (path): Filename to download
+
+**Response**: File download with appropriate headers
+
+### GET `/api/files/{filename}/validate`
+**Purpose**: Validate file format  
+**Description**: Checks file format, structure, and data quality  
+
+**Response**:
+```json
+{
+  "success": true,
+  "valid": true,
+  "format": "xlsx",
+  "sheets": 3,
+  "totalRows": 2500,
+  "issues": []
+}
+```
+
+---
+
+## 📊 Data Processing
+
+### POST `/api/data/filtered`
+**Purpose**: Apply filters and get filtered data  
+**Description**: Filters dataset based on criteria and returns paginated results  
+
+**Request Body**:
+```json
+{
+  "filename": "X-Men_concatenated.xlsx",
+  "filters": {
+    "region": ["North", "South"],
+    "channel": ["Online", "Retail"],
+    "month": ["2023-01", "2023-02"]
+  },
+  "columns": ["Date", "Volume", "Value", "Region"],
+  "limit": 1000
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Successfully filtered data: 150 rows from 2500 total rows",
+  "data": {
+    "rows": [
+      {
+        "Date": "2023-01-01",
+        "Volume": 1250.5,
+        "Value": 125000.0,
+        "Region": "North"
+      }
+    ],
+    "totalRows": 150,
+    "originalRows": 2500,
+    "columns": ["Date", "Volume", "Value", "Region"],
+    "appliedFilters": {
+      "region": ["North", "South"],
+      "channel": ["Online", "Retail"]
+    },
+    "filterOptions": {
+      "region": ["North", "South", "East", "West"],
+      "channel": ["Online", "Retail", "Wholesale"]
+    },
+    "filename": "X-Men_concatenated.xlsx"
+  }
+}
+```
+
+### GET `/api/data/analyze/{filename}`
+**Purpose**: Perform comprehensive dataset analysis  
+**Description**: Analyzes dataset structure, quality, and statistics  
+
+**Parameters**:
+- `filename` (path): Dataset filename
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Dataset analysis completed successfully",
+  "filename": "data.xlsx",
+  "data": {
+    "validation": {
+      "isValid": true,
+      "issues": [],
+      "totalRows": 2500,
+      "totalColumns": 25
+    },
+    "statistics": {
+      "numeric_stats": {
+        "Volume": {
+          "count": 2500,
+          "mean": 1250.5,
+          "std": 125.3,
+          "min": 800.0,
+          "max": 1800.0
+        }
+      },
+      "categorical_stats": {
+        "Region": {
+          "unique_count": 4,
+          "most_frequent": "North",
+          "null_count": 0
+        }
+      }
+    },
+    "column_info": {
+      "total_columns": 25,
+      "numeric_columns": 15,
+      "categorical_columns": 10,
+      "columns_by_type": {
+        "numeric": ["Volume", "Value", "Price"],
+        "categorical": ["Region", "Channel", "Brand"]
+      }
+    }
+  }
+}
+```
+
+### POST `/api/data/export`
+**Purpose**: Export filtered data  
+**Description**: Exports filtered data in specified format (CSV, Excel, JSON)  
+
+**Query Parameters**:
+- `export_format`: Export format (csv, xlsx, json) - default: csv
+
+**Request Body**: Same as `/api/data/filtered`
+
+**Response**: File download with exported data
+
+### GET `/api/data/column-stats/{filename}/{column}`
+**Purpose**: Get detailed statistics for specific column  
+**Description**: Returns comprehensive column analysis  
+
+**Parameters**:
+- `filename` (path): Dataset filename
+- `column` (path): Column name
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Column statistics for 'Volume' retrieved successfully",
+  "filename": "data.xlsx",
+  "data": {
+    "column_name": "Volume",
+    "data_type": "float64",
+    "total_count": 2500,
+    "null_count": 5,
+    "unique_count": 1250,
+    "null_percentage": 0.2,
+    "min": 800.0,
+    "max": 1800.0,
+    "mean": 1250.5,
+    "median": 1240.0,
+    "std": 125.3
+  }
+}
+```
+
+### GET `/api/data/summary/{filename}`
+**Purpose**: Get quick data summary  
+**Description**: Returns basic dataset information  
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Data summary retrieved successfully",
+  "filename": "data.xlsx",
+  "data": {
+    "total_rows": 2500,
+    "total_columns": 25,
+    "columns": ["Date", "Volume", "Value", "Region"],
+    "data_types": {
+      "Date": "datetime64[ns]",
+      "Volume": "float64",
+      "Region": "object"
+    },
+    "null_counts": {
+      "Date": 0,
+      "Volume": 5,
+      "Region": 2
+    },
+    "memory_usage_mb": 2.5
+  }
+}
+```
+
+### POST `/api/data/validate`
+**Purpose**: Validate filter request  
+**Description**: Validates filter request without executing it  
+
+**Request Body**: Same as `/api/data/filtered`
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Filter request validation completed",
+  "data": {
+    "file_exists": true,
+    "total_rows": 2500,
+    "available_columns": ["Date", "Volume", "Value", "Region"],
+    "filter_validation": {
+      "region": {
+        "column_exists": true,
+        "requested_values": ["North", "South"],
+        "valid_values": ["North", "South"],
+        "invalid_values": [],
+        "available_values_count": 4
+      }
+    }
+  }
+}
+```
+
+---
+
+## 🔗 Excel Operations
+
+### POST `/api/concatenate-sheets`
+**Purpose**: Concatenate Excel sheets  
+**Description**: Combines multiple Excel sheets into single dataset  
+
+**Request Body**:
+```json
+{
+  "filename": "data.xlsx",
+  "sheets": [
+    {
+      "name": "Sheet1",
+      "columns": ["A", "B", "C"],
+      "skipRows": 0
+    }
+  ],
+  "outputName": "concatenated_data.xlsx"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Sheets concatenated successfully",
+  "outputFile": "x-men/data/uploads/concatenated/concatenated_data.xlsx",
+  "totalRows": 2500,
+  "sheets": 3
+}
+```
+
+### POST `/api/files/{filename}/modify-columns`
+**Purpose**: Modify column mappings  
+**Description**: Rename or remap columns in dataset  
+
+**Request Body**:
+```json
+{
+  "columnMappings": {
+    "old_column_name": "new_column_name",
+    "Volume_Raw": "Volume",
+    "Value_USD": "Value"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Columns modified successfully",
+  "changes": {
+    "Volume_Raw": "Volume",
+    "Value_USD": "Value"
+  },
+  "outputFile": "modified_data.xlsx"
+}
+```
+
+### GET `/api/sheets/{filename}`
+**Purpose**: Get sheet data  
+**Description**: Returns data from specific Excel sheet  
+
+**Query Parameters**:
+- `sheet`: Sheet name (default: first sheet)
+- `limit`: Number of rows to return (default: 100)
+
+**Response**:
+```json
+{
+  "success": true,
+  "filename": "data.xlsx",
+  "sheet": "Sheet1",
+  "data": {
+    "rows": [...],
+    "columns": ["A", "B", "C"],
+    "totalRows": 2500
+  }
+}
+```
+
+---
+
+## 🗃️ Metadata Management
+
+### POST `/api/metadata/state/save`
+**Purpose**: Save concatenation state  
+**Description**: Saves current data processing state  
+
+**Request Body**:
+```json
+{
+  "originalFileName": "data.xlsx",
+  "concatenatedFileName": "data_concatenated.xlsx",
+  "targetVariable": "Volume",
+  "selectedSheets": [...],
+  "brandMetadata": {...}
+}
+```
+
+### GET `/api/metadata/state/{original_filename}`
+**Purpose**: Get concatenation state  
+**Description**: Retrieves saved processing state  
+
+### PUT `/api/metadata/state/{original_filename}`
+**Purpose**: Update concatenation state  
+**Description**: Updates existing processing state  
+
+### DELETE `/api/metadata/state/{original_filename}`
+**Purpose**: Delete concatenation state  
+**Description**: Removes processing state  
+
+### GET `/api/metadata/states`
+**Purpose**: List all concatenation states  
+**Description**: Returns all saved processing states  
+
+### POST `/api/metadata/cleanup`
+**Purpose**: Cleanup metadata  
+**Description**: Removes orphaned metadata files  
+
+### GET `/api/metadata/state/{original_filename}/export`
+**Purpose**: Export concatenation state  
+**Description**: Downloads state as JSON file  
+
+### GET `/api/metadata/health`
+**Purpose**: Metadata service health check  
+**Description**: Returns metadata service status  
+
+---
+
+## 🚨 Error Responses
+
+### Standard Error Format
+```json
+{
+  "error": "Error Type",
+  "message": "Human-readable error message",
+  "timestamp": "2025-08-17T16:20:00.000000",
+  "path": "/api/endpoint"
+}
+```
+
+### Common HTTP Status Codes
+- **200 OK**: Successful request
+- **201 Created**: Resource created successfully
+- **400 Bad Request**: Invalid request data
+- **404 Not Found**: Resource not found
+- **422 Unprocessable Entity**: Validation error
+- **500 Internal Server Error**: Server error
+
+### Validation Errors
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "brandName"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+---
+
+## 🔧 Rate Limiting & Quotas
+
+Currently no rate limiting is implemented. File uploads are limited to 100MB per file.
+
+---
+
+## 🔐 Authentication
+
+Currently no authentication is required. All endpoints are publicly accessible.
+
+---
+
+## 📝 Examples
+
+### Complete Brand Analysis Workflow
+
+1. **Create Brand Analysis**:
+```bash
+curl -X POST http://localhost:8000/api/analyses \
+  -H "Content-Type: application/json" \
+  -d '{"brandName": "X-Men", "analysisType": "MMM"}'
+```
+
+2. **Upload Data File**:
+```bash
+curl -X POST http://localhost:8000/api/files/upload \
+  -F "file=@data.xlsx"
+```
+
+3. **Get Sheet Information**:
+```bash
+curl http://localhost:8000/api/files/data.xlsx/sheets
+```
+
+4. **Concatenate Sheets**:
+```bash
+curl -X POST http://localhost:8000/api/concatenate-sheets \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "data.xlsx", "sheets": [...]}'
+```
+
+5. **Filter and Analyze Data**:
+```bash
+curl -X POST http://localhost:8000/api/data/filtered \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "data_concatenated.xlsx", "filters": {...}}'
+```
+
+6. **Export Results**:
+```bash
+curl -X POST http://localhost:8000/api/data/export \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "data_concatenated.xlsx", "filters": {...}}'
+```
+
+---
+
+## 🧮 Non-MMM Analysis Endpoints
+
+### POST `/api/nonmmm/upload-data`
+**Purpose**: Upload and process data for non-MMM analysis  
+**Description**: Handles file upload, validation, and initial processing for non-MMM analysis workflow  
+
+**Request Body** (multipart/form-data):
+- `file`: Excel (.xlsx) or CSV (.csv) file
+- `brand_name`: Brand name for the analysis
+- `analysis_name`: Name of the analysis
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Data uploaded and processed successfully",
+  "file_info": {
+    "filename": "data.xlsx",
+    "brand_name": "MBL",
+    "analysis_name": "MBL_Data",
+    "upload_timestamp": "2025-01-31T14:30:22",
+    "total_rows": 100,
+    "total_columns": 5,
+    "columns": ["Month", "Sales", "Price", "Advertising", "Promotion"],
+    "data_types": {
+      "Month": "datetime64[ns]",
+      "Sales": "float64",
+      "Price": "float64",
+      "Advertising": "float64",
+      "Promotion": "float64"
+    },
+    "saved_path": "data/MBL/data/MBL_MBL_Data_1756886275.xlsx"
+  }
+}
+```
+
+### POST `/api/nonmmm/save-state`
+**Purpose**: Save the current state of the non-MMM analysis  
+**Description**: Persists the current analysis state including target variable, expected signs, and other workflow data  
+
+**Request Body**:
+```json
+{
+  "brand_name": "MBL",
+  "analysis_name": "MBL_Data",
+  "target_variable": "Sales",
+  "expected_signs": {
+    "Price": "negative",
+    "Advertising": "positive",
+    "Promotion": "positive"
+  },
+  "current_step": 3,
+  "data_summary": {...},
+  "chart_data": {...}
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "State saved successfully",
+  "state_path": "data/MBL/data/MBL_MBL_Data_state.json"
+}
+```
+
+### GET `/api/nonmmm/load-state/{brand_name}/{analysis_name}`
+**Purpose**: Load the saved state for a non-MMM analysis  
+**Description**: Retrieves the previously saved analysis state for workflow continuation  
+
+**Parameters**:
+- `brand_name`: Brand name for the analysis
+- `analysis_name`: Name of the analysis
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "State loaded successfully",
+  "state_data": {
+    "brand_name": "MBL",
+    "analysis_name": "MBL_Data",
+    "target_variable": "Sales",
+    "expected_signs": {
+      "Price": "negative",
+      "Advertising": "positive",
+      "Promotion": "positive"
+    },
+    "current_step": 3,
+    "data_summary": {...},
+    "chart_data": {...}
+  }
+}
+```
+
+### POST `/api/nonmmm/train-model`
+**Purpose**: Train statistical models for Non-MMM analysis  
+**Description**: Trains various types of statistical models (linear, log-linear, log-log, ridge, bayesian) with selected variables  
+
+**Request Body**:
+```json
+{
+  "filename": "data.xlsx",
+  "targetVariable": "Sales",
+  "independentVariables": ["Price", "Advertising", "Promotion"],
+  "modelType": "linear",
+  "modelParameters": {},
+  "validationSplit": 0.2
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "linear model trained successfully",
+  "data": {
+    "modelId": "linear_20250131_143022",
+    "modelName": "Linear Model",
+    "modelType": "linear",
+    "rSquared": 0.85,
+    "adjustedRSquared": 0.83,
+    "intercept": 100.5,
+    "variables": [
+      {
+        "name": "Price",
+        "coefficient": -0.5,
+        "pValue": 0.001,
+        "tStatistic": -3.2,
+        "vif": 1.1,
+        "standardError": 0.15,
+        "confidenceInterval": [-0.8, -0.2]
+      }
+    ],
+    "performanceMetrics": {
+      "mape": 12.5,
+      "rmse": 15.2,
+      "mae": 12.8,
+      "aic": 245.6,
+      "bic": 250.3
+    },
+    "trainingInfo": {
+      "trainingRows": 80,
+      "validationRows": 20,
+      "trainingTime": 0.5,
+      "lastUpdated": "2025-01-31T14:30:22"
+    }
+  }
+}
+```
+
+### GET `/api/nonmmm/list-models/{filename}`
+**Purpose**: List all trained models for a specific file  
+**Description**: Retrieves paginated list of trained models with performance metrics  
+
+**Parameters**:
+- `filename`: Name of the file to get models for
+- `limit`: Maximum number of models to return (default: 10)
+- `offset`: Number of models to skip (default: 0)
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "models": [...],
+    "totalModels": 5,
+    "bestModel": {
+      "modelId": "ridge_20250131_143022",
+      "rSquared": 0.88,
+      "modelType": "ridge"
+    }
+  }
+}
+```
+
+### DELETE `/api/nonmmm/delete-model/{filename}/{model_id}`
+**Purpose**: Delete a trained model  
+**Description**: Removes a specific model and its metadata  
+
+**Parameters**:
+- `filename`: Name of the file the model belongs to
+- `model_id`: ID of the model to delete
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Model ridge_20250131_143022 deleted successfully",
+  "data": {
+    "deletedModelId": "ridge_20250131_143022",
+    "remainingModels": 4
+  }
+}
+```
+
+### GET `/api/nonmmm/data-summary/{filename}`
+**Purpose**: Get comprehensive statistical summary for all variables  
+**Description**: Returns statistical measures, data quality metrics, and descriptive statistics  
+
+**Parameters**:
+- `filename` (path): Dataset filename
+- `brand` (query): Brand name for data lookup
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Data summary generated for 4 variables",
+  "data": {
+    "variables": [
+      {
+        "name": "Sales",
+        "type": "numeric",
+        "count": 1000,
+        "mean": 12547.32,
+        "median": 11200.50,
+        "stdDev": 8965.23,
+        "min": 1200.00,
+        "max": 45000.00,
+        "nullCount": 5,
+        "uniqueCount": 892
+      }
+    ],
+    "totalRows": 1000,
+    "totalColumns": 4,
+    "generatedAt": "2025-01-31T10:30:00.000Z"
+  }
+}
+```
+
+### POST `/api/nonmmm/modify-column-type/{filename}`
+**Purpose**: Modify the data type of a specific column  
+**Description**: Convert column to numeric, datetime, percentage, or character type  
+
+**Request Body**:
+```json
+{
+  "columnName": "Sales",
+  "newType": "numeric"
+}
+```
+
+### GET `/api/nonmmm/histograms/{filename}`
+**Purpose**: Generate histogram data for all numeric variables  
+**Description**: Returns histogram data for frontend charting libraries  
+
+**Query Parameters**:
+- `brand`: Brand name for data lookup
+- `bins`: Number of bins for histograms (default: 10)
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Generated histograms for 2 numeric variables",
+  "data": {
+    "histograms": [
+      {
+        "variableName": "Sales",
+        "bins": [1000, 5000, 10000, 15000, 20000, 25000],
+        "counts": [45, 120, 200, 180, 150, 100],
+        "chartData": {
+          "labels": ["1K-5K", "5K-10K"],
+          "datasets": [...]
+        }
+      }
+    ]
+  }
+}
+```
+
+**Number Formatting**: The histogram labels use intelligent number formatting:
+- Values ≥1000 are displayed as "K" (thousands)
+- Values ≥100000 are displayed as "L" (lakhs)  
+- Values ≥10000000 are displayed as "Cr" (crores)
+- No decimals shown for values over 1
+- Maintains precision for small decimal values
+
+### Number Formatting
+
+**Purpose**: Provides consistent and user-friendly number formatting across all API responses
+
+**Formatting Rules**:
+- **Small values (< 1)**: Show appropriate decimals (2-3 decimal places)
+- **Values ≥ 1**: Remove decimals completely, show as whole numbers
+- **Large numbers**: Convert to thousands (K), lakhs (L), crores (Cr) format
+- **Percentages**: Apply K/L/Cr formatting for large percentage values while maintaining precision
+- **No decimals for values ≥ 1**: This is the key rule - any number 1 or greater will not show decimal places
+
+**Examples**:
+- `0.5` → `"0.5"` (small decimal preserved)
+- `1.0` → `"1"` (no unnecessary decimals)
+- `1.5` → `"1.5"` (shows decimal for fractional values)
+- `2.0` → `"2"` (no decimal for whole numbers)
+- `1500` → `"1.5K"` (thousands format)
+- `150000` → `"1.5L"` (lakhs format)
+- `15000000` → `"1.5Cr"` (crores format)
+- `0.046` → `"4.6%"` (percentage format, shows decimal for < 1%)
+- `0.15` → `"15%"` (percentage format, shows decimal for < 1%)
+- `1.5` → `"150%"` (percentage format, no decimal for >= 1%)
+- `15.0` → `"15K%"` (large percentage with K format, no decimal)
+
+**Implementation**: Number formatting is handled by utility functions in `app/utils/number_formatter.py` and applied consistently across all histogram and data visualization endpoints.
+
+### GET `/api/nonmmm/correlation-matrix/{filename}`
+**Purpose**: Generate correlation matrix for numeric variables  
+**Description**: Returns upper triangular correlation matrix for visualization with optional variable filtering  
+
+**Query Parameters**:
+- `brand`: Brand name for data lookup
+- `method`: Correlation method (pearson, spearman, kendall)
+- `variables`: Optional comma-separated list of variables to include in correlation matrix
+
+**Response**:
+```json
+{
+  "success": true,
+  "message": "Generated correlation matrix for 3 variables using pearson method",
+  "data": {
+    "variables": ["Sales", "Price", "Marketing_Spend"],
+    "correlations": [
+      [1.00, 0.75, 0.68],
+      [0.75, 1.00, 0.45],
+      [0.68, 0.45, 1.00]
+    ],
+    "method": "pearson",
+    "filename": "sales_data.xlsx",
+    "generatedAt": "2025-01-31T10:30:00"
+  }
+}
+```
+
+**Example with Variable Filtering**:
+```
+GET /api/nonmmm/correlation-matrix/sales_data.xlsx?brand=TestBrand&method=pearson&variables=Sales,Price,Marketing_Spend
+```
+
+**Error Response for Invalid Variables**:
+```json
+{
+  "success": false,
+  "message": "None of the selected variables (InvalidVar1, InvalidVar2) are numeric or found in the dataset",
+  "data": null
+}
+```
+
+### GET `/api/nonmmm/data-validation/{filename}`
+**Purpose**: Perform comprehensive data quality validation  
+**Description**: Returns data quality metrics and recommendations  
+
+---
+
+**Last Updated**: 2025-01-31  
+**API Version**: 1.0.0

@@ -1,0 +1,142 @@
+{
+  "models": [
+    {
+      "id": "log-linear_20250917_110326",
+      "modelType": "log-linear",
+      "executionStatus": "completed",
+      "executedAt": "2025-09-17T05:33:26.099Z",
+      "completedAt": "2025-09-17T05:33:26.099Z",
+      "rSquared": 0.681554294852688,
+      "adjustedRSquared": 0.442720015992204,
+      "rootMeanSquareError": 725.0359484382703,
+      "fStatistic": 0,
+      "pValue": 0.001,
+      "variables": [
+        {
+          "name": "Units X-Men For Boss",
+          "coefficient": 0.000002475762698131425,
+          "pValue": 0.9574989362212298,
+          "tStatistic": 0.05670604102839316,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "positive",
+          "isSignificant": false
+        },
+        {
+          "name": "RPI X-Men 251-500ML v/s X-Men For Boss 150-250ML",
+          "coefficient": -1.6978964368583038,
+          "pValue": 0.4381067638944647,
+          "tStatistic": -0.8603526678908884,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "negative",
+          "isSignificant": false
+        },
+        {
+          "name": "RPI X-Men 251-500ML v/s Category 251-500ML",
+          "coefficient": 1.843213238801797,
+          "pValue": 0.6382777917389209,
+          "tStatistic": 0.5078568232569414,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "positive",
+          "isSignificant": false
+        }
+      ],
+      "diagnostics": {
+        "residuals": [],
+        "durbinWatson": 0,
+        "jarqueBera": 0,
+        "breuschPagan": 0,
+        "vifMax": 1,
+        "conditionIndex": 0
+      },
+      "executionTime": 0.001635,
+      "filename": "3. NTW - 251_1758087151.xlsx",
+      "brand": "X-Men",
+      "targetVariable": "Volume X-Men",
+      "independentVariables": [
+        "Units X-Men For Boss",
+        "RPI X-Men 251-500ML v/s X-Men For Boss 150-250ML",
+        "RPI X-Men 251-500ML v/s Category 251-500ML"
+      ],
+      "isSaved": true,
+      "isProduction": false,
+      "meanAbsoluteError": 640.2968579577321,
+      "createdAt": "2025-09-17T05:33:26.104Z"
+    },
+    {
+      "id": "log-linear_20250917_110319",
+      "modelType": "log-linear",
+      "executionStatus": "completed",
+      "executedAt": "2025-09-17T05:33:19.613Z",
+      "completedAt": "2025-09-17T05:33:19.613Z",
+      "rSquared": 0.6799006474352288,
+      "adjustedRSquared": 0.4398261330116504,
+      "rootMeanSquareError": 0.15578777399504182,
+      "fStatistic": 0,
+      "pValue": 0.001,
+      "variables": [
+        {
+          "name": "Units X-Men For Boss",
+          "coefficient": 0.023203407263953642,
+          "pValue": 0.941287289245039,
+          "tStatistic": 0.07838378432272498,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "positive",
+          "isSignificant": false
+        },
+        {
+          "name": "RPI X-Men 251-500ML v/s X-Men For Boss 150-250ML",
+          "coefficient": -0.32335769349182386,
+          "pValue": 0.4328708091938387,
+          "tStatistic": -0.8710776262955173,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "negative",
+          "isSignificant": false
+        },
+        {
+          "name": "RPI X-Men 251-500ML v/s Category 251-500ML",
+          "coefficient": 0.2088686571002064,
+          "pValue": 0.6322102062799058,
+          "tStatistic": 0.5173417164322005,
+          "vif": 1,
+          "elasticity10Percent": 0,
+          "expectedSign": "neutral",
+          "actualSign": "positive",
+          "isSignificant": false
+        }
+      ],
+      "diagnostics": {
+        "residuals": [],
+        "durbinWatson": 0,
+        "jarqueBera": 0,
+        "breuschPagan": 0,
+        "vifMax": 1,
+        "conditionIndex": 0
+      },
+      "executionTime": 0.004079,
+      "filename": "3. NTW - 251_1758087151.xlsx",
+      "brand": "X-Men",
+      "targetVariable": "Volume X-Men",
+      "independentVariables": [
+        "Units X-Men For Boss",
+        "RPI X-Men 251-500ML v/s X-Men For Boss 150-250ML",
+        "RPI X-Men 251-500ML v/s Category 251-500ML"
+      ],
+      "isSaved": true,
+      "isProduction": false,
+      "meanAbsoluteError": 0.13715314734933087,
+      "createdAt": "2025-09-17T05:33:19.619Z"
+    }
+  ],
+  "productionModelId": null,
+  "lastUpdated": "2025-09-17T05:33:26.105Z"
+}

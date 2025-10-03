@@ -1,0 +1,2021 @@
+# BrandBloom Insights Backend - Complete Codebase Documentation
+
+## 🆕 New Features (2025-01-31)
+
+### Model Building Improvements & Standardized Data Implementation
+
+#### Features Added:
+1. **Fixed VIF Calculation**: Implemented proper VIF calculation using statsmodels instead of hardcoded values
+2. **Fixed Elasticity Calculation**: Corrected elasticity calculation to use original data means for meaningful interpretation
+3. **Automatic Standardized Data Creation**: Added automatic creation of standardized data when moving from charting to model building
+4. **Enhanced Model Training**: Updated model training to properly use standardized data when selected
+
+#### Implementation Details:
+
+##### 1. VIF Calculation Fix (`app/routes/nonmmm_routes.py`):
+**Problem**: VIF values were hardcoded to 1.0, providing no meaningful multicollinearity information
+**Solution**: Implemented proper VIF calculation using `statsmodels.stats.outliers_influence.variance_inflation_factor`
+
+**Key Changes**:
+- Added proper VIF calculation for each variable in the model
+- Handles infinite or very large VIF values (caps at 1000 for display)
+- Includes error handling with fallback to 1.0 if calculation fails
+- Uses the design matrix (X) and variable index for accurate calculation
+
+**Code Location**: Lines 1681-1692 in `_train_model_by_type` function
+
+##### 2. Elasticity Calculation Fix (`app/routes/nonmmm_routes.py`):
+**Problem**: Elasticity values were showing 0 due to incorrect mean calculation using transformed data
+**Solution**: Fixed to use original data means for meaningful elasticity interpretation
+
+**Key Changes**:
+- Uses `X_train_original` and `y_train_original` for mean calculations
+- Maintains proper elasticity formula: `coefficient * (X_mean / Y_mean) * 0.1`
+- Provides meaningful percentage change interpretation for 10% variable change
+- Includes comprehensive error handling with logging
+
+**Code Location**: Lines 1694-1710 in `_train_model_by_type` function
+
+##### 3. Automatic Standardized Data Creation:
+**New Endpoint**: `POST /api/nonmmm/create-standardized-data`
+**Purpose**: Automatically create standardized data when moving from charting to model building
+
+**Key Features**:
+- Creates standardized file with naming pattern: `<rawfilename>_std.xlsx`
+- Uses z-score standardization by default
+- Checks for existing standardized files to avoid duplicates
+- Integrates with chart analysis step for seamless workflow
+- Stores metadata for tracking and reference
+
+**Frontend Integration**:
+- Added automatic call in `NonMMMChartAnalysisStep.tsx` when moving to model building
+- Updates Non-MMM state with standardized file information
+- Graceful error handling - continues even if standardization fails
+
+##### 4. Enhanced Model Training Data Type Support:
+**Problem**: Model training wasn't properly using standardized data when selected
+**Solution**: Enhanced file resolution logic to find standardized files in correct locations
+
+**Key Changes**:
+- Updated file search logic to look in standardized directory
+- Uses simple naming pattern: `<original_name>_std.xlsx`
+- Maintains fallback to original data if standardized not found
+- Comprehensive logging for debugging file resolution
+
+**File Search Strategy**:
+- First tries `DataStandardizationService.find_standardized_file()`
+- Falls back to direct lookup in standardized directory
+- Uses original data as final fallback with warning
+
+##### 5. Standardized Data Service Updates (`app/services/data_standardization_service.py`):
+**Naming Convention**: Changed from timestamped names to simple `<rawfilename>_std.xlsx`
+**File Location**: Stores in `brand_dirs["upload_dir"] / "standardized"`
+**Metadata Tracking**: Maintains comprehensive metadata for standardization parameters
+
+### Variable Deletion Feature Implementation
+
+#### Feature Added:
+Implemented comprehensive variable deletion functionality for Non-MMM analysis charting page, allowing users to permanently remove variables from data files during the chart analysis step.
+
+#### Implementation Details:
+
+##### 1. Column Deletion API Endpoint (`app/routes/nonmmm_routes.py`):
+**Purpose**: Delete specific columns from data files during Non-MMM analysis
+
+**Key Endpoint**:
+- `DELETE /api/nonmmm/delete-column/{filename}`: Delete a specific column from the data file
+
+**Parameters**:
+- `filename`: Name of the file to modify
+- `column_name`: Name of the column to delete (query parameter)
+- `brand`: Brand name for data lookup (query parameter)
+
+**Features**:
+- **Target Variable Protection**: Prevents deletion of the target variable by checking non-MMM state
+- **File Validation**: Ensures file and column exist before deletion
+- **Permanent Removal**: Completely removes column from Excel file using pandas
+- **State Integration**: Checks non-MMM state to identify target variable
+- **Comprehensive Error Handling**: Detailed error messages for various failure scenarios
+- **Cache Invalidation**: Automatically cleans up cached data summaries containing deleted columns
+- **Consistent File Search**: Uses same search strategy as data-summary endpoint to ensure consistency
+
+**Business Logic**:
+- Validates column exists in the file
+- Checks if column is the target variable (prevents deletion)
+- Removes column using `df.drop(columns=[column_name])`
+- Saves modified file back to disk
+- Cleans up cached data summaries containing the deleted column
+- Returns updated column information
+
+**File Search Strategy**:
+- Uses consistent search directories with data-summary endpoint
+- Searches: `[concat_dir, raw_dir, global_upload_dir, legacy_raw_dir]`
+- Ensures both endpoints find the same file version
+
+**Cache Cleanup**:
+- Removes cached data summaries in `nonmmm_summaries/` directory
+- Removes stored data summaries in `stored_summaries/` directory
+- Ensures fresh data is returned on subsequent requests
+
+**Error Handling**:
+- File not found (404)
+- Column not found (404)
+- Target variable deletion attempt (400)
+- General processing errors (500)
+
+##### 2. Frontend Integration:
+**Purpose**: User interface for variable deletion in chart analysis step
+
+**Key Components**:
+- **Delete Button**: Red trash icon button in chart container header
+- **Confirmation Dialog**: Browser confirm dialog before deletion
+- **State Management**: Updates local charts state and expected signs
+- **Toast Notifications**: Success/error feedback to user
+
+**UI Features**:
+- **Strategic Placement**: Delete button positioned to the right of trendline dropdown
+- **Visual Design**: Red color scheme with hover effects
+- **Accessibility**: Proper tooltips and confirmation dialogs
+- **State Synchronization**: Updates both frontend state and backend data
+
+**User Experience**:
+- Clear confirmation dialog with variable name
+- Immediate UI update after successful deletion
+- Error handling with descriptive messages
+- Seamless integration with existing chart workflow
+
+#### Benefits:
+- ✅ **Data Cleanup**: Users can remove unwanted variables during analysis
+- ✅ **Workflow Efficiency**: No need to restart analysis to remove variables
+- ✅ **Target Variable Protection**: Prevents accidental deletion of critical variables
+- ✅ **State Consistency**: Maintains synchronization between frontend and backend
+- ✅ **User-Friendly**: Clear confirmation and feedback mechanisms
+- ✅ **Permanent Removal**: Variables are completely removed from data files
+- ✅ **Cache Consistency**: Ensures modeling step sees updated variables immediately
+- ✅ **Race Condition Prevention**: Eliminates inconsistencies between delete and data-summary endpoints
+
+#### Critical Fix (2025-01-31):
+**Issue Resolved**: Variable deletion was not properly updating the Excel file used for modeling due to inconsistent file search strategies between delete-column and data-summary endpoints.
+
+**Root Cause**: 
+- Delete-column endpoint searched: `[concat_dir, raw_dir]`
+- Data-summary endpoint searched: `[concat_dir, raw_dir, global_upload_dir, legacy_raw_dir]`
+- This caused data-summary to find older file versions in fallback directories
+
+**Solution Implemented**:
+1. **Consistent File Search**: Both endpoints now use identical search directories
+2. **Cache Invalidation**: Added automatic cleanup of cached data summaries
+3. **Frontend Refresh**: Added timestamp-based cache busting in modeling step
+4. **Race Condition Prevention**: Ensures both endpoints always find the same file version
+
+**Impact**:
+- ✅ **Fixed Variable Deletion**: Deleted variables no longer appear in modeling step
+- ✅ **Consistent Data**: Both endpoints always work with the same file version
+- ✅ **Cache Management**: Cached data is automatically cleaned up
+- ✅ **User Experience**: Seamless workflow from chart analysis to modeling
+
+#### Files Created/Modified:
+- `app/routes/nonmmm_routes.py` - Added column deletion endpoint
+- `frontend/src/analysis/nonmmm/components/NonMMMChartContainer.tsx` - Added delete button UI
+- `frontend/src/analysis/nonmmm/steps/NonMMMChartAnalysisStep.tsx` - Added delete functionality
+- `frontend/src/analysis/nonmmm/services/NonMMMChartAnalysisService.ts` - Added delete API service
+
+### PowerPoint Generation Service Implementation
+
+#### Feature Added:
+Implemented comprehensive PowerPoint generation service for Non-MMM analysis, replacing the Model Results step with a Download Analysis step that creates professional presentations.
+
+#### Implementation Details:
+
+##### 1. PowerPoint Generation Service (`app/services/powerpoint_service.py`):
+**Purpose**: Generate professional PowerPoint presentations from Non-MMM analysis data
+
+**Key Functions**:
+- `generate_analysis_presentation()`: Main function that creates complete PowerPoint presentations
+- `_add_title_slide()`: Creates branded title slide with analysis metadata
+- `_add_context_slide()`: Adds data overview and analysis context
+- `_add_insights_slide()`: Includes key findings and analysis scope
+- `_add_chart_slides()`: Creates slides for each variable's chart analysis
+- `_add_model_results_slide()`: Displays statistical model results and validation
+
+**PowerPoint Content Structure**:
+1. **Title Slide**: Brand name, analysis type, generation date
+2. **Context Slide**: Data overview, target variable, file information, data summary
+3. **Initial Insights Slide**: Key findings, analysis scope, completed steps
+4. **Chart Analysis Slides**: One slide per variable with line chart and scatter plot placeholders
+5. **Model Results Slide**: Statistical models, R² scores, variable significance
+
+**Technical Features**:
+- Widescreen (16:9) format for professional presentation
+- Brand-specific styling with corporate colors
+- Comprehensive error handling and validation
+- Brand-specific file organization in exports directory
+- Professional typography and layout
+
+##### 2. PowerPoint API Routes (`app/routes/powerpoint_routes.py`):
+**Purpose**: API endpoints for PowerPoint generation and management
+
+**Key Endpoints**:
+- `POST /api/powerpoint/generate-nonmmm`: Generate PowerPoint presentation from analysis data
+- `GET /api/powerpoint/download/{filename}`: Download previously generated PowerPoint files
+- `GET /api/powerpoint/list/{brand}`: List all PowerPoint files for a specific brand
+
+**Integration Features**:
+- Brand-specific file organization and access control
+- Comprehensive error handling and validation
+- File metadata tracking (size, creation date, modification date)
+- Proper MIME type handling for PowerPoint files
+
+##### 3. Non-MMM Integration (`app/routes/nonmmm_routes.py`):
+**New Endpoint**: `POST /api/nonmmm/generate-powerpoint`
+- Integrated PowerPoint generation directly into Non-MMM workflow
+- Accepts analysis data from frontend and generates presentation
+- Returns FileResponse for direct download
+- Maintains brand isolation and security
+
+##### 4. Dependencies Added:
+- `python-pptx>=0.6.21`: Professional PowerPoint generation library
+- `matplotlib>=3.7.0`: Chart generation and visualization support
+
+#### Benefits:
+- ✅ **Professional Output**: Users receive complete PowerPoint presentations
+- ✅ **Comprehensive Analysis**: All analysis data included in presentation
+- ✅ **Brand-Specific**: Presentations customized for each brand
+- ✅ **Easy Sharing**: PowerPoint format for stakeholder presentations
+- ✅ **Complete Workflow**: Analysis workflow ends with deliverable output
+- ✅ **Scalable Architecture**: Service can be extended for other analysis types
+
+#### Files Created/Modified:
+- `app/services/powerpoint_service.py` - New PowerPoint generation service
+- `app/routes/powerpoint_routes.py` - New PowerPoint API routes
+- `app/routes/nonmmm_routes.py` - Added PowerPoint generation endpoint
+- `app/core/routes.py` - Registered PowerPoint routes
+- `requirements.txt` - Added python-pptx and matplotlib dependencies
+
+## Overview
+
+The BrandBloom Insights backend is a comprehensive FastAPI-based analytics platform designed for Marketing Mix Modeling (MMM) and business intelligence workflows. The system implements a brand-specific architecture where each brand gets its own isolated workspace for data processing, analysis, and workflow management.
+
+## Architecture Overview
+
+### Core Architecture Principles
+- **Brand Isolation**: Each brand gets its own directory structure and data workspace
+- **Factory Pattern**: Clean application creation and configuration management
+- **Modular Design**: Separated concerns across routes, services, and utilities
+- **13-Step Workflow**: Comprehensive analytics workflow from data upload to model completion
+- **State Persistence**: Workflow continuity across sessions and page navigation
+
+### Directory Structure
+```
+backend/python/
+├── app/
+│   ├── core/           # Application configuration and setup
+│   ├── models/         # Data models and schemas
+│   ├── routes/         # API endpoint definitions
+│   ├── services/       # Business logic and data processing
+│   └── utils/          # Utility functions and helpers
+├── main.py             # Application entry point
+└── check_routes.py     # Route debugging utility
+```
+
+## Core Components
+
+### 1. Application Factory (`app/core/factory.py`)
+**Purpose**: Creates and configures the FastAPI application using the factory pattern
+
+**Key Functions**:
+- `create_application()`: Main factory function that:
+  - Initializes FastAPI with metadata and configuration
+  - Configures middleware for CORS and security
+  - Sets up exception handlers for error management
+  - Registers all route modules with proper organization
+  - Returns fully configured FastAPI application
+
+**Configuration Applied**:
+- API metadata (title, description, version)
+- Documentation endpoints (docs_url, redoc_url)
+- Middleware stack configuration
+- Exception handling setup
+- Event lifecycle management
+- Route registration
+
+**Benefits**:
+- Clean separation of application setup
+- Modular component integration
+- Easy testing and mocking
+- Consistent application configuration
+
+### 2. Configuration Management (`app/core/config.py`)
+**Purpose**: Centralized application configuration and brand-specific data directory structure
+
+**Key Functions**:
+- `get_brand_directories(brand_name)`: Returns brand-specific directory paths
+- `create_brand_directories(brand_name)`: Creates brand-specific directory structure
+- `_sanitize_brand_name(brand_name)`: Sanitizes brand names for filesystem use
+
+**Brand-Specific Directory Structure**:
+```
+<brandname>/data/
+├── uploads/
+│   ├── raw/           # Original uploaded files
+│   ├── intermediate/  # Processing intermediate files
+│   └── concatenated/  # Multi-sheet concatenated files
+├── exports/
+│   ├── results/       # Processed analysis results
+│   └── reports/       # Generated reports
+└── metadata/
+    ├── concatenation_states/  # Workflow state persistence
+    └── analyses/              # Analysis metadata
+```
+
+**Configuration Categories**:
+- FastAPI Configuration: API metadata, documentation URLs, versioning
+- Server Configuration: Host, port, reload settings
+- CORS Configuration: Allowed origins, methods, headers for frontend integration
+- File Configuration: Allowed extensions, maximum file size limits
+- Directory Configuration: Brand-specific directory structure paths
+- Data Quality Configuration: Minimum records, preserved columns
+- Preview Configuration: Preview rows, filter options, data limits
+
+### 3. Route Registration (`app/core/routes.py`)
+**Purpose**: Centralized route registration and organization for FastAPI application
+
+**Key Functions**:
+- `configure_routes(app)`: Main function that registers all route modules
+
+**Route Modules Registered**:
+- Health Routes: System health checks and status endpoints
+- File Routes: File upload, download, and management operations
+- Excel Routes: Excel file processing and manipulation
+- Data Routes: Data filtering, analysis, and export operations
+- Metadata Routes: Analysis metadata and state management
+- Analysis Routes: Core analysis and processing endpoints
+
+### 4. Number Formatting Utilities (`app/utils/number_formatter.py`)
+**Purpose**: Provides utility functions for formatting numbers in a user-friendly way for histogram displays and data visualization.
+
+**Key Functions**:
+- `format_number_for_display(value, remove_decimals_threshold)`: Main number formatting function
+- `format_histogram_bin_label(value)`: Formats individual histogram bin values
+- `format_histogram_range_label(start_value, end_value)`: Formats histogram bin ranges
+- `format_percentage(value, show_percent_sign)`: Formats percentage values with K/L/Cr formatting
+
+**Formatting Logic**:
+- **Small values (< 1)**: Show appropriate decimals (2-3 decimal places)
+- **Values ≥ 1**: Remove unnecessary decimals, show as whole numbers
+- **Large numbers**: Convert to thousands (K), lacs (L), crores (Cr) format
+- **Percentages**: Apply K/L/Cr formatting for large percentage values while maintaining precision
+
+**Number Formatting Examples**:
+- **Small Values**: 0.5 → '0.5', 1.5 → '2' (no decimal for values >= 1), 2.0 → '2'
+- **Thousands**: 1500 → '1.5 K', 15000 → '15 K'
+- **Lakhs**: 150000 → '1.5 L', 1500000 → '15 L'
+- **Crores**: 15000000 → '1.5 Cr'
+- **Currency**: ₹1500.50 → '₹1,500.50', ₹150000 → '₹1,50,000'
+- **Percentages**: 0.15 → '15%', 1.5 → '150%', 15.0 → '15 K%', 150.0 → '150 L%'
+
+**Usage Examples**:
+```python
+from app.utils.number_formatter import format_number_for_display, format_percentage
+
+# Basic number formatting - NO decimals for values >= 1
+format_number_for_display(0.5)        # '0.5'
+format_number_for_display(1.5)        # '2' (no decimal for values >= 1)
+format_number_for_display(2.0)        # '2' (no decimal for whole numbers)
+format_number_for_display(2.7)        # '3' (no decimal for values >= 1)
+format_number_for_display(1500)       # '1.5 K'
+format_number_for_display(150000)     # '1.5 L'
+format_number_for_display(15000000)   # '1.5 Cr'
+
+# Percentage formatting - NO decimals for percentages >= 1%
+format_percentage(0.05)               # '5%' (shows decimal for < 1%)
+format_percentage(0.15)               # '15%' (shows decimal for < 1%)
+format_percentage(1.5)                # '150%' (no decimal for >= 1%)
+format_percentage(15.0)               # '15 K%' (no decimal for >= 1%)
+format_percentage(150.0)              # '150 L%' (no decimal for >= 1%)
+```
+
+**API Endpoints Using This Utility**:
+- `/api/nonmmm/histograms/{filename}`: Histogram range labels
+- All histogram data generation across the application
+
+**Benefits**:
+- Consistent number formatting across the entire backend
+- Improved readability for large numbers (K, L, Cr format)
+- Appropriate decimal precision based on value magnitude
+- Enhanced data visualization quality for frontend consumption
+
+### 4. Event Management (`app/core/events.py`)
+**Purpose**: Application lifecycle event handlers and resource management
+
+**Key Functions**:
+- `configure_events(app)`: Main function that sets up all lifecycle event handlers
+
+**Event Handlers**:
+- `startup_event()`: Application startup handler
+  - Displays startup messages and status information
+  - Logs application initialization progress
+  - Reports upload directory configuration
+  - Indicates platform readiness for data science workflows
+- `shutdown_event()`: Application shutdown handler
+  - Displays shutdown messages and status information
+  - Logs application termination progress
+  - Ensures clean application closure
+
+**Lifecycle Management**:
+- Startup Phase: Resource initialization and validation
+- Runtime Phase: Application operation and monitoring
+- Shutdown Phase: Resource cleanup and graceful termination
+
+### 5. Exception Handling (`app/core/exceptions.py`)
+**Purpose**: Centralized exception handling and error response management
+
+**Key Functions**:
+- `configure_exception_handlers(app)`: Main function that sets up all exception handlers
+
+**Exception Handlers**:
+- `not_found_handler(request, exc)`: Custom 404 Not Found handler
+  - Handles requests to non-existent endpoints
+  - Returns structured JSON response with error details
+  - Includes timestamp for error tracking and debugging
+  - Provides clear error message for API consumers
+- `internal_error_handler(request, exc)`: Custom 500 Internal Server Error handler
+  - Handles unexpected server errors and exceptions
+  - Returns structured JSON response with error details
+  - Includes timestamp for error tracking and debugging
+  - Provides generic error message for security
+
+**Error Response Structure**:
+- error: Error type identifier
+- message: Human-readable error description
+- timestamp: ISO format timestamp for error tracking
+- status_code: Appropriate HTTP status code
+
+### 6. Middleware Configuration (`app/core/middleware.py`)
+**Purpose**: Centralized middleware configuration and CORS setup
+
+**Key Functions**:
+- `configure_middleware(app)`: Main function that sets up all middleware components
+
+**Middleware Components**:
+- CORS Middleware: Cross-Origin Resource Sharing configuration
+  - allow_origins: List of allowed frontend origins
+  - allow_credentials: Support for authentication cookies
+  - allow_methods: Allowed HTTP methods (GET, POST, PUT, DELETE)
+  - allow_headers: Allowed request headers
+
+**CORS Configuration Benefits**:
+- Enables frontend-backend communication
+- Supports multiple development environments
+- Allows authentication and session management
+- Provides secure cross-origin access
+- Configurable for different deployment scenarios
+
+## Data Models
+
+### 1. Data Standardization Service (`app/services/data_standardization_service.py`)
+**Purpose**: Handle data standardization for Non-MMM analysis workflows
+
+**Key Functions**:
+- `standardize_dataframe(df, method, columns_to_standardize, preserve_columns)`: Apply standardization to a DataFrame
+- `create_standardized_file(original_file_path, brand, analysis_id, method)`: Create standardized Excel file
+- `get_standardization_metadata(brand, analysis_id, method)`: Get standardization metadata
+- `find_standardized_file(original_filename, brand, method)`: Find standardized file for given original
+- `validate_standardization_input(df, columns_to_standardize, preserve_columns)`: Validate input for standardization
+
+**Standardization Methods**:
+- **Z-Score**: `(x - mean) / std` - Best for normally distributed data
+- **Min-Max**: `(x - min) / (max - min)` - Scales to [0,1] range
+- **Robust**: `(x - median) / IQR` - More robust to outliers
+- **Unit Vector**: `x / ||x||` - Scales to unit norm
+
+**Features**:
+- Multiple standardization methods with metadata tracking
+- Variable selection for targeted standardization
+- File creation with proper naming conventions
+- Comprehensive error handling and validation
+- Brand-specific directory structure support
+
+### 2. Data Models (`app/models/data_models.py`)
+**Purpose**: Centralized data models, schemas, and type definitions for API operations
+
+**Model Categories**:
+
+#### Base Models
+- `BaseResponse`: Standard success response with timestamp
+- `ErrorResponse`: Error response with error details and optional information
+
+#### File Operation Models
+- `FileUploadResponse`: File upload operation results
+- `SheetInfo`: Excel sheet metadata (name, columns, rows, selection status)
+- `SheetsResponse`: Multiple sheet information response
+
+#### Concatenation Models
+- `ConcatenationRequest`: Multi-sheet concatenation parameters
+- `ColumnCategories`: Business column categorization (Revenue, Distribution, Pricing, etc.)
+- `ConcatenationDetails`: Process details and metadata
+- `PriceSheetInfo`: Price sheet creation results
+- `RPISheetInfo`: RPI sheet creation results
+- `ConcatenationResponse`: Complete concatenation operation results
+
+#### Column Modification Models
+- `ColumnModificationRequest`: Column modification parameters
+- `DataQualityMetrics`: Data quality improvement statistics
+- `ModificationDetails`: Modification operation results
+- `ColumnModificationResponse`: Column modification operation response
+
+#### Filtering Models
+- `FilterRequest`: Data filtering parameters and criteria
+- `FilterData`: Filtered data results with metadata
+- `FilterResponse`: Complete filtering operation response
+
+#### Metadata Models
+- `BrandCategories`: Brand classification (our brand, competitors, halo brands)
+- `VariableExpectedSign`: Expected sign information for variables
+- `ExpectedSignsMap`: Mapping of variables to expected signs
+- `BrandMetadata`: Brand analysis metadata and state
+- `ConcatenationState`: Persistent concatenation state and metadata
+- `StateResponse`: State retrieval and management response
+
+#### Health Check Models
+- `HealthResponse`: Basic health status
+- `StatusResponse`: Detailed system status and feature information
+
+#### RPI Addition Models
+- `RPIAdditionRequest`: RPI addition operation parameters
+- `RPIColumnInfo`: RPI column processing information
+- `RPIAdditionResponse`: RPI addition operation results
+
+### 2. Analysis Models (`app/models/analysis_models.py`)
+**Purpose**: Data models for brand-based analysis system and workflow management
+
+**Key Models**:
+
+#### Analysis Status Enumeration
+- `AnalysisStatus`: Defines possible analysis states
+  - CREATED: Initial analysis creation
+  - IN_PROGRESS: Active analysis workflow
+  - COMPLETED: Finished analysis
+  - PAUSED: Temporarily halted analysis
+  - ERROR: Analysis with errors
+
+#### Progress Tracking
+- `AnalysisProgress`: Tracks completion of each workflow step
+  - dataUploaded: Data files uploaded status
+  - concatenationCompleted: Multi-sheet concatenation status
+  - targetVariableSelected: Target variable selection status
+  - filtersApplied: Data filtering status
+  - brandCategorized: Brand classification status
+  - modelBuilt: Model construction status
+  - resultsGenerated: Results generation status
+
+#### File Management
+- `AnalysisFiles`: Manages all files associated with analysis
+  - originalFileName: Source file names
+  - concatenatedFileName: Processed concatenated file
+  - uploadedFiles: List of uploaded data files
+  - processedFiles: List of processed/derived files
+
+#### Main Analysis Container
+- `BrandAnalysis`: Complete analysis metadata and state
+  - brandName: User-entered brand identifier
+  - analysisId: URL-safe unique identifier
+  - createdAt: Analysis creation timestamp
+  - lastModified: Last update timestamp
+  - currentStep: Current workflow step (1-13)
+  - status: Current analysis status
+  - analysisType: MMM, Fresh Analysis, or NON_MMM type
+  - files: File management container
+  - progress: Progress tracking container
+  - concatenationState: Concatenation process state
+  - filterState: Data filtering state
+  - modelState: Model building state
+
+**Workflow Steps (1-13)**:
+1. Brand Analysis Creation
+2. Data File Upload
+3. Multi-Sheet Concatenation
+4. Target Variable Selection
+5. Data Filtering and Cleaning
+6. Brand Categorization
+7. Variable Expected Signs
+8. Model Building
+9. Model Validation
+10. Results Generation
+11. Optimization Analysis
+12. Report Generation
+13. Analysis Completion
+
+## API Routes
+
+### 1. Health Routes (`app/routes/health_routes.py`)
+**Purpose**: Health check, system status, and debugging API endpoints
+
+**Key Functions**:
+- `root()`: Welcome endpoint providing API information and status
+- `health_check()`: Basic health check endpoint for monitoring
+- `api_status()`: Detailed system status endpoint
+- `debug_routes()`: Route debugging endpoint
+
+**API Endpoints**:
+- `GET /`: Welcome message and API information
+- `GET /health`: Basic health check
+- `GET /api/status`: Detailed system status
+- `GET /debug/routes`: Route debugging information
+
+**Monitoring Benefits**:
+- Load balancer health monitoring
+- System availability verification
+- Performance monitoring integration
+- Error detection and alerting
+- Service discovery and documentation
+
+### 2. File Routes (`app/routes/file_routes.py`)
+**Purpose**: Comprehensive file management endpoints for brand-specific data operations
+
+**Key Endpoints**:
+- `POST /api/files/upload`: File upload with brand context and processing
+- `GET /api/files/{filename}/sheets`: Excel sheet information extraction
+- `GET /api/download/{filename}`: File download with brand-specific lookup
+- `GET /api/files/{filename}/validate`: File validation and readiness check
+- `GET /api/files/list/{directory}`: Directory file enumeration
+- `GET /api/files/list-concatenated`: Concatenated file discovery
+- `GET /api/files/{filename}/exists`: **NEW** - File existence check for visit logic
+
+**File Exists Endpoint Details**:
+- **Purpose**: Check if a specific file exists in brand-specific directories
+- **Parameters**: 
+  - `filename` (path): Name of the file to check
+  - `brand` (query): Brand name for brand-specific lookup
+- **Response**: File existence status with file path and directory information
+- **Search Strategy**: Priority-based search across multiple directories:
+  1. Concatenated directory (highest priority)
+  2. Data directory
+  3. Raw directory
+  4. Intermediate directory
+- **Use Case**: Frontend visit logic to detect if RPI-enhanced files exist
+- **Brand Isolation**: Enforces brand parameter requirement for proper data separation
+
+**Benefits**:
+- **Visit Logic Support**: Enables frontend to detect previous analysis completion
+- **Efficient Navigation**: Prevents unnecessary re-processing of completed steps
+- **State Persistence**: Maintains analysis progress across user sessions
+- **Brand Security**: Ensures proper data isolation and access control
+- **Performance**: Fast file existence checks without full file loading
+
+### 3. Excel Routes (`app/routes/excel_routes.py`)
+**Purpose**: Excel processing, concatenation, and column modification API endpoints
+
+**Key Functions**:
+- `concatenate_sheets(request)`: Multi-sheet Excel concatenation endpoint
+- `modify_excel_columns(filename, request, brand)`: Column modification endpoint
+- `get_excel_sheets(filename)`: Alternative sheet information endpoint
+
+**API Endpoints**:
+- `POST /api/concatenate-sheets`: Concatenate selected Excel sheets
+- `POST /api/files/{filename}/modify-columns`: Modify Excel columns
+- `GET /api/sheets/{filename}`: Alternative sheet information endpoint
+
+**Concatenation Algorithm Details**:
+1. First sheet becomes base structure (preserves all columns and rows)
+2. For each subsequent sheet:
+   - Appends rows below existing data
+   - If column doesn't exist in new sheet → leaves empty (NaN)
+   - If new column in new sheet → adds column to result and fills previous data with NaN
+3. Maintains Source_Sheet column to track origin of each row
+4. Preserves data integrity and structure consistency
+
+**Column Modification Business Logic**:
+- NTW sheets: region="NTW", channel="GT+MT"
+- MT sheets: region="NTW", channel="MT"
+- GT sheets: region="NTW", channel="GT"
+- Other sheets: first word is region, rest is packsize, channel="GT"
+- Data quality: removes columns with <18 valid data records
+
+### 4. Data Routes (`app/routes/data_routes.py`)
+**Purpose**: Data filtering, analysis, processing, and export API endpoints
+
+**Key Functions**:
+- `get_filtered_data(request, brand)`: Real-time data filtering endpoint
+- `analyze_dataset(filename)`: Comprehensive dataset analysis endpoint
+- `export_filtered_data(request, export_format)`: Data export endpoint
+- `get_column_statistics(filename, column)`: Column-specific analysis endpoint
+- `get_data_summary(filename)`: Quick data summary endpoint
+- `validate_filter_request(request)`: Filter validation endpoint
+
+**API Endpoints**:
+- `POST /api/data/filtered`: Apply filters and get filtered data
+- `GET /api/data/analyze/{filename}`: Analyze dataset
+- `POST /api/data/export`: Export filtered data
+- `GET /api/data/column-stats/{filename}/{column}`: Column statistics
+- `GET /api/data/summary/{filename}`: Quick data summary
+- `POST /api/data/validate`: Validate filter request
+
+**Export Format Support**:
+- CSV: Comma-separated values for spreadsheet applications
+- XLSX: Excel format for advanced analysis and visualization
+- JSON: JavaScript Object Notation for API integration
+- Automatic media type detection and proper file responses
+
+**Data Analysis Capabilities**:
+- Statistical summaries and distributions
+- Data quality assessment and validation
+- Missing data analysis and reporting
+- Column type detection and validation
+- Memory usage optimization
+- Performance metrics and monitoring
+
+### 5. Metadata Routes (`app/routes/metadata_routes.py`)
+**Purpose**: Metadata state persistence, management, and workflow continuity
+
+**Key Functions**:
+- `save_concatenation_state(request)`: State persistence endpoint
+- `get_concatenation_state(original_filename)`: State retrieval endpoint
+- `delete_concatenation_state(original_filename)`: State cleanup endpoint
+- `list_all_states()`: State enumeration endpoint
+- `update_concatenation_state(original_filename, updates)`: State modification endpoint
+- `cleanup_old_states(days_old)`: State maintenance endpoint
+- `export_state_data(original_filename, export_format)`: State export endpoint
+- `metadata_health_check()`: Service health monitoring endpoint
+
+**API Endpoints**:
+- `POST /api/metadata/state/save`: Save concatenation state
+- `GET /api/metadata/state/{filename}`: Retrieve concatenation state
+- `DELETE /api/metadata/state/{filename}`: Delete concatenation state
+- `GET /api/metadata/states`: List all states
+- `PUT /api/metadata/state/{filename}`: Update state
+- `POST /api/metadata/cleanup`: Cleanup old states
+- `GET /api/metadata/state/{filename}/export`: Export state data
+- `GET /api/metadata/health`: Metadata service health check
+
+**State Data Structure**:
+- Original and concatenated file information
+- Selected sheets and processing parameters
+- Filter states and user selections
+- Brand metadata and categorization
+- Processing timestamps and status
+- Column categories and expected signs
+- Preview data and analysis results
+
+**Workflow Continuity Benefits**:
+- Seamless navigation across sessions
+- Persistent user selections and preferences
+- Workflow resumption from any point
+- State backup and recovery capabilities
+- Multi-user workflow support
+- Session management and persistence
+
+### 6. Analysis Routes (`app/routes/analysis_routes.py`)
+**Purpose**: API routes for brand-based analysis management and workflow orchestration
+
+**Key Functions**:
+- `check_brand_exists(brand_name)`: Brand existence verification endpoint
+- `create_analysis(request)`: New analysis creation endpoint
+- `list_analyses()`: Analysis enumeration endpoint
+- `get_analysis(analysis_id)`: Analysis retrieval endpoint
+- `update_analysis(analysis_id, updates)`: Analysis modification endpoint
+- `delete_analysis(analysis_id)`: Analysis cleanup endpoint
+
+**API Endpoints**:
+- `GET /api/analyses/check-brand/{brand_name}`: Check brand existence
+- `POST /api/analyses`: Create new analysis
+- `GET /api/analyses`: List all analyses
+- `GET /api/analyses/{analysis_id}`: Get specific analysis
+- `PUT /api/analyses/{analysis_id}`: Update analysis
+- `DELETE /api/analyses/{analysis_id}`: Delete analysis
+
+**Brand Management Features**:
+- Brand isolation and data separation
+- Unique brand identifier generation
+- Brand name conflict detection and resolution
+- Force overwrite capability for existing brands
+- Brand-specific directory structure creation
+- Complete brand workspace management
+
+**Workflow State Management**:
+- 13-step workflow progression tracking
+- Current step identification and navigation
+- Progress completion status tracking
+- Workflow state persistence and resumption
+- Session continuity across page navigation
+- Multi-step workflow orchestration
+
+### 7. Pack Size Routes (`app/routes/packsize_routes.py`)
+**Purpose**: API endpoints for pack size ranking, analysis, comparison, and RPI intelligence
+
+**Key Functions**:
+- `analyze_pack_sizes(request)`: Comprehensive pack size analysis endpoint
+- `extract_pack_size(column_name)`: Single column pack size extraction
+- `compare_pack_sizes(request)`: Pack size comparison endpoint
+- `get_pack_size_rank(pack_size)`: Pack size ranking endpoint
+- `sort_pack_sizes(pack_sizes, reverse)`: Pack size sorting endpoint
+- `get_pack_size_categories()`: Category information endpoint
+
+**API Endpoints**:
+- `POST /api/packsize/analyze`: Analyze pack sizes from column names
+- `GET /api/packsize/extract/{column_name}`: Extract pack size from single column
+- `POST /api/packsize/compare`: Compare two pack sizes
+- `GET /api/packsize/rank/{pack_size}`: Get pack size ranking
+- `GET /api/packsize/sort`: Sort pack sizes by ranking
+- `GET /api/packsize/categories`: Get pack size categories
+
+**Pack Size Categories and Ranking**:
+1. SACHET (Rank 1): Sachets and pouches - smallest size
+2. SMALL (Rank 2): Small bottles (150-250ML range)
+3. MEDIUM (Rank 3): Medium bottles (251-500ML range)
+4. LARGE (Rank 4): Large bottles (501-650ML range)
+5. EXTRA_LARGE (Rank 5): Extra large bottles (>650ML)
+
+**Pack Size Intelligence Features**:
+- Automatic pack size extraction from column names
+- Intelligent categorization and ranking system
+- RPI comparison priority determination
+- Pack size relationship analysis
+- Statistical distribution and insights
+- Category-based classification system
+
+### 8. RPI Addition Routes (`app/routes/rpi_addition_routes.py`)
+**Purpose**: API endpoints for Revenue Per Item (RPI) addition functionality and pack size analysis
+
+**Key Functions**:
+- `add_rpis_to_data(brand_name, analysis_id, main_sheet_name, rpi_sheet_name)`: Main RPI addition endpoint
+- `analyze_pack_sizes_for_rpi(brand_name, analysis_id, main_sheet_name, rpi_sheet_name)`: Pack size analysis endpoint
+- `download_enhanced_file(brand_name, analysis_id)`: Enhanced file download endpoint
+- `preview_rpi_columns(brand_name, analysis_id, main_sheet_name, rpi_sheet_name)`: RPI preview endpoint
+- `save_pack_size_order(brand_name, analysis_id, pack_size_order)`: Pack size ordering endpoint
+
+**API Endpoints**:
+- `POST /api/rpi/add-rpis`: Add RPI columns to main data
+- `POST /api/rpi/analyze-pack-sizes`: Analyze pack sizes for RPI planning
+- `GET /api/rpi/download-enhanced/{brand_name}/{analysis_id}`: Download enhanced file
+- `GET /api/rpi/preview-rpi-columns/{brand_name}/{analysis_id}`: Preview RPI additions
+- `POST /api/rpi/save-pack-size-order`: Save pack size ordering
+
+**Business Logic for RPI Addition**:
+- For each row in main data: check month, packsize, region, channel
+- From RPI sheet: find columns with pack sizes:
+  * Same size as current row's packsize (rank N)
+  * 1 size smaller (rank N-1) - adjacent smaller
+  * 1 size larger (rank N+1) - adjacent larger
+- Add those RPI values to main sheet for matching criteria
+- Maintain data integrity and relationship consistency
+
+**RPI Processing Features**:
+- Intelligent pack size relationship detection
+- Adjacent size RPI mapping and addition
+- Data matching based on multiple criteria
+- Enhanced file generation with RPI columns
+- Coverage analysis and optimization
+- User-defined pack size ordering support
+
+### 9. Non-MMM Analysis Routes (`app/routes/nonmmm_routes.py`)
+**Purpose**: API endpoints specifically for Non-MMM analysis workflow and data processing
+
+**Key Functions**:
+- `store_data_summary(request_data)`: Store data summary for workflow persistence
+- `get_stored_data_summary(analysis_id, brand)`: Retrieve stored data summary
+- `get_data_summary(filename, brand)`: Generate comprehensive statistical summary
+- `modify_column_type(filename, request_data, brand)`: Modify column data types
+- `get_histograms(filename, brand, bins)`: Generate histogram data for visualization
+- `get_correlation_matrix(filename, brand, method)`: Calculate correlation matrix
+- `validate_data_quality(filename, brand)`: Perform data quality validation
+- `standardize_data(request_data)`: **NEW** - Standardize data using various methods
+- `get_standardization_status(filename, brand)`: **NEW** - Get standardization status
+- `download_standardized_file(filename, brand, method)`: **NEW** - Download standardized files
+
+**API Endpoints**:
+- `POST /api/nonmmm/upload-data`: Upload and process data for non-MMM analysis
+- `POST /api/nonmmm/save-state`: Save the current state of the non-MMM analysis
+- `GET /api/nonmmm/load-state/{brand_name}/{analysis_name}`: Load saved state for analysis
+- `POST /api/nonmmm/store-summary`: Store data summary for analysis persistence
+- `GET /api/nonmmm/get-summary/{analysis_id}`: Retrieve stored data summary
+- `GET /api/nonmmm/data-summary/{filename}`: Generate statistical summary
+- `POST /api/nonmmm/modify-column-type/{filename}`: Modify column data types
+- `GET /api/nonmmm/histograms/{filename}`: Generate histogram data
+- `GET /api/nonmmm/correlation-matrix/{filename}`: Calculate correlations
+- `GET /api/nonmmm/data-validation/{filename}`: Validate data quality
+- `POST /api/nonmmm/standardize-data`: **NEW** - Standardize data using various methods
+- `GET /api/nonmmm/standardization-status/{filename}`: **NEW** - Get standardization status
+- `GET /api/nonmmm/download-standardized/{filename}`: **NEW** - Download standardized files
+- `DELETE /api/nonmmm/delete-variable/{filename}`: **NEW** - Delete variables from Excel/CSV files
+- `GET /api/nonmmm/test-cors`: CORS testing endpoint
+
+**State Management Features**:
+- Complete workflow state persistence and restoration
+- File upload with validation and initial processing
+- Brand-specific state storage in organized directory structure
+- Support for target variable selection and expected signs configuration
+- Data summary and chart data state preservation
+- Seamless workflow continuation across sessions
+
+**Data Summary Features**:
+- Comprehensive statistical measures (mean, median, mode, std dev, min, max)
+- Data type detection and classification (numeric, datetime, character)
+- Advanced metrics (P6M, MAT, skewness, kurtosis)
+- Data quality metrics (null count, unique count, missing data analysis)
+- Brand-specific data isolation and organization
+
+**Column Type Modification**:
+- Support for numeric, datetime, percentage, and character types
+- Safe type conversion with error handling
+- File persistence of modified data
+- **NEW**: Column type preferences are stored in metadata and respected on reload
+- **NEW**: Percentage type no longer divides data by 100 (preserves original values)
+- **NEW**: Percentage type statistics are calculated correctly (treated as numeric for calculations)
+- Validation and error reporting
+
+**Bulk Operations Support**:
+- **Variable Deletion**: `DELETE /api/nonmmm/delete-variable/{filename}` - Remove variables from Excel/CSV files
+- **File Persistence**: Modifications are saved directly to the original files
+- **Cache Management**: Automatic cleanup of cached data summaries after variable deletion
+- **Safety Features**: Comprehensive error handling and validation
+- **Multi-format Support**: Works with both Excel (.xlsx) and CSV files
+- **Metadata Cleanup**: Removes cached summaries containing deleted variables
+- **Brand Isolation**: Operations are scoped to specific brand directories
+
+**Visualization Support**:
+- Histogram data generation for frontend charts
+- **Intelligent binning**: Automatic optimal bin count calculation using Sturges' formula
+- **Configurable binning**: Manual bin count selection (5-20 bins) or automatic calculation
+- Chart.js compatible data format with enhanced metadata
+- Statistical distribution analysis with improved readability
+
+**Data Quality Features**:
+- Missing data analysis and reporting
+- Column-level issue detection
+- Data quality scoring and recommendations
+- Validation rules and business logic enforcement
+
+**Chart Analysis Features**:
+- Line chart data generation (target variable vs time with secondary axis)
+- Scatter plot data with trendline calculations
+- Multiple trendline types: linear, polynomial degree 2, polynomial degree 3
+- Statistical metrics: slope calculation and R² values
+- Expected vs unexpected result classification based on trendline direction
+- Uses sklearn for advanced polynomial fitting with numpy fallback
+- Automatic time column detection for time-series analysis
+
+**Workflow Persistence**:
+- JSON-based state storage for analysis continuity
+- Brand-specific metadata organization
+- Version control and timestamp tracking
+- Cross-session workflow resumption support
+
+## Data Flow and Process
+
+### 1. Application Startup Flow
+1. **main.py** → Creates application entry point
+2. **factory.py** → Instantiates FastAPI application with configuration
+3. **config.py** → Loads application settings and brand directory structure
+4. **middleware.py** → Configures CORS and security middleware
+5. **exceptions.py** → Sets up error handling and response formatting
+6. **events.py** → Configures startup/shutdown event handlers
+7. **routes.py** → Registers all API endpoint modules
+8. **Application Ready** → FastAPI server starts and begins accepting requests
+
+### 2. Brand Analysis Workflow Flow
+1. **Analysis Creation** (`/api/analyses`)
+   - User creates new brand analysis
+   - System generates unique analysis ID
+   - Brand-specific directory structure created
+   - Initial workflow state established
+
+2. **Data Upload** (`/api/files/upload`)
+   - Files uploaded to brand-specific raw directory
+   - File validation and type checking
+   - Excel sheet analysis and metadata extraction
+   - Progress tracking updated
+
+3. **Multi-Sheet Concatenation** (`/api/concatenate-sheets`)
+   - Selected sheets processed using step-by-step algorithm
+   - Column alignment and data integration
+   - Concatenated file saved to brand-specific concat directory
+   - State persistence for workflow continuity
+
+4. **Column Modification** (`/api/files/{filename}/modify-columns`)
+   - Business logic-based column enhancement
+   - Pack size, region, and channel columns added
+   - Data quality filtering and validation
+   - Enhanced file generation
+
+5. **Data Filtering and Analysis** (`/api/data/filtered`)
+   - Real-time data filtering with multiple criteria
+   - Statistical analysis and insights generation
+   - Data export in multiple formats
+   - Progress tracking and state management
+
+6. **Pack Size Analysis** (`/api/packsize/analyze`)
+   - Pack size extraction and categorization
+   - Ranking and relationship mapping
+   - RPI analysis planning and optimization
+   - Coverage analysis and recommendations
+
+7. **RPI Addition** (`/api/rpi/add-rpis`)
+   - Intelligent RPI column addition
+   - Pack size relationship mapping
+   - Enhanced file generation with RPI data
+   - Download and sharing capabilities
+
+8. **Workflow Completion**
+   - Progress tracking and step completion
+   - State persistence and session continuity
+   - Result generation and reporting
+   - Analysis metadata and insights
+
+### 3. Data Processing Flow
+1. **File Upload and Validation**
+   - Brand-specific directory structure enforcement
+   - File type validation and size checking
+   - Excel sheet analysis and metadata extraction
+   - Progress tracking and state management
+
+2. **Multi-Sheet Concatenation**
+   - Step-by-step column alignment algorithm
+   - Data integrity preservation and validation
+   - Source tracking and metadata maintenance
+   - Enhanced file generation and storage
+
+3. **Column Enhancement and Modification**
+   - Business logic-based column addition
+   - Data quality filtering and validation
+   - Pack size intelligence and categorization
+   - Enhanced data structure and organization
+
+4. **Data Analysis and Filtering**
+   - Real-time filtering with multiple criteria
+   - Statistical analysis and insights generation
+   - Data quality assessment and validation
+   - Export capabilities and sharing support
+
+5. **Pack Size Intelligence**
+   - Automatic pack size recognition and extraction
+   - Intelligent categorization and ranking
+   - Relationship mapping and adjacency analysis
+   - RPI optimization and strategy development
+
+6. **RPI Addition and Enhancement**
+   - Intelligent RPI column mapping
+   - Pack size relationship optimization
+   - Enhanced data generation and storage
+   - Download and access management
+
+### 4. State Management Flow
+1. **State Creation and Persistence**
+   - Workflow state initialization
+   - User selections and preferences storage
+   - Progress tracking and completion status
+   - Metadata and analysis state persistence
+
+2. **State Retrieval and Restoration**
+   - Session continuity across page navigation
+   - Workflow resumption from any point
+   - User preference and selection restoration
+   - State validation and integrity checking
+
+3. **State Updates and Modifications**
+   - Partial state updates and field modifications
+   - Progress tracking and step completion
+   - State versioning and consistency maintenance
+   - Error recovery and state restoration
+
+4. **State Cleanup and Maintenance**
+   - Automatic cleanup of obsolete states
+   - Storage optimization and efficiency
+   - State backup and recovery capabilities
+   - Health monitoring and diagnostics
+
+## Key Business Logic
+
+### 1. Brand-Specific Data Isolation
+- Each brand gets its own directory structure
+- Complete data separation and security
+- Scalable multi-brand architecture
+- Easier backup and restore per brand
+- Better data governance and organization
+
+### 2. Multi-Sheet Excel Concatenation
+- Step-by-step column alignment algorithm
+- First sheet as base structure template
+- Dynamic column addition and management
+- Source tracking and metadata preservation
+- Data integrity and consistency maintenance
+
+### 3. Pack Size Intelligence
+- Automatic pack size recognition from column names
+- Intelligent categorization and ranking system
+- Adjacent size relationship determination
+- RPI comparison priority scoring
+- User-defined ordering and customization
+
+### 4. RPI Addition Strategy
+- Intelligent pack size relationship mapping
+- Adjacent size RPI column addition
+- Data matching based on multiple criteria
+- Coverage analysis and optimization
+- Enhanced data generation and sharing
+
+### 5. Workflow State Management
+- 13-step analytics workflow progression
+- Persistent state across sessions
+- Progress tracking and completion status
+- Error recovery and resumption
+- Multi-user workflow support
+
+## Error Handling and Validation
+
+### 1. Comprehensive Error Handling
+- HTTP status code usage for different error types
+- Detailed error messages for debugging
+- Graceful error recovery and reporting
+- Input validation and sanitization
+- Exception handling and logging
+
+### 2. Data Validation
+- File type and size validation
+- Excel sheet structure validation
+- Data quality assessment and filtering
+- Column existence and value validation
+- Business rule enforcement and validation
+
+### 3. State Validation
+- Workflow state integrity checking
+- User preference validation
+- Progress tracking validation
+- Metadata consistency validation
+- Error state recovery and restoration
+
+## Performance and Scalability
+
+### 1. Performance Optimization
+- Efficient file processing and manipulation
+- Optimized data filtering and analysis
+- Memory usage optimization
+- Caching and result persistence
+- Background processing and async operations
+
+### 2. Scalability Features
+- Brand-specific data isolation
+- Modular architecture and design
+- Configurable processing parameters
+- Extensible service architecture
+- Load balancing and distribution support
+
+### 3. Resource Management
+- Automatic cleanup and maintenance
+- Storage optimization and efficiency
+- Memory usage monitoring and optimization
+- File versioning and lifecycle management
+- Resource allocation and deallocation
+
+## Security and Access Control
+
+### 1. CORS Configuration
+- Configurable allowed origins
+- Secure cross-origin communication
+- Authentication and credential support
+- Method and header validation
+- Environment-specific configuration
+
+### 2. Input Validation
+- File upload validation and sanitization
+- Parameter validation and type checking
+- Business rule enforcement
+- Error handling and security
+- Input sanitization and filtering
+
+### 3. Data Isolation
+- Brand-specific directory structure
+- Complete data separation
+- Access control and permissions
+- Secure file handling and storage
+- Audit trail and logging
+
+## Integration and Extensibility
+
+### 1. Frontend Integration
+- RESTful API design and structure
+- Consistent response formats
+- Error handling and status codes
+- Real-time data processing
+- Session management and persistence
+
+### 2. Service Architecture
+- Modular service design
+- Clean separation of concerns
+- Extensible business logic
+- Configurable processing parameters
+- Plugin and extension support
+
+### 3. Data Export and Sharing
+- Multiple export formats (CSV, XLSX, JSON)
+- Enhanced file generation
+- Download and access management
+- Sharing and collaboration support
+- Version control and tracking
+
+## Monitoring and Diagnostics
+
+### 1. Health Monitoring
+- System health checks and status
+- Service availability monitoring
+- Performance metrics and tracking
+- Error detection and alerting
+- Resource usage monitoring
+
+### 2. Debugging and Troubleshooting
+- Route debugging and verification
+- API structure validation
+- Error logging and tracing
+- Performance profiling and optimization
+- Development workflow support
+
+### 3. Logging and Analytics
+- Comprehensive error logging
+- Performance metrics collection
+- User activity tracking
+- System usage analytics
+- Debug and diagnostic information
+
+## Recent Critical Fixes (2025-01-27)
+
+### 1. RPI Processing Performance Optimization
+**Issue**: Verbose logging during RPI addition was causing thousands of repetitive log messages, significantly slowing down the process.
+
+**Solution**: Removed verbose logging from:
+- RPI column processing loop (row-by-row logging)
+- Pack size extraction and analysis
+- Excel file reading operations
+- Pack size ordering operations
+
+**Result**: RPI addition now runs much faster with only essential summary logging at completion.
+
+### 2. Server Stability Fix
+**Critical Issue**: The `_force_delete_directory` method contained a `taskkill /f /im python.exe` command that was killing ALL Python processes, including the server itself.
+
+**Solution**: Replaced dangerous process killing with safe file-by-file deletion using `_force_delete_file_by_file()` method.
+
+**Result**: Server no longer shuts down unexpectedly during cleanup operations.
+
+### 3. Logging Strategy
+**New Approach**: 
+- **Eliminated**: Repetitive row-by-row and column-by-column logging
+- **Preserved**: Final success summary with comprehensive statistics
+- **Maintained**: Error logging for debugging purposes
+
+**Benefits**: Cleaner logs, faster processing, better user experience.
+
+## Conclusion
+
+The BrandBloom Insights backend represents a comprehensive, scalable, and intelligent analytics platform designed for modern marketing mix modeling and business intelligence workflows. The system's architecture emphasizes:
+
+- **Brand Isolation**: Complete data separation and security per brand
+- **Workflow Continuity**: Persistent state management across sessions
+- **Intelligent Processing**: AI-driven pack size analysis and RPI optimization
+- **Scalable Architecture**: Modular design for easy extension and maintenance
+- **Comprehensive API**: RESTful endpoints for all analytics operations
+- **Data Quality**: Automated validation, filtering, and enhancement
+- **Performance**: Optimized processing and resource management
+
+The platform successfully bridges the gap between traditional data processing and modern analytics workflows, providing a robust foundation for marketing mix modeling, revenue optimization, and business intelligence operations.
+
+## Recent Critical Updates (2025-01-31)
+
+### Non-MMM Analysis Resume Fix (2025-01-31)
+
+#### Issue Fixed:
+Non-MMM analysis was always starting at step 1 (data upload) when resuming, even when the analysis had progressed through multiple steps including model building. Users were forced to re-upload data and repeat completed steps.
+
+#### Root Cause:
+1. **Directory Structure Mismatch**: Backend was looking for files in the old global directory structure (`data/metadata/analyses/{analysisId}/uploads/`) instead of the brand-specific structure (`{brandname}/data/uploads/raw/`)
+2. **Progress Detection Failure**: The `_update_progress_and_step()` method couldn't find uploaded files, so `progress.dataUploaded` remained `false`
+3. **Incorrect Step Calculation**: The `_calculate_current_step()` method was designed for MMM analysis and didn't account for non-MMM workflow differences
+4. **Frontend Navigation Issue**: Frontend always navigated to `/nonmmm/upload` regardless of actual progress
+
+#### Solution Implemented:
+
+##### 1. Fixed Directory Structure Detection:
+```python
+# Before: Looking in wrong directory
+analysis_dir = settings.ANALYSES_BASE_DIR / analysis_id
+uploads_dir = analysis_dir / "uploads"
+
+# After: Using brand-specific directory structure
+safe_brand_name = settings._sanitize_brand_name(brand_name)
+brand_data_dir = settings.BASE_DIR / safe_brand_name / "data"
+raw_uploads_dir = brand_data_dir / "uploads" / "raw"
+```
+
+##### 2. Enhanced State Detection:
+```python
+# Added non-MMM state detection in brand-specific metadata
+if analysis_data.get("analysisType") == "NON_MMM":
+    nonmmm_states_dir = brand_metadata_dir / "nonmmm_summaries"
+    if nonmmm_states_dir.exists():
+        nonmmm_state_file = nonmmm_states_dir / f"{analysis_id}.json"
+        if nonmmm_state_file.exists():
+            # Use non-MMM state for progress tracking
+            if nonmmm_state.get("dataUploadCompleted"):
+                concatenation_state = nonmmm_state
+```
+
+##### 3. Updated Step Calculation for Non-MMM:
+```python
+# Added analysis type parameter to step calculation
+def _calculate_current_step(progress: Dict[str, bool], analysis_type: str = "MMM") -> int:
+    if analysis_type == "NON_MMM":
+        if not progress.get("concatenationCompleted", False):
+            return 4  # Data summary step
+        elif not progress.get("targetVariableSelected", False):
+            return 5  # Target variable selection
+        elif not progress.get("filtersApplied", False):
+            return 6  # Expected signs step
+        elif not progress.get("modelBuilt", False):
+            return 7  # Chart analysis step
+        elif not progress.get("resultsGenerated", False):
+            return 8  # Model building step
+        else:
+            return 9  # Model results step (final)
+```
+
+##### 4. Fixed Frontend Navigation:
+```typescript
+// Before: Always navigated to upload step
+navigate('/nonmmm/upload');
+
+// After: Navigate based on actual progress
+switch (analysis.currentStep) {
+  case 3: targetRoute = '/nonmmm/upload'; break;
+  case 4: targetRoute = '/nonmmm/data-summary'; break;
+  case 5: targetRoute = '/nonmmm/target-variable'; break;
+  case 6: targetRoute = '/nonmmm/expected-signs'; break;
+  case 7: targetRoute = '/nonmmm/chart-analysis'; break;
+  case 8: targetRoute = '/nonmmm/model-building'; break;
+  case 9: targetRoute = '/nonmmm/model-results'; break;
+}
+```
+
+#### Impact:
+- ✅ **Fixed Resume Functionality**: Non-MMM analysis now resumes at the correct step
+- ✅ **Proper Progress Detection**: Backend correctly detects uploaded files and completed steps
+- ✅ **Accurate Step Calculation**: Non-MMM analysis uses appropriate step progression
+- ✅ **Smart Navigation**: Frontend navigates to the correct step based on progress
+- ✅ **Brand-Specific Structure**: Properly uses brand-specific directory structure
+
+#### Files Modified:
+- `backend/python/app/services/brand_analysis_service.py` - Fixed directory structure detection and step calculation
+- `frontend/src/analysis/nonmmm/steps/NonMMMAnalysisTypeStep.tsx` - Fixed navigation logic
+
+#### Benefits:
+- **Seamless Resume Experience**: Users can continue from where they left off
+- **No Data Re-upload**: Completed steps don't need to be repeated
+- **Accurate Progress Tracking**: System correctly identifies analysis progress
+- **Consistent Architecture**: Uses brand-specific directory structure throughout
+
+### Model Training NaN Error Fix (2025-01-31)
+
+#### Issue Fixed:
+The Non-MMM model training endpoint was failing with "Input y contains NaN" error while chart analysis worked fine. This was causing 500 Internal Server Error responses when users tried to train statistical models.
+
+#### Root Cause:
+1. **Inconsistent Data Handling**: Model training endpoint was using `X.dropna()` which only removed rows where independent variables had NaN, but didn't check if the target variable had NaN values in the remaining rows
+2. **Data Alignment Issue**: The target variable (`y`) was aligned with the cleaned features (`X`) using `y[X.index]`, but this could still include NaN values from the target variable
+3. **Missing Validation**: No validation to ensure both features and target variable were completely free of NaN values before model training
+
+#### Solution Implemented:
+
+##### 1. Fixed Data Cleaning Logic:
+```python
+# Before: Only cleaned independent variables
+X = X.dropna()
+y = y[X.index]  # Could still contain NaN values
+
+# After: Clean both features and target variable together
+valid_mask = ~(X.isnull().any(axis=1) | y.isnull())
+X = X[valid_mask]
+y = y[valid_mask]
+```
+
+##### 2. Added Comprehensive Validation:
+```python
+# Additional validation to ensure no NaN values remain
+if X.isnull().any().any() or y.isnull().any():
+    raise HTTPException(
+        status_code=400,
+        detail="Data still contains NaN values after cleaning"
+    )
+```
+
+##### 3. Enhanced Error Handling and Logging:
+```python
+# Added detailed logging for debugging
+logger.info(f"Original data shape: {df.shape}")
+logger.info(f"X NaN count: {X.isnull().sum().sum()}")
+logger.info(f"y NaN count: {y.isnull().sum()}")
+logger.info(f"Valid rows after cleaning: {len(X)}")
+
+# Final validation in model training function
+if X.isnull().any().any():
+    raise ValueError("Input features (X) contain NaN values")
+if y.isnull().any():
+    raise ValueError("Target variable (y) contains NaN values")
+```
+
+#### Impact:
+- ✅ **Fixed Model Training**: Non-MMM model training now works correctly
+- ✅ **Consistent Data Handling**: Both chart analysis and model training now handle NaN values properly
+- ✅ **Better Error Messages**: Clear error messages when data cleaning fails
+- ✅ **Enhanced Debugging**: Detailed logging for troubleshooting data issues
+- ✅ **Robust Validation**: Multiple layers of validation ensure data quality
+
+#### Files Modified:
+- `backend/python/app/routes/nonmmm_routes.py` - Fixed NaN handling and syntax error in model training endpoint
+- `backend/python/BACKEND_Python_DOCUMENTATION.mdc` - Updated documentation
+
+#### Additional Fixes (2025-01-31):
+
+##### 1. Syntax Error Fix:
+**Fixed `name 'file_path' is not defined` error** caused by incorrect type annotation syntax:
+```python
+# Before: Incorrect type annotation syntax
+file_path: Path
+file_path, _ = find_file_with_fallback(filename, search_directories)
+
+# After: Correct variable assignment
+file_path, _ = find_file_with_fallback(filename, search_directories)
+```
+
+##### 2. Variable Scope Error Fix:
+**Fixed `cannot access local variable 'X_train_transformed'` error** in log-linear model training:
+```python
+# Before: Missing variable assignment in log-linear case
+if model_type == "log-linear":
+    y_train_transformed = np.log(y_train + 1)
+    y_test_transformed = np.log(y_test + 1)
+    # X_train_transformed was not defined!
+
+# After: Proper variable assignment for all cases
+if model_type == "log-linear":
+    y_train_transformed = np.log(y_train + 1)
+    y_test_transformed = np.log(y_test + 1)
+    X_train_transformed = X_train_scaled  # Added this line
+    X_test_transformed = X_test_scaled    # Added this line
+```
+
+##### 3. Singular Matrix Error Fix:
+**Added comprehensive error handling** for singular matrix issues:
+```python
+# Added validation for training samples vs features
+if len(X_train_transformed) < len(X.columns):
+    raise ValueError(f"Not enough training samples for features")
+
+# Added detection of constant features
+constant_features = []
+for i, col in enumerate(X.columns):
+    if np.std(X_train_transformed[:, i]) < 1e-10:
+        constant_features.append(col)
+
+# Added specific error handling for singular matrix
+try:
+    model.fit(X_train_transformed, y_train_transformed)
+except np.linalg.LinAlgError as e:
+    if "singular matrix" in str(e).lower():
+        raise ValueError(f"Singular matrix error: Try Ridge regression or remove constant features")
+```
+
+##### 4. Log Transformation Safety:
+**Added safety checks** for negative values in log transformations:
+```python
+# Check for negative values before log transformation
+if (y_train < 0).any() or (y_test < 0).any():
+    logger.warning("Negative values detected. Adding offset for log transformation.")
+    min_val = min(y_train.min(), y_test.min())
+    offset = abs(min_val) + 1
+    y_train_transformed = np.log(y_train + offset)
+```
+
+#### Benefits:
+- **Reliable Model Training**: Users can now successfully train statistical models
+- **Data Quality Assurance**: Ensures clean data is used for model training
+- **Better User Experience**: Clear error messages instead of cryptic 500 errors
+- **Consistent Behavior**: Chart analysis and model training now work with the same data
+- **Enhanced Debugging**: Detailed logs help identify data quality issues
+
+### Non-MMM Analysis Deletion Flow Fix (2025-01-31)
+
+#### Issue Fixed:
+Non-MMM analysis deletion was failing because the Python backend couldn't find the correct folder to delete. The system was looking for folders using `analysis_id` but the actual folders were named using sanitized brand names.
+
+#### Root Cause:
+1. **Inconsistent Sanitization Logic**: `_create_analysis_id()` and `_sanitize_brand_name()` used different sanitization rules
+2. **Wrong Folder Lookup**: Python backend was using `analysis_id` to find folders instead of brand name
+3. **Deletion Order Issue**: Node.js backend was deleting metadata before Python backend could read the brand name
+
+#### Solution Implemented:
+
+##### 1. Fixed Sanitization Consistency:
+```python
+# Before: Different logic in _create_analysis_id()
+analysis_id = re.sub(r'[^a-zA-Z0-9\s-]', '', brand_name.lower())
+
+# After: Use same logic as _sanitize_brand_name()
+def _create_analysis_id(brand_name: str) -> str:
+    from app.core.config import settings
+    return settings._sanitize_brand_name(brand_name)
+```
+
+##### 2. Fixed Folder Lookup Logic:
+```python
+# Before: Used analysis_id directly
+analysis_dir = settings.BASE_DIR / analysis_id
+
+# After: Read brand name from Node.js metadata
+nodejs_metadata_path = settings.BASE_DIR.parent / "nodejs" / "metadata" / "analyses" / f"{analysis_id}.json"
+if nodejs_metadata_path.exists():
+    with open(nodejs_metadata_path, 'r') as f:
+        metadata = json.load(f)
+        brand_name = metadata.get('brandName')
+        sanitized_brand_name = settings._sanitize_brand_name(brand_name)
+        analysis_dir = settings.BASE_DIR / sanitized_brand_name
+```
+
+##### 3. Fixed Deletion Order:
+- **Before**: Node.js deletes metadata → Python tries to read metadata (fails)
+- **After**: Python reads metadata → Python deletes folder → Node.js deletes metadata
+
+#### Impact:
+- ✅ **Complete Deletion**: Non-MMM analyses now delete completely
+- ✅ **Consistent Sanitization**: analysis_id and folder names now match
+- ✅ **Proper Order**: Python backend can access brand name before metadata deletion
+- ✅ **Backward Compatibility**: Works with existing analyses and new ones
+
+#### Files Modified:
+- `backend/python/app/services/brand_analysis_service.py` - Fixed sanitization and folder lookup
+- `backend/python/app/services/analysis/analysis_manager.py` - Fixed sanitization consistency
+- `backend/nodejs/routes/brandRoutes.js` - Updated deletion order comments
+- `backend/python/BACKEND_Python_DOCUMENTATION.mdc` - Updated documentation
+- `backend/nodejs/BACKEND_NODEJS_DOCUMENTATION.mdc` - Updated documentation
+
+## Recent Critical Updates (2025-01-31)
+
+### Data Summary Cache Fix for New Analyses (2025-01-31)
+
+#### Issue Fixed:
+New analyses with the same brand name were loading cached data summaries from previously deleted analyses, showing stale data instead of fresh analysis results.
+
+#### Root Cause:
+1. **Inconsistent Analysis ID Generation**: Frontend generated timestamp-based unique IDs (`nonmmm_brandname_timestamp`) while backend generated deterministic IDs (`brandname-sanitized`)
+2. **Missing Cache Validation**: The caching system didn't validate that cached data belonged to the current file
+3. **Incomplete Cleanup**: Analysis deletion didn't remove cached data summaries
+
+#### Solution Implemented:
+
+##### 1. Fixed Analysis ID Generation Consistency:
+```typescript
+// Before: Frontend generated its own ID
+setCurrentAnalysisId(`nonmmm_${brandName.trim().toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`);
+
+// After: Use backend-generated ID for consistency
+const createResult = await brandAnalysisService.createAnalysis(brandName.trim(), 'NON_MMM', false);
+setCurrentAnalysisId(createResult.data.analysisId);
+```
+
+##### 2. Enhanced Cache Validation:
+```typescript
+// Added filename validation in getDataSummaryWithCaching()
+const cachedFilename = storedData.data?.filename || storedData.filename;
+if (cachedFilename && cachedFilename !== filename) {
+  console.log(`⚠️ Cached summary is for different file (${cachedFilename} vs ${filename}), calculating fresh summary`);
+  throw new Error('File mismatch - need fresh calculation');
+}
+```
+
+##### 3. Added Data Summary Cleanup to Deletion Process:
+```python
+# New cleanup method in BrandAnalysisService
+@staticmethod
+def _cleanup_data_summaries(analysis_id: str) -> Dict[str, Any]:
+    """Clean up cached data summaries across all brands"""
+    # Searches all brand directories for {analysis_id}.json files
+    # Removes cached summaries from {brand}/data/metadata/nonmmm_summaries/
+```
+
+#### Impact:
+- ✅ **Fixed Stale Data Issue**: New analyses always get fresh data summaries
+- ✅ **Consistent ID Generation**: Frontend and backend use the same analysis ID
+- ✅ **Enhanced Cache Validation**: Cached data is validated against current file
+- ✅ **Complete Cleanup**: Analysis deletion removes all cached data
+- ✅ **Better User Experience**: No confusion from old data appearing in new analyses
+
+#### Files Modified:
+- `frontend/src/analysis/nonmmm/steps/NonMMMAnalysisTypeStep.tsx` - Fixed analysis ID generation
+- `frontend/src/analysis/nonmmm/services/NonMMMFileService.ts` - Added cache validation
+- `backend/python/app/services/brand_analysis_service.py` - Added data summary cleanup
+
+#### Benefits:
+- **Data Integrity**: Ensures fresh analysis always starts with fresh data
+- **Workflow Reliability**: Eliminates cache-related confusion for users
+- **Complete Cleanup**: Comprehensive deletion removes all traces of analysis
+- **System Consistency**: Frontend and backend use unified analysis ID system
+
+## Recent Critical Updates (2025-01-27)
+
+### Non-MMM API Endpoints Implementation and Fixes (2025-01-31)
+
+#### Issue Fixed:
+The frontend was experiencing 404 and 500 errors when calling Non-MMM analysis endpoints:
+- `GET /api/nonmmm/get-summary/{analysis_id}` - 404 Not Found
+- `GET /api/nonmmm/data-summary/{filename}` - 500 Internal Server Error (numpy serialization)
+- `POST /api/nonmmm/store-summary` - 400 Bad Request (missing brand parameter)
+
+#### Root Cause:
+1. **Missing Endpoints**: The Python backend was missing the required Non-MMM endpoints that the frontend expected
+2. **Numpy Serialization Error**: The data-summary endpoint was returning numpy types that couldn't be serialized to JSON
+3. **Parameter Mismatch**: Frontend was sending brand parameter in query string but backend expected it in request body
+
+#### Solution Implemented:
+
+##### 1. New Non-MMM Routes Module:
+```python
+# backend/python/app/routes/nonmmm_routes.py
+@router.post("/store-summary")
+async def store_data_summary(request_data: Dict[str, Any] = Body(...))
+
+@router.get("/get-summary/{analysis_id}")
+async def get_stored_data_summary(analysis_id: str, brand: str = Query(...))
+
+@router.get("/data-summary/{filename}")
+async def get_data_summary(filename: str, brand: str = Query(...))
+```
+
+##### 2. Numpy Type Conversion:
+```python
+def convert_numpy_types(obj):
+    """Recursively convert numpy types to Python native types"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    # ... recursive conversion for dicts and lists
+```
+
+##### 3. Frontend Service Updates:
+```typescript
+// Fixed brand parameter passing in NonMMMFileService.ts
+static async storeDataSummary(analysisId: string, brand: string, filename: string, dataSummary: any) {
+  const response = await httpClient.post(`/nonmmm/store-summary?brand=${encodeURIComponent(brand)}`, {
+    analysisId, brand, filename, dataSummary
+  });
+}
+
+static async getStoredDataSummary(analysisId: string, brand: string) {
+  const response = await httpClient.get(`/nonmmm/get-summary/${analysisId}?brand=${encodeURIComponent(brand)}`);
+}
+```
+
+#### API Endpoints Now Available:
+- **Data Summary Storage**: `POST /api/nonmmm/store-summary` - Store analysis data summaries
+- **Data Summary Retrieval**: `GET /api/nonmmm/get-summary/{analysis_id}` - Retrieve stored summaries
+- **Statistical Analysis**: `GET /api/nonmmm/data-summary/{filename}` - Generate comprehensive data statistics
+- **Column Type Modification**: `POST /api/nonmmm/modify-column-type/{filename}` - Modify data column types
+- **Histogram Generation**: `GET /api/nonmmm/histograms/{filename}` - Generate chart data for visualizations
+- **Correlation Analysis**: `GET /api/nonmmm/correlation-matrix/{filename}` - Calculate variable correlations
+- **Data Quality Validation**: `GET /api/nonmmm/data-validation/{filename}` - Validate dataset quality
+- **Chart Analysis**: `GET /api/nonmmm/chart-data/{filename}` - Generate line charts and scatter plots with trendlines for chart analysis step
+
+#### Data Summary Features:
+- **Comprehensive Statistics**: Mean, median, mode, standard deviation, min/max values
+- **Advanced Metrics**: P6M (Past 6 months), MAT (Moving Annual Total), skewness, kurtosis
+- **Data Type Detection**: Automatic classification of numeric, datetime, and character columns
+- **Quality Metrics**: Null count analysis, unique value counting, missing data assessment
+- **Brand Isolation**: Each brand gets separate data storage and analysis workspace
+
+#### Impact:
+- **Fixed 404 Errors**: All Non-MMM endpoints now respond correctly
+- **Fixed 500 Errors**: Numpy serialization issues resolved with type conversion
+- **Fixed 400 Errors**: Proper request body validation and parameter handling
+- **Enhanced Frontend**: Non-MMM analysis workflow now functions properly
+- **Data Persistence**: Analysis summaries can be stored and retrieved for workflow continuity
+
+#### Files Modified:
+- `backend/python/app/routes/nonmmm_routes.py` - New Non-MMM routes module
+- `backend/python/app/core/routes.py` - Added Non-MMM routes registration
+- `frontend/src/analysis/nonmmm/services/NonMMMFileService.ts` - Fixed API calls and brand parameter handling
+- `backend/python/BACKEND_Python_DOCUMENTATION.mdc` - Updated documentation
+
+#### Benefits:
+- ✅ **Complete Non-MMM Workflow**: All analysis steps now functional
+- ✅ **Data Persistence**: Analysis state saved across sessions
+- ✅ **Statistical Analysis**: Comprehensive data insights and visualization support
+- ✅ **Brand Isolation**: Secure data separation per brand
+- ✅ **Error Resolution**: No more 404/500 errors in Non-MMM analysis
+- ✅ **Frontend Integration**: Seamless user experience for Non-MMM analysis
+
+### Step 3 Data Upload Requirement for Analysis Resume
+
+#### Issue Fixed:
+The system was allowing users to resume analyses that hadn't completed the critical step 3 (data upload), leading to incomplete workflows and user confusion.
+
+#### Root Cause:
+The `_calculate_current_step()` method was returning step 1 for analyses without data upload, but the system was still allowing resume operations on these incomplete analyses.
+
+#### Solution Implemented:
+```python
+@staticmethod
+def _calculate_current_step(progress: Dict[str, bool]) -> int:
+    """Calculate current step based on progress flags"""
+    # CRITICAL: Step 3 (data upload) must be complete for analysis to be resumable
+    if not progress.get("dataUploaded", False):
+        return 3  # Data upload step - MUST be completed for resume
+    # ... rest of step calculation logic
+```
+
+#### Impact:
+- **Enhanced User Experience**: Users can only resume analyses with meaningful progress
+- **Clearer Workflow**: Step 3 completion is now a clear requirement for resumption
+- **Consistent State Management**: Backend and frontend now align on resume requirements
+- **Better Error Handling**: Clear validation prevents incomplete resume attempts
+
+#### Files Modified:
+- `Backend/python/app/services/brand_analysis_service.py` - Updated step calculation logic
+
+#### Benefits:
+- ✅ **Enforced Data Upload Requirement**: Analysis resume requires step 3 completion
+- ✅ **Improved User Experience**: No more confusion from resuming incomplete analyses
+- ✅ **Better Workflow Integrity**: Ensures analyses have necessary data before continuation
+- ✅ **Consistent Validation**: Frontend and backend validation alignment
+
+### Data Upload Requirement for Analysis Existence
+
+#### Issue Fixed:
+Analyses without data upload were appearing in listings and being treated as "existing" analyses, even though they had no meaningful data to work with.
+
+#### Root Cause:
+The system was treating any analysis directory as a valid analysis regardless of data upload status, leading to:
+- Empty analyses cluttering listings
+- Users confused by analyses with no data
+- Poor workflow integrity
+
+#### Solution Implemented:
+
+##### Backend Changes:
+```python
+# In BrandAnalysisService.list_analyses()
+if not progress.get("dataUploaded", False):
+    # Skip this analysis - it's not ready for listing
+    continue
+
+# In BrandAnalysisService.check_brand_exists()
+if not progress.get("dataUploaded", False):
+    # Analysis exists but no data uploaded - treat as if it doesn't exist
+    return {"exists": False}
+```
+
+##### Folder Detection Enhancement:
+- Only creates analysis metadata for folders with actual uploaded files
+- Checks for files in raw uploads directory before recognizing as analysis
+- Ensures only meaningful analyses are detected and listed
+
+#### Impact:
+- **Cleaner API Responses**: Only analyses with data are returned in listings
+- **Better Resource Management**: No processing of empty analysis directories
+- **Improved User Experience**: Users only see analyses they can actually work with
+- **Workflow Integrity**: Clear progression from creation → data upload → visibility
+
+#### Files Modified:
+- `Backend/python/app/services/brand_analysis_service.py` - Analysis listing and existence logic
+
+#### Benefits:
+- ✅ **Data-Driven Listings**: Only analyses with uploaded data appear in lists
+- ✅ **Consistent Existence Logic**: All existence checks require data upload
+- ✅ **Resource Efficiency**: No processing of empty analysis folders
+- ✅ **Workflow Clarity**: Clear requirement for data upload before analysis visibility
+
+### Comprehensive Analysis Deletion System (2025-01-31)
+
+#### Issue Fixed:
+Analysis deletion was incomplete, leaving behind RPI completion states in localStorage and various metadata files across both backends, causing new analyses to appear as having RPI completion already done.
+
+#### Root Cause:
+The deletion process was only removing:
+- Brand directory structure (`{analysis_id}/data/`)
+- Analysis metadata files
+- But NOT cleaning up:
+  - localStorage RPI completion states (`rpi_completion_{analysisId}`)
+  - Node.js backend concatenation states
+  - Non-MMM states and preferences
+  - Legacy global metadata files
+
+#### Solution Implemented:
+
+##### Enhanced Python Backend Deletion:
+```python
+@staticmethod
+def delete_analysis(analysis_id: str) -> Dict[str, Any]:
+    """
+    Delete analysis and perform comprehensive cleanup of all related data
+    
+    Cleans up:
+    1. Pending analysis JSON files
+    2. Brand directory structure  
+    3. Node.js backend concatenation states
+    4. Global metadata files
+    5. Any leftover RPI-enhanced files
+    """
+    # Enhanced deletion with comprehensive cleanup
+    cleanup_results = BrandAnalysisService._cleanup_nodejs_backend_data(analysis_id)
+    global_cleanup_results = BrandAnalysisService._cleanup_global_metadata(analysis_id)
+    
+    # Provides localStorage cleanup instructions for frontend
+    result["data"]["localStorage_cleanup_required"] = True
+    result["data"]["localStorage_keys_to_clear"] = [
+        f"rpi_completion_{analysis_id}",
+        f"analysis_state_{analysis_id}",
+        f"concatenation_state_{analysis_id}",
+        f"nonmmm_state_{analysis_id}"
+    ]
+```
+
+##### Enhanced Node.js Backend Deletion:
+```javascript
+// Comprehensive cleanup in brandRoutes.js
+router.delete('/analyses/:analysisId', async (req, res) => {
+  // Delete analysis metadata file
+  await fs.remove(analysisFile);
+  
+  // Clean up concatenation states
+  // Clean up non-MMM states  
+  // Clean up non-MMM preferences
+  // Provide detailed cleanup summary
+});
+```
+
+##### Frontend localStorage Cleanup:
+```typescript
+// Enhanced analysisCleanup.ts
+export async function cleanupAnalysis(analysisId: string): Promise<boolean> {
+  const result = await brandAnalysisService.deleteAnalysis(analysisId);
+  
+  if (result.success && result.data?.localStorage_cleanup_required) {
+    // Clean up specified localStorage keys
+    result.data.localStorage_keys_to_clear.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Clean up any additional keys containing analysisId
+    Object.keys(localStorage).filter(key => 
+      key.toLowerCase().includes(analysisId.toLowerCase())
+    ).forEach(key => localStorage.removeItem(key));
+  }
+}
+```
+
+#### Comprehensive Cleanup Process:
+
+##### 1. Python Backend Cleanup:
+- ✅ Pending analysis files (`_pending_analyses/{analysisId}.json`)
+- ✅ Brand directory structure (`{analysisId}/data/`)
+- ✅ Node.js backend metadata (cross-backend cleanup)
+- ✅ Legacy global metadata files
+- ✅ Concatenation states containing analysis ID
+
+##### 2. Node.js Backend Cleanup:
+- ✅ Analysis metadata files (`metadata/analyses/{analysisId}.json`)
+- ✅ Concatenation states (`metadata/concatenation_states/`)
+- ✅ Non-MMM states (`metadata/nonmmm_states/`)
+- ✅ Non-MMM preferences (`metadata/nonmmm_preferences/`)
+
+##### 3. Frontend localStorage Cleanup:
+- ✅ RPI completion states (`rpi_completion_{analysisId}`)
+- ✅ Analysis workflow states (`analysis_state_{analysisId}`)
+- ✅ Concatenation states (`concatenation_state_{analysisId}`)
+- ✅ Non-MMM analysis states (`nonmmm_state_{analysisId}`)
+- ✅ Any additional keys containing the analysis ID
+
+#### Impact:
+- **Complete Data Removal**: No orphaned data left anywhere in the system
+- **Fixed RPI Completion Issue**: New analyses won't inherit previous RPI completion status
+- **Cross-Backend Cleanup**: Both Python and Node.js backends are cleaned
+- **localStorage Cleanup**: Frontend state properly cleared
+- **Detailed Logging**: Comprehensive cleanup summary for debugging
+
+#### Files Modified:
+- `backend/python/app/services/brand_analysis_service.py` - Enhanced deletion with cleanup helpers
+- `backend/python/app/routes/analysis_routes.py` - Added localStorage cleanup instructions
+- `backend/nodejs/routes/brandRoutes.js` - Enhanced Node.js deletion with state cleanup
+- `frontend/src/utils/analysisCleanup.ts` - Added localStorage cleanup implementation
+
+#### Benefits:
+- ✅ **Complete Data Cleanup**: No orphaned data anywhere in the system
+- ✅ **Fixed RPI Issue**: RPI completion status no longer persists incorrectly
+- ✅ **Cross-Backend Coordination**: Python and Node.js backends work together
+- ✅ **localStorage Management**: Frontend state properly managed
+- ✅ **Detailed Reporting**: Comprehensive cleanup summary and logging
+- ✅ **Prevention**: Future analyses won't inherit orphaned state data
+
+### Deferred Folder Creation Until Data Upload
+
+#### Issue Fixed:
+The system was creating analysis folder structures immediately when users entered brand names, before any data was uploaded, leading to empty folders and premature resource allocation.
+
+#### Root Cause:
+The `create_analysis()` method was calling `_ensure_analysis_structure()` immediately, creating full brand directory structure even when no data existed.
+
+#### Solution Implemented:
+
+##### Pending Analysis System:
+```python
+# Analysis creation now stores metadata in pending location
+pending_analyses_dir = settings.BASE_DIR / "_pending_analyses"
+pending_analysis_file = pending_analyses_dir / f"{analysis_id}.json"
+
+# Folders created only during first file upload
+FileService._handle_first_upload_for_brand(brand)
+```
+
+##### File Upload Integration:
+- **First Upload Detection**: Automatically detects first upload for a brand
+- **Folder Creation**: Creates complete brand directory structure
+- **Analysis Migration**: Moves analysis from pending to brand location
+- **Atomic Process**: Folder creation and data storage happen together
+
+##### Updated Existence Logic:
+```python
+# Check pending analyses (not considered "existing" for users)
+if pending_analysis_file.exists():
+    return {"exists": False, "pending": True}
+
+# Only actual folders with data are "existing"
+if analysis_dir.exists() and has_uploaded_data:
+    return {"exists": True}
+```
+
+#### Impact:
+- **Clean Filesystem**: No empty analysis folders
+- **Resource Efficiency**: Folders created only when needed
+- **Atomic Creation**: Data upload triggers folder creation
+- **Better User Experience**: Analysis "becomes real" when data is uploaded
+
+#### Technical Flow:
+1. **Analysis Creation** → Store metadata in `_pending_analyses/`
+2. **First Upload** → Create brand folders, move analysis metadata
+3. **Subsequent Operations** → Use normal brand folder structure
+
+#### Files Modified:
+- `app/services/brand_analysis_service.py` - Pending analysis logic
+- `app/services/file_service.py` - First upload folder creation
+
+#### Benefits:
+- ✅ **Deferred Resource Allocation**: Folders created only when data exists
+- ✅ **Atomic Analysis Creation**: Data upload makes analysis "real"
+- ✅ **Clean Filesystem**: No empty directories
+- ✅ **Better Resource Management**: Efficient directory structure creation
+
+### 6. Analysis Deletion and Cleanup (`app/services/brand_analysis_service.py`)
+**Purpose**: Comprehensive analysis deletion with coordinated backend cleanup
+
+**Key Functions**:
+- `delete_analysis(analysis_id)`: Main deletion function with comprehensive cleanup
+- `_cleanup_nodejs_backend_data(analysis_id)`: Node.js backend state cleanup
+- `_cleanup_global_metadata(analysis_id)`: Global metadata cleanup
+- `_cleanup_data_summaries(analysis_id)`: **NEW** - Cached data summary cleanup
+- `_force_delete_directory(directory_path)`: Windows file locking handling
+- `_force_delete_file_by_file(directory_path)`: File-by-file deletion fallback
+
+**Deletion Process**:
+1. **Pending Analysis Cleanup**: Removes pending analysis JSON files
+2. **Brand Directory Deletion**: Removes complete brand workspace structure (reads brand name from Node.js metadata)
+3. **Node.js Backend Cleanup**: Removes analysis metadata, concatenation states, non-MMM states
+4. **Global Metadata Cleanup**: Removes legacy metadata files and orphaned states
+5. **Force Deletion Handling**: Windows file locking resolution with file-by-file fallback
+
+**Critical Fix (2025-01-31)**: The deletion method now reads the brand name from Node.js metadata to find the correct folder to delete. This fixes the issue where Python backend was looking for folders using analysis_id instead of the actual brand folder name.
+
+**Coordinated Backend Deletion**:
+- **Frontend Flow**: Frontend calls Node.js backend for deletion
+- **Node.js Backend**: Deletes metadata and calls Python backend for data cleanup
+- **Python Backend**: Deletes actual data folders and performs comprehensive cleanup
+- **Result**: Complete cleanup across both backends with detailed reporting
+
+**Cleanup Coverage**:
+- Analysis metadata files (both backends)
+- Brand directory structures (Python backend)
+- Concatenation states (Node.js backend)
+- Non-MMM states and preferences (Node.js backend)
+- Global metadata files (Python backend)
+- Pending analysis files (Python backend)
+- Any orphaned RPI-related files
+
+**Error Handling**:
+- Windows file locking detection and resolution
+- Graceful fallback to file-by-file deletion
+- Comprehensive error logging and reporting
+- Cleanup summary with success/failure details
+
+**Benefits**:
+- Complete data removal across all storage locations
+- Coordinated cleanup between Node.js and Python backends
+- Robust error handling for Windows file systems
+- Detailed cleanup reporting for debugging
+- No orphaned data or metadata files

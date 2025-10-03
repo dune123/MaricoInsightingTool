@@ -1,0 +1,63 @@
+{
+  "modelId": "log-linear_20250917_110319",
+  "modelName": "Log-linear Model",
+  "modelType": "log-linear",
+  "dataType": "standardized",
+  "rSquared": 0.6799006474352288,
+  "adjustedRSquared": 0.4398261330116504,
+  "intercept": 0.3206481605710244,
+  "variables": [
+    {
+      "name": "Units X-Men For Boss",
+      "coefficient": 0.023203407263953642,
+      "pValue": 0.941287289245039,
+      "tStatistic": 0.07838378432272498,
+      "vif": 1.0,
+      "elasticity10Percent": 0.0,
+      "standardError": 0.29602305456980244,
+      "confidenceInterval": [
+        -0.5570017796928591,
+        0.6034085942207664
+      ]
+    },
+    {
+      "name": "RPI X-Men 251-500ML v/s X-Men For Boss 150-250ML",
+      "coefficient": -0.32335769349182386,
+      "pValue": 0.4328708091938387,
+      "tStatistic": -0.8710776262955173,
+      "vif": 1.0,
+      "elasticity10Percent": 0.0,
+      "standardError": 0.3712157030906488,
+      "confidenceInterval": [
+        -1.0509404715494954,
+        0.4042250845658477
+      ]
+    },
+    {
+      "name": "RPI X-Men 251-500ML v/s Category 251-500ML",
+      "coefficient": 0.2088686571002064,
+      "pValue": 0.6322102062799058,
+      "tStatistic": 0.5173417164322005,
+      "vif": 1.0,
+      "elasticity10Percent": 0.0,
+      "standardError": 0.40373441859792375,
+      "confidenceInterval": [
+        -0.5824508033517242,
+        1.000188117552137
+      ]
+    }
+  ],
+  "performanceMetrics": {
+    "mape": 48.02414261923002,
+    "rmse": 0.15578777399504182,
+    "mae": 0.13715314734933087,
+    "aic": 0,
+    "bic": 0
+  },
+  "trainingInfo": {
+    "trainingRows": 30,
+    "validationRows": 8,
+    "trainingTime": 0.004079,
+    "lastUpdated": "2025-09-17T11:03:19.605419"
+  }
+}

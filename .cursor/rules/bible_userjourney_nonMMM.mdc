@@ -1,0 +1,22 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+User Flow 2: (Non-MMM Analysis)
+1. User chooses Data Scientist
+2. User chooses non-MMM analysis, they have to enter brand name just like in the user journey for MMM. If prior analysis exists, it should get displayed just like MMM analysis.
+3. Once user enters brand name and clicks on Start analysis, next step is upload data (xlsx or csv). User gets to see the columns and sheets (display just like it is displayed in MMM analysis user journey, but we don't need any functionalities like adding columns or concatenating data from that MMM user journey). Show all columns for all sheets. User should be able to select target variable by clicking on any column. Save json state with required details for state persistence.
+3.2 Once target variable is selected, user gets a list of all the other variables except target variable in a table. left is variable name. right is expected sign. Expected signs can be +ve, -ve, or ~(neutral). Clicking on these signs toggles the sign between all 3. Save json state with required details for state persistence. This data will be used in charting and modelling steps.
+4. Next step is Data summary. User should see the entire data summary like type of column (numeric or datetime or percentage or characters etc), mean median std deviation, etc. statistical summmary basically. Save json state with required details for state persistence.
+4.1. Clicking on column type should allow user to change the format of the column using a python backend code which allows user to change format of any column to date, numeric, percentage, and character. Save json state with required details for state persistence.
+4.2. Below this summary should be a group of histograms to show data distrribution pattern for each and every variable in the input data. Have 4 charts in a row. Save json state with required details for state persistence.
+5. Next step is chart analysis. 2 charts in a row. left chart should be line chart along with trendline. right chart should be scatterplot along with trendline. We need a chart for each variable against the target variable. Line chart is target variable on primary axis, other variable on secondary axis, and month. Scatterplot should be between target variable and other variable. These 2 should be in a container. every variable gets its own container. Save json state with required details for state persistence.
+5.2. User should get a dropdown on top of every container to choose whether they want a linear trendline, polynomial trendline with degree of freedom = 2, or polynomial trendline with degree of freedom = 3. This should dynamically change the trendline's appearance.
+5.3. There should be 2 buttons to the top right acting as filters: "Expected result" and "Unexpected Result". If the linear slope of the trendline on the scatterplot is +ve and expected sign is positive, then it is acting as expected result. If the linear slope of the trendline on the scatterplot is -ve and expected sign is positive, then it is acting as unexpected result. You will get the expected signs for each variable from the json created in previous steps for state persistence.
+5.4. The user should be able to add a new container for charts after any container they choose. they get 2 dropdowns to choose variables from. They get line chart and scatter plot rendered from the excel file basis their variable selection. Save json state with required details for state persistence.
+6. Next step is modelling. On top user gets to choose from models (linear, log linear, log-log, ridge, bayesian, etc). 
+6.2 Below that is a container where the user gets a container full of checkboxes for each available independent variable. The idea is user selects model type, user selects the independent variables to be put in the model. Have a button to run model.
+6.3 Below this should be a container for model results. When user runs a model, a new sub-table should get added to the table (named basis the model name and r^2) in the container. The rows in this subtable should give results for that model like variable, p-value, VIF, and other such statistical summary values associated with modelling.
+Save models here and keep state persistence using json file.
+6.4 Allow deleting models and update the json accordingly.

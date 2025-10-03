@@ -1,0 +1,39 @@
+{
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*"
+  ],
+  "extraPaths": [
+    "C:\\Users\\piyus\\AppData\\Roaming\\Python\\Python313\\site-packages"
+  ],
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": false,
+  "reportImportCycles": "warning",
+  "reportUnusedImport": "information",
+  "reportUnusedClass": "information",
+  "reportUnusedFunction": "information",
+  "reportUnusedVariable": "information",
+  "reportDuplicateImport": "warning",
+  "reportOptionalSubscript": "information",
+  "reportOptionalMemberAccess": "information",
+  "reportOptionalCall": "information",
+  "reportOptionalIterable": "information",
+  "reportOptionalContextManager": "information",
+  "reportOptionalOperand": "information",
+  "reportUntypedFunctionDecorator": "information",
+  "reportUntypedClassDecorator": "information",
+  "reportUntypedBaseClass": "information",
+  "reportUntypedNamedTuple": "information",
+  "reportPrivateUsage": "information",
+  "reportConstantRedefinition": "warning",
+  "reportIncompatibleMethodOverride": "warning",
+  "reportIncompatibleVariableOverride": "warning",
+  "reportOverlappingOverloads": "warning"
+}

@@ -1,0 +1,344 @@
+# 🚀 BrandBloom Insights - Python Backend
+
+## 📖 Overview
+
+BrandBloom Insights is a comprehensive analytics platform for Marketing Mix Modeling (MMM) and data science workflows. This Python FastAPI backend provides robust data processing, brand-specific file management, and analysis capabilities.
+
+## 🏗️ Architecture
+
+### Brand-Specific Directory Structure
+```
+backend/python/
+├── <brandname>/           # Brand-specific root directory
+│   └── data/              # All brand data isolated here
+│       ├── uploads/       # File uploads for this brand
+│       │   ├── raw/       # Original uploaded files
+│       │   ├── intermediate/  # Processed files
+│       │   └── concatenated/  # Final concatenated datasets
+│       ├── exports/       # Analysis results and exports
+│       │   ├── results/   # Processed analysis results
+│       │   └── reports/   # Generated reports
+│       └── metadata/      # Brand analysis metadata
+│           ├── analyses/  # Analysis configuration and state
+│           └── concatenation_states/  # Data processing states
+├── data/                  # Legacy global directory (deprecated)
+├── app/                   # Application source code
+└── docs/                  # Documentation
+```
+
+### Key Benefits
+- **🏷️ Brand Isolation**: Each brand has completely separate data directories
+- **🗑️ Clean Overwrites**: Starting new analysis cleanly removes all old brand data
+- **📁 Organized Structure**: Intuitive folder hierarchy
+- **🔄 Backward Compatibility**: Legacy global directories maintained
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.13+
+- FastAPI
+- Pandas
+- Uvicorn
+
+### Installation
+```bash
+cd backend/python
+pip install -r requirements.txt
+```
+
+### Running the Server
+```bash
+python main.py
+```
+
+The server will start at `http://localhost:8000`
+
+### API Documentation
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+## 📚 API Endpoints
+
+### 🏥 Health & Status
+- `GET /` - Welcome message and API info
+- `GET /health` - Health check for monitoring
+- `GET /api/status` - Detailed API status
+
+### 🏷️ Brand Analysis Management
+- `POST /api/analyses` - Create new brand analysis
+- `GET /api/analyses` - List all analyses
+- `GET /api/analyses/{analysis_id}` - Get specific analysis
+- `PUT /api/analyses/{analysis_id}` - Update analysis
+- `DELETE /api/analyses/{analysis_id}` - Delete analysis
+- `GET /api/analyses/check-brand/{brand_name}` - Check if brand exists
+
+### 📁 File Management
+- `POST /api/files/upload` - Upload Excel/CSV files
+- `GET /api/files/{filename}/sheets` - Get Excel sheet information
+- `GET /api/files/list/{directory}` - List files in directory
+- `GET /api/files/list-concatenated` - List concatenated files
+- `GET /api/download/{filename}` - Download files
+- `GET /api/files/{filename}/validate` - Validate file format
+
+### 📊 Data Processing
+- `POST /api/data/filtered` - Apply filters and get filtered data
+- `GET /api/data/analyze/{filename}` - Perform dataset analysis
+- `POST /api/data/export` - Export filtered data (CSV/Excel/JSON)
+- `GET /api/data/column-stats/{filename}/{column}` - Column statistics
+- `GET /api/data/summary/{filename}` - Quick data summary
+- `POST /api/data/validate` - Validate filter requests
+
+### 🔗 Excel Operations
+- `POST /api/concatenate-sheets` - Concatenate Excel sheets
+- `POST /api/files/{filename}/modify-columns` - Modify column mappings
+- `GET /api/sheets/{filename}` - Get sheet data
+
+### 🗃️ Metadata Management
+- `POST /api/metadata/state/save` - Save concatenation state
+- `GET /api/metadata/state/{original_filename}` - Get state
+- `PUT /api/metadata/state/{original_filename}` - Update state
+- `DELETE /api/metadata/state/{original_filename}` - Delete state
+- `GET /api/metadata/states` - List all states
+- `POST /api/metadata/cleanup` - Cleanup metadata
+- `GET /api/metadata/state/{original_filename}/export` - Export state
+- `GET /api/metadata/health` - Metadata service health
+
+## 🎯 Core Features
+
+### Brand-Specific Data Management
+```python
+# Create brand-specific directories
+from app.core.config import settings
+directories = settings.create_brand_directories("My Brand")
+
+# Results in:
+# my-brand/data/uploads/raw/
+# my-brand/data/uploads/intermediate/
+# my-brand/data/uploads/concatenated/
+# my-brand/data/exports/results/
+# my-brand/data/exports/reports/
+# my-brand/data/metadata/analyses/
+# my-brand/data/metadata/concatenation_states/
+```
+
+### Data Filtering & Analysis
+```python
+# Filter data with brand-aware search
+POST /api/data/filtered
+{
+  "filename": "NIELSEN - Brand Name - Data.xlsx",
+  "filters": {
+    "region": ["North", "South"],
+    "channel": ["Online"]
+  },
+  "columns": ["Date", "Volume", "Value"],
+  "limit": 1000
+}
+```
+
+### File Upload & Processing
+```python
+# Upload files to brand-specific directories
+POST /api/files/upload
+Content-Type: multipart/form-data
+
+# Files automatically organized by brand in:
+# <brand-name>/data/uploads/raw/
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+# Server Configuration
+HOST=0.0.0.0
+PORT=8000
+RELOAD=true
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
+```
+
+### Directory Configuration
+The system automatically creates directories based on brand names:
+- Brand names are sanitized for filesystem use
+- Special characters are removed or replaced with hyphens
+- Lowercase conversion for consistency
+
+## 🛠️ Development
+
+### Project Structure
+```
+app/
+├── core/                 # Core configuration and setup
+│   ├── config.py        # Settings and directory management
+│   ├── factory.py       # Application factory
+│   ├── routes.py        # Route registration
+│   ├── middleware.py    # CORS and other middleware
+│   ├── events.py        # Startup/shutdown events
+│   └── exceptions.py    # Exception handlers
+├── routes/              # API route modules
+│   ├── health_routes.py # Health and status endpoints
+│   ├── analysis_routes.py # Brand analysis management
+│   ├── file_routes.py   # File upload and management
+│   ├── data_routes.py   # Data filtering and analysis
+│   ├── excel_routes.py  # Excel-specific operations
+│   └── metadata_routes.py # Metadata management
+├── services/            # Business logic services
+│   ├── brand_analysis_service.py # Brand analysis lifecycle
+│   ├── data_service.py  # Data processing and filtering
+│   ├── file_service.py  # File operations
+│   ├── excel_service.py # Excel processing
+│   └── metadata_service.py # Metadata management
+├── models/              # Pydantic data models
+│   ├── analysis_models.py # Analysis-related models
+│   └── data_models.py   # Data processing models
+└── utils/               # Utility functions
+    ├── file_utils.py    # File operations
+    └── data_utils.py    # Data processing utilities
+```
+
+### Adding New Features
+
+1. **Create Model** (if needed):
+```python
+# app/models/my_models.py
+from pydantic import BaseModel
+
+class MyRequest(BaseModel):
+    field: str
+```
+
+2. **Add Service Logic**:
+```python
+# app/services/my_service.py
+class MyService:
+    @staticmethod
+    def process_data(request: MyRequest):
+        # Business logic here
+        pass
+```
+
+3. **Create Routes**:
+```python
+# app/routes/my_routes.py
+from fastapi import APIRouter
+router = APIRouter(prefix="/api/my-feature")
+
+@router.post("/endpoint")
+async def my_endpoint(request: MyRequest):
+    return MyService.process_data(request)
+```
+
+4. **Register Routes**:
+```python
+# app/core/routes.py
+from app.routes.my_routes import router as my_router
+app.include_router(my_router, tags=["My Feature"])
+```
+
+## 🧪 Testing
+
+### Manual Testing
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Create brand analysis
+curl -X POST http://localhost:8000/api/analyses \
+  -H "Content-Type: application/json" \
+  -d '{"brandName": "Test Brand", "analysisType": "MMM"}'
+
+# Filter data
+curl -X POST http://localhost:8000/api/data/filtered \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "data.xlsx", "filters": {}, "limit": 10}'
+```
+
+### PowerShell Testing
+```powershell
+# Health check
+Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
+
+# Create analysis
+Invoke-RestMethod -Uri "http://localhost:8000/api/analyses" -Method POST `
+  -Headers @{"Content-Type"="application/json"} `
+  -Body '{"brandName": "Test Brand", "analysisType": "MMM"}'
+```
+
+## 📊 Monitoring
+
+### Health Endpoints
+- `/health` - Basic health check
+- `/api/status` - Detailed status with version info
+- `/api/metadata/health` - Metadata service status
+
+### Logging
+The application uses Python's built-in logging module with INFO level by default.
+
+## 🔐 Security
+
+### CORS Configuration
+```python
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # React dev server
+    "http://localhost:8080",  # Frontend production
+]
+```
+
+### File Upload Security
+- File type validation (Excel, CSV only)
+- File size limits (100MB max)
+- Filename sanitization
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+1. **Endpoint Returns 404**
+   - Check if backend is running: `http://localhost:8000/health`
+   - Verify route registration in `app/core/routes.py`
+   - Check OpenAPI spec: `http://localhost:8000/openapi.json`
+
+2. **File Not Found Errors**
+   - Verify brand-specific directory structure exists
+   - Check file naming patterns match brand extraction logic
+   - Ensure cleanup processes haven't removed files unexpectedly
+
+3. **CORS Errors**
+   - Verify frontend URL is in `ALLOWED_ORIGINS`
+   - Check that requests include proper headers
+
+4. **Import Errors**
+   - Ensure all dependencies are installed: `pip install -r requirements.txt`
+   - Check Python version compatibility (3.13+)
+
+### Debug Mode
+```bash
+# Run with debug logging
+python main.py --log-level debug
+```
+
+## 📝 Contributing
+
+1. Follow the existing code structure
+2. Add comprehensive docstrings
+3. Update this README for new features
+4. Test endpoints manually before committing
+5. Ensure backward compatibility when possible
+
+## 📞 Support
+
+For issues and questions:
+1. Check this documentation first
+2. Review API documentation at `/docs`
+3. Check application logs for error details
+4. Verify directory structure and file permissions
+
+---
+
+**Last Updated**: 2025-08-17  
+**Version**: 1.0.0  
+**Author**: BrandBloom Backend Team

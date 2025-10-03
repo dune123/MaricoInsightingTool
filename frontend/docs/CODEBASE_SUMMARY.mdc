@@ -1,0 +1,448 @@
+# BrandBloom Insights - Codebase Summary
+
+## 🎯 Project Overview
+
+BrandBloom Insights is a comprehensive, ultra-modular data science application for Marketing Mix Modeling (MMM) and analytics. The application uses a **simplified single-backend architecture** with Python FastAPI as the primary backend, following a 13-step wizard flow designed for both Brand Leaders and Data Scientists.
+
+## 🏗️ Architecture Overview
+
+### Core Architecture Principles
+- **Single Backend Architecture**: Python FastAPI handles ALL file operations (single source of truth)
+- **Ultra-Modular Design**: Each component has a single responsibility
+- **Context-Driven State Management**: Centralized state with React Context
+- **Type-Safe Development**: Comprehensive TypeScript definitions
+- **Service Layer Pattern**: Business logic separated from UI components
+- **Design System First**: Semantic tokens and consistent theming
+
+### Technology Stack
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Python FastAPI (Primary) + Node.js Express (Auxiliary)
+- **Data Processing**: pandas + openpyxl for Excel operations
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **State Management**: React Context + useReducer
+- **Charts**: Recharts
+- **Build Tool**: Vite
+- **Type Safety**: Full TypeScript coverage
+
+## 📁 Project Structure
+
+### Frontend (React + TypeScript)
+```
+src/
+├── components/
+│   ├── charts/               # Data visualization components
+│   │   └── DataDistributionChart.tsx
+│   ├── steps/               # Individual wizard step components
+│   │   ├── UserTypeStep.tsx
+│   │   ├── AnalysisTypeStep.tsx
+│   │   ├── AnalysisModeStep.tsx
+│   │   ├── DataUploadStep.tsx
+│   │   ├── DataSummaryStep.tsx
+│   │   ├── BrandSelectionStep.tsx
+│   │   ├── FilterSelectionStep.tsx
+│   │   ├── EDAStep.tsx
+│   │   ├── ExpectedSignsStep.tsx
+│   │   ├── ModelBuildingStep.tsx
+│   │   ├── ModelResultsStep.tsx
+│   │   └── OptimizerStep.tsx
+│   ├── ui/                  # Base UI components (shadcn)
+│   └── wizard/              # Wizard-specific components
+│       ├── StepIndicator.tsx
+│       └── WizardLayout.tsx
+├── config/                  # Configuration modules
+│   └── stepConfig.ts        # Centralized step configuration
+├── context/
+│   └── AnalysisContext.tsx  # Global state management
+├── services/                # Business logic services
+│   ├── dataProcessor.ts     # Enhanced data processing utilities
+│   ├── dataProcessors/      # Modular data processors
+│   │   ├── baseDataProcessor.ts
+│   │   ├── mockDataProcessor.ts
+│   │   └── csvDataProcessor.ts
+│   ├── fileService.ts       # Python backend file operations with data quality enhancement
+│   ├── excelService.ts      # Excel processing and concatenation
+│   ├── modelService.ts      # Model building services
+│   ├── exportService.ts     # Enhanced export functionality
+│   ├── validationService.ts # Comprehensive validation
+│   ├── metadataService.ts   # State persistence and metadata management
+│   ├── brandExtractor.ts    # Brand categorization and extraction
+│   ├── filterService.ts     # Data filtering and analysis
+│   └── wizardManager.ts     # Wizard flow management
+├── types/
+│   └── analysis.ts          # TypeScript type definitions
+├── constants/
+│   └── appConstants.ts      # Application constants
+├── pages/
+│   ├── Index.tsx           # Main entry point
+│   └── DataScienceWizard.tsx # Enhanced wizard orchestrator
+└── lib/
+    └── utils.ts            # Utility functions
+```
+
+### Backend (Dual Architecture - Single Source of Truth)
+```
+backend/
+├── python/                  # PRIMARY Backend - Python FastAPI (Port 8000)
+│   ├── main.py             # Complete FastAPI application with ALL file operations and data quality enhancement
+│   ├── requirements.txt    # Python dependencies
+│   ├── pyrightconfig.json  # Python type checking configuration
+│   ├── uploads/           # SINGLE SOURCE OF TRUTH - All uploaded files
+│   │   ├── raw/           # Original uploaded files (timestamped)
+│   │   ├── intermediate/  # Quality-enhanced files with business columns
+│   │   └── concat/        # Concatenated processed output files
+│   ├── metadata/          # State persistence and workflow metadata
+│   │   └── concatenation_states/  # JSON state files for workflow continuity
+│   ├── processed/         # Legacy concatenated files (backward compatibility)
+│   ├── scripts/           # Startup and utility scripts
+│   │   ├── start_backend.ps1
+│   │   ├── start_backend.bat
+│   │   └── activate_venv.*
+│   └── __pycache__/       # Python bytecode cache
+└── nodejs/                 # AUXILIARY Backend - Node.js Express (Port 3001)
+    ├── config/
+    │   └── constants.js    # Backend configuration constants
+    ├── utils/
+    │   ├── fileValidator.js # File validation utilities
+    │   └── timestampGenerator.js # Timestamp generation utilities
+    ├── services/           # Auxiliary business logic services
+    │   ├── fileUploadHandler.js # NOT USED for file operations
+    │   ├── fileReader.js   # Auxiliary file reading utilities
+    │   ├── filterManager.js # Filter column management
+    │   ├── metadataManager.js # Metadata Excel file operations
+    │   └── brandHandler.js # Brand name processing
+    ├── routes/             # Auxiliary API endpoint routes
+    │   ├── fileRoutes.js   # NOT USED for file operations
+    │   ├── filterRoutes.js # Filter management endpoints
+    │   ├── brandRoutes.js  # Brand management endpoints
+    │   └── metadataRoutes.js # Metadata management endpoints
+    ├── metadata/           # Metadata Excel files
+    ├── package.json        # Node.js dependencies
+    ├── server.js           # Express server (auxiliary operations only)
+    └── README.md           # Backend documentation
+```
+
+## 🔄 Application Flow
+
+### 13-Step Wizard Process
+
+1. **User Type Selection** - Brand Leader vs Data Scientist
+2. **Analysis Type** - MMM Template vs Fresh Analysis
+3. **Analysis Mode** - New vs Existing Analysis
+4. **Data Upload** - File upload with validation
+5. **Data Concatenation** - Select and concatenate Excel sheets *(NEW)*
+6. **Data Summary** - Statistical overview and quality assessment
+7. **Brand Selection** - Choose target brand for analysis
+8. **Filter Selection** - Select columns for filtering
+9. **EDA (Exploratory Data Analysis)** - Correlation matrix, distributions
+10. **Expected Signs** - Define variable relationships
+11. **Model Building** - Select variables and model type
+12. **Model Results** - Display coefficients, statistics, diagnostics
+13. **Optimizer** - Scenario optimization and budget allocation
+
+## 🏛️ Key Components
+
+### State Management (`AnalysisContext.tsx`)
+```typescript
+interface AppState {
+  userType: UserType | null;
+  analysisType: AnalysisType | null;
+  analysisMode: AnalysisMode | null;
+  analysisData: AnalysisData | null;
+  selectedBrand: string;
+  filterColumns: string[];
+  modelResult: ModelResult | null;
+  scenarioInputs: ScenarioInput[];
+  currentStep: number;
+}
+```
+
+### Data Processing (`dataProcessor.ts`)
+- Mock data generation for demonstration
+- File validation and processing
+- Statistical calculations
+- Chart data preparation
+
+### Model Service (`modelService.ts`)
+- Model result generation
+- Quality assessment
+- Optimization algorithms
+- Statistical validations
+
+### Type System (`analysis.ts`)
+Comprehensive type definitions for:
+- Data structures
+- Model configurations
+- Analysis states
+- User interactions
+
+## 🎨 Design System
+
+### Color Palette
+- **Primary**: Blue gradient (HSL-based)
+- **Accent**: Purple highlights
+- **Success/Warning/Error**: Semantic colors
+- **Gradients**: Defined in CSS custom properties
+
+### Component Variants
+- Buttons: default, outline, secondary, destructive
+- Cards: default, with status indicators
+- Badges: semantic color coding
+- Tables: responsive with status indicators
+
+## 🧩 Modularity Features
+
+### Component Independence
+- Each step is completely self-contained
+- No cross-dependencies between step components
+- Reusable UI components with clear props
+
+### Service Layer
+- Business logic separated from UI
+- Testable service functions
+- Clear data transformation pipelines
+
+### Constants Management
+- Centralized configuration
+- Type-safe constants
+- Easy to modify thresholds and settings
+
+## 📊 Data Visualization
+
+### Chart Components
+- **DataDistributionChart**: Handles numeric and categorical data
+- **Correlation Matrix**: Color-coded relationship visualization
+- **Progress Indicators**: Model quality and completion status
+
+### Chart Features
+- Responsive design
+- Interactive tooltips
+- Semantic color coding
+- Multiple chart types (histogram, bar, progress)
+
+## 🔧 Key Features
+
+### Data Upload & Processing
+- Drag & drop file upload
+- File type validation (CSV, Excel)
+- Mock data generation for demo
+- Statistical summary generation
+
+### Model Building
+- Multiple model types (Linear, Log-Linear, Ridge, Bayesian)
+- Variable selection interface
+- Real-time result updates
+- Quality assessment metrics
+
+### Optimization Engine
+- Scenario planning interface
+- Auto-optimization algorithms
+- Impact calculations
+- Export functionality
+
+### Export Capabilities
+- CSV export for scenarios
+- JSON export for complete results
+- Formatted reports
+
+## 🚀 Getting Started
+
+### Prerequisites
+```bash
+Node.js 16+
+npm or yarn
+```
+
+### Installation
+```bash
+npm install
+npm run dev
+```
+
+### Key Dependencies
+- React 18.3.1
+- TypeScript
+- Tailwind CSS
+- @radix-ui components
+- Recharts
+- React Hook Form
+
+## 🔄 State Flow
+
+1. **User Selection** → Context State Update
+2. **Data Upload** → File Processing → Mock Data Generation
+3. **Analysis Steps** → Progressive State Building (Fixed: Now uses WizardManager for proper step navigation)
+4. **Model Building** → Result Generation → Context Update
+5. **Optimization** → Scenario Management → Export
+
+### Navigation Fix (2024-12-20)
+- **Issue Fixed**: Step navigation was skipping steps 2 and 4
+- **Solution**: Updated AnalysisContext to use WizardManager.getNextStep() instead of direct increment
+- **React Router**: Added v7 future flags to eliminate warnings
+
+### Multi-Page Architecture (2024-12-20)
+- **Architecture Change**: Converted from single-page wizard to multi-page routing system
+- **Individual Routes**: Each step now has its own URL (`/step/1/user-type` through `/step/13/optimizer`)
+- **Route Protection**: Each page validates prerequisites and redirects if needed
+- **Improved UX**: Users can bookmark steps, use browser navigation, and share specific steps
+- **Clean Navigation**: Removed auto-navigation from step components, handled by page components
+
+### Data Concatenation Feature (2024-12-20)
+- **New Step Added**: Step 5 - Data Concatenation between upload and summary
+- **Multi-Sheet Support**: Users can select which Excel sheets to concatenate
+- **Step-by-Step Algorithm**: Intelligent column alignment preserving first sheet structure
+- **Column Handling**: Missing columns filled with NaN, new columns added dynamically
+- **Data Lineage**: Source_Sheet column tracks origin of each row
+- **Single Backend Integration**: All processing happens in Python backend exclusively
+- **Real Data Processing**: No mock data fallbacks, actual Excel data processing
+- **Real Data Preview**: Backend returns actual first 5 rows of concatenated data for preview
+- **Interactive UI**: Checkbox selection with simplified interface (removed selected sheets display)
+- **Step Renumbering**: All subsequent steps shifted by +1 (now 13 total steps)
+
+### Data Quality Enhancement Feature (2024-12-23)
+- **Automatic Column Filtering**: Removes columns with <18 valid data records during file enhancement
+- **Business Column Protection**: PackSize, Region, Channel, Month columns always preserved
+- **Enhanced File Processing**: Raw → Data Quality Filter → Business Column Enhancement → Intermediate storage
+- **Comprehensive Tracking**: Records all removed columns by sheet for transparency
+- **Smart Data Validation**: Non-null, non-empty, non-NaN record counting for quality assessment
+- **Enhanced UI Feedback**: Blue-themed data quality information cards with expandable details
+- **Dual Enhancement Process**: Combines business column addition with automatic quality filtering
+- **Performance Optimization**: Cleaner datasets with fewer empty columns for better analysis
+- **User Transparency**: Complete breakdown of data quality improvements in success messages
+- **Enhanced API Response**: Comprehensive data quality metrics in modification responses
+
+### Single Backend Architecture (2024-12-20)
+- **Architecture Simplification**: Eliminated complex dual backend synchronization
+- **Single Source of Truth**: All files stored in `backend/python/uploads/` exclusively
+- **Python Backend Primary**: Handles ALL file operations (upload, processing, concatenation)
+- **Node.js Backend Auxiliary**: Used only for specialized metadata and auxiliary operations
+- **No File Duplication**: Files stored once, accessed directly
+- **Enhanced Debugging**: Always know exactly where files are located
+- **Performance Improvement**: No cross-backend communication overhead
+- **Error Reduction**: Eliminated 404 errors due to file location mismatches
+
+### Step-by-Step Concatenation Algorithm (2024-12-20)
+```python
+# Intelligent Column Alignment Process
+1. First sheet becomes base structure (all columns and rows preserved)
+2. Each subsequent sheet processed individually:
+   - Missing columns in new sheet → filled with NaN
+   - New columns in new sheet → added to result, previous data filled with NaN
+   - Column order maintained consistently
+   - Source_Sheet column added for data lineage
+3. Final concatenation with proper pandas operations
+```
+
+### Data Preview Enhancement (2024-12-20)
+- **Real Data Preview**: Backend now returns actual first 5 rows of concatenated data
+- **No Mock Data**: Eliminated frontend mock data generation for accurate previews
+- **UI Simplification**: Removed Selected Sheets display section for cleaner interface
+- **Accurate Information**: Preview shows exactly what will be in the downloadable file
+- **Better User Experience**: Users see their actual data instead of generated samples
+
+## 🎯 Extension Points
+
+### Adding New Steps
+1. Create step component in `components/steps/`
+2. Create page component in `pages/steps/`
+3. Add route in `App.tsx` routing
+4. Update step configuration in `stepConfig.ts`
+5. Implement state management in `AnalysisContext`
+6. Add route protection and navigation logic
+
+### Adding New Chart Types
+1. Create chart component in `components/charts/`
+2. Implement data transformation
+3. Add responsive design
+4. Include in relevant steps
+
+### Adding New Model Types
+1. Extend `ModelService`
+2. Update type definitions
+3. Add UI selection option
+4. Implement result processing
+
+## 🔍 Code Quality
+
+### TypeScript Coverage
+- 100% TypeScript usage
+- Strict type checking
+- Comprehensive interfaces
+- Type-safe state management
+
+### Component Design
+- Single Responsibility Principle
+- Clear prop interfaces
+- Minimal external dependencies
+- Reusable and composable
+
+### Performance
+- Lazy component loading ready
+- Efficient re-rendering
+- Optimized chart rendering
+- Minimal bundle size
+
+## 🧪 Testing Strategy
+
+### Recommended Testing
+- Unit tests for services
+- Component testing for steps
+- Integration tests for state flow
+- E2E tests for complete wizard
+
+### Test Files Structure
+```
+src/
+├── __tests__/
+│   ├── services/
+│   ├── components/
+│   └── integration/
+```
+
+## 🚀 Deployment
+
+The application is ready for deployment with:
+- Production build optimization
+- Environment variable support
+- Static asset optimization
+- Modern browser support
+
+## 📝 Contributing
+
+### Code Style
+- Use TypeScript for all new files
+- Follow existing component patterns
+- Maintain design system consistency
+- Add proper type definitions
+
+### Adding Features
+1. Plan component structure
+2. Define types first
+3. Implement service layer
+4. Build UI components
+5. Update documentation
+
+## 🎉 Architecture Benefits
+
+### Simplified Development
+- **Single Backend Focus**: Developers work with one primary backend system
+- **Clear File Flow**: Upload → Process → Concatenate in single location
+- **Reduced Complexity**: No cross-backend synchronization to debug
+- **Predictable Behavior**: Files always in expected location
+
+### Enhanced Reliability
+- **No Mock Data Fallbacks**: Real Excel processing with actual user data
+- **Robust Error Handling**: Detailed logging and user feedback
+- **File Location Certainty**: Single source of truth eliminates confusion
+- **Step-by-Step Processing**: Intelligent column alignment preserves data integrity
+
+### Improved Performance
+- **Direct File Access**: No network overhead between backends
+- **Efficient Processing**: pandas operations optimized for large datasets
+- **Reduced Memory Usage**: No file duplication across systems
+- **Faster Debugging**: Clear error messages with file location details
+
+---
+
+This codebase represents a **production-ready, simplified architecture** designed for scalability, maintainability, and ease of understanding. The single-backend approach eliminates common debugging issues while providing robust Excel processing capabilities for real-world data science workflows.
+
+**Last Updated**: 2024-12-23 - Enhanced Data Quality Filtering & Business Column Enhancement Implementation

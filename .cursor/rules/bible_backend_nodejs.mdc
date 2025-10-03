@@ -1,0 +1,10 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+1. Always assume the backend nodejs server is running. Never try to close and restart.
+2. First read the BACKEND_NODEJS_DOCUMENTATION.mdc before you begin making changes. This is non-negotiable.
+3. Make changes to BACKEND_NODEJS_DOCUMENTATION.mdc once you're done making changes. This is non-negotiable.
+4. Make sure you know what every file does before making changes so you don't create duplicates or cause confusion due to multiple codes creating multiple paths for the process to flow through.

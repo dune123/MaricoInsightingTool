@@ -1,0 +1,10 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+1. Always assume the backend python server is running. Never try to close and restart.
+2. First read the C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\BACKEND_Python_DOCUMENTATION.mdc, C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\API_DOCUMENTATION.mdc, C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\DIRECTORY_STRUCTURE.mdc, & C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\IMPLEMENTATION_SUMMARY.mdc before you begin making changes. This is non-negotiable.
+3. Make changes to C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\BACKEND_Python_DOCUMENTATION.mdc, C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\API_DOCUMENTATION.mdc, C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\DIRECTORY_STRUCTURE.mdc, & C:\Users\piyus\Downloads\Marico Projcets\brandbloom-insights\backend\python\IMPLEMENTATION_SUMMARY.mdc once you're done making changes. This is non-negotiable.
+4. Make sure you know what every file does before making changes so you don't create duplicates or cause confusion due to multiple codes creating multiple paths for the process to flow through.

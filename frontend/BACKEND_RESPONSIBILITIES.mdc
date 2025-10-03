@@ -1,0 +1,181 @@
+# 🔧 Backend Responsibilities - BrandBloom Insights
+
+## 📋 Overview
+
+This document clarifies the responsibilities between Python and Node.js backends to prevent confusion and ensure consistent implementation.
+
+## 🐍 Python Backend (Primary) - Port 8000
+
+**Status**: PRIMARY BACKEND - All main operations
+**Endpoint**: `http://localhost:8000`
+
+### ✅ Responsibilities
+
+#### 1. **File Operations (Complete Ownership)**
+- File upload and processing
+- Excel sheet reading and manipulation
+- Data concatenation and transformation
+- File validation and quality checks
+- Brand-specific directory management
+
+#### 2. **State Management (Complete Ownership)**
+- Concatenation state persistence
+- Analysis metadata storage
+- Progress tracking and workflow state
+- Session continuity across page navigation
+
+#### 3. **Data Processing (Complete Ownership)**
+- Data filtering and analysis
+- Statistical computations
+- Export functionality
+- Data quality assessment
+
+#### 4. **Brand Analysis (Complete Ownership)**
+- Brand analysis creation and management
+- Analysis listing and retrieval
+- Progress tracking (13-step workflow)
+- Analysis deletion and cleanup
+
+#### 5. **RPI Processing (Complete Ownership)**
+- Pack size analysis
+- RPI column addition
+- Enhanced file generation
+- RPI preview and optimization
+
+### 🔗 Key API Endpoints
+```
+POST   /api/files/upload                    # File upload
+POST   /api/concatenate-sheets              # Data concatenation
+POST   /api/metadata/state/save             # State persistence
+GET    /api/metadata/state/{filename}       # State retrieval
+POST   /api/analyses                        # Analysis creation
+GET    /api/analyses                        # Analysis listing
+POST   /api/data/filtered                   # Data filtering
+POST   /api/rpi/add-rpis                    # RPI addition
+```
+
+## 🟢 Node.js Backend (Secondary) - Port 3001
+
+**Status**: LEGACY/AUXILIARY - Limited specialized operations
+**Endpoint**: `http://localhost:3001`
+
+### ⚠️ Current Status: MOSTLY DEPRECATED
+
+The Node.js backend has been largely superseded by the Python backend. Most operations have been migrated to Python for consistency and single source of truth.
+
+### 🔄 Remaining Responsibilities (If Any)
+
+#### 1. **Legacy Support Only**
+- Some auxiliary operations (minimal)
+- Backup health checks (if needed)
+- Development utilities (if needed)
+
+### ❌ NO Longer Responsible For
+- ~~File upload and processing~~ → Python Backend
+- ~~Metadata state management~~ → Python Backend  
+- ~~Excel operations~~ → Python Backend
+- ~~Data filtering~~ → Python Backend
+- ~~Brand management~~ → Python Backend
+
+## 🎯 Frontend Implementation Guidelines
+
+### ✅ DO: Use Python Backend For
+
+```typescript
+// File operations
+const uploadResult = await fileService.uploadFile(file, brand);
+
+// State management
+const stateResult = await metadataService.saveConcatenationState(state);
+
+// Data operations
+const filterResult = await dataService.getFilteredData(filters);
+
+// Analysis operations
+const analysis = await brandAnalysisService.createAnalysis(brand, type);
+```
+
+### ❌ DON'T: Use Node.js Backend For
+
+```typescript
+// AVOID - These should use Python backend
+const nodeResult = await fetch('http://localhost:3001/api/...');
+```
+
+### 🔧 Configuration
+
+**MetadataService** (Correct Implementation):
+```typescript
+export class MetadataService {
+  // Use Python backend exclusively
+  private static readonly PYTHON_BASE_URL = 'http://localhost:8000/api/metadata';
+  
+  // All operations go to Python backend
+  async saveConcatenationState(state: ConcatenationState) {
+    const response = await fetch(`${this.PYTHON_BASE_URL}/state/save`, {
+      method: 'POST',
+      // ...
+    });
+  }
+}
+```
+
+## 🚨 Common Issues and Solutions
+
+### Issue 1: 404 Errors on State Save
+**Cause**: Calling Node.js backend instead of Python backend
+**Solution**: Ensure all metadata operations use Python backend
+
+### Issue 2: Backend Confusion in Services
+**Cause**: Mixed usage of both backends in same service
+**Solution**: Use Python backend exclusively for all operations
+
+### Issue 3: Health Check Failures
+**Cause**: Checking wrong backend for operations
+**Solution**: Always assume Python backend is running (per workspace rules)
+
+## 📊 Migration Status
+
+| Operation | Python Backend | Node.js Backend | Status |
+|-----------|---------------|----------------|---------|
+| File Upload | ✅ Primary | ❌ Deprecated | Complete |
+| State Management | ✅ Primary | ❌ Deprecated | Complete |
+| Data Processing | ✅ Primary | ❌ Deprecated | Complete |
+| Analysis Management | ✅ Primary | ❌ Deprecated | Complete |
+| RPI Processing | ✅ Primary | ❌ Deprecated | Complete |
+
+## 🔮 Future Architecture
+
+**Goal**: Single Backend Architecture
+- Python backend handles ALL operations
+- Node.js backend can be decommissioned
+- Simplified deployment and maintenance
+- Single source of truth for all data
+
+## 🛠️ Developer Guidelines
+
+### 1. **New Feature Development**
+- Always use Python backend for new features
+- Never create new Node.js endpoints
+- Follow existing Python backend patterns
+
+### 2. **Bug Fixes**
+- Check which backend is being used
+- Migrate to Python backend if using Node.js
+- Update documentation accordingly
+
+### 3. **Testing**
+- Test against Python backend only
+- Ensure Node.js backend calls are removed
+- Verify single source of truth
+
+## 📚 Related Documentation
+
+- [Python Backend Documentation](../backend/python/BACKEND_Python_DOCUMENTATION.mdc)
+- [API Documentation](../backend/python/API_DOCUMENTATION.mdc)
+- [Frontend Codebase Documentation](FRONTEND_CODEBASE_DOCUMENTATION.mdc)
+
+---
+
+**Last Updated**: 2025-01-27  
+**Status**: ✅ ACTIVE - Python backend primary, Node.js deprecated

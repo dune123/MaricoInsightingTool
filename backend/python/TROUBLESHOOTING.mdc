@@ -1,0 +1,566 @@
+# 🚨 BrandBloom Insights Troubleshooting Guide
+
+## 🔍 Quick Diagnostics
+
+### Health Check Commands
+```bash
+# Check if backend is running
+curl http://localhost:8000/health
+
+# Check API status
+curl http://localhost:8000/api/status
+
+# PowerShell equivalent
+Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
+```
+
+### Expected Responses
+✅ **Healthy Backend**:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-08-17T16:20:00.000000",
+  "service": "brandbloom-insights-api"
+}
+```
+
+❌ **Backend Down**: Connection refused or timeout
+
+---
+
+## 🚨 Common Issues & Solutions
+
+### 1. ❌ Backend Won't Start
+
+#### Symptoms
+- `python main.py` fails
+- Import errors
+- Port already in use
+
+#### Solutions
+
+**Check Python Version**:
+```bash
+python --version  # Should be 3.13+
+```
+
+**Install Dependencies**:
+```bash
+cd backend/python
+pip install -r requirements.txt
+```
+
+**Check Port Availability**:
+```bash
+# Check if port 8000 is in use
+netstat -an | findstr :8000
+
+# Kill process on port 8000 (Windows)
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
+```
+
+**Check Import Issues**:
+```bash
+# Test core imports
+python -c "from app.core.config import settings; print('Config OK')"
+python -c "from app.routes.data_routes import router; print('Routes OK')"
+python -c "from app.services.data_service import DataService; print('Services OK')"
+```
+
+---
+
+### 2. ❌ 404 Endpoint Not Found
+
+#### Symptoms
+```json
+{"error":"Endpoint not found","message":"The requested endpoint was not found"}
+```
+
+#### Diagnostic Steps
+
+1. **Check if endpoint exists in OpenAPI**:
+```bash
+curl http://localhost:8000/openapi.json | grep -i "filtered"
+```
+
+2. **Verify route registration**:
+```python
+# Check routes in Python
+python -c "
+from app.core.factory import create_application
+app = create_application()
+for route in app.routes:
+    if hasattr(route, 'path'):
+        print(route.path)
+"
+```
+
+3. **Check backend logs** for import errors
+
+#### Solutions
+
+**Restart Backend**:
+```bash
+# Stop current process (Ctrl+C)
+# Restart
+python main.py
+```
+
+**Clear Python Cache**:
+```bash
+find . -name "*.pyc" -delete
+find . -name "__pycache__" -type d -exec rm -rf {} +
+```
+
+**Verify Route Import**:
+```python
+# In app/core/routes.py, ensure:
+from app.routes.data_routes import router as data_router
+app.include_router(data_router, tags=["Data"])
+```
+
+---
+
+### 3. ❌ File Not Found Errors
+
+#### Symptoms
+```json
+{"detail": "File not found: filename.xlsx"}
+```
+
+#### Diagnostic Steps
+
+1. **Check file existence**:
+```bash
+# Check global directories
+ls -la data/uploads/concatenated/
+ls -la data/uploads/raw/
+
+# Check brand-specific directories
+ls -la */data/uploads/concatenated/
+```
+
+2. **Check filename format**:
+```bash
+# Look for files with similar names
+find . -name "*X-Men*" -type f
+find . -name "*concatenated*" -type f
+```
+
+3. **Verify brand extraction**:
+```python
+python -c "
+from app.services.data_service import DataService
+filename = 'NIELSEN - X-Men - Data Input for MMM_1754930504_concatenated.xlsx'
+brand = DataService._extract_brand_from_filename(filename)
+print(f'Extracted brand: {brand}')
+"
+```
+
+#### Solutions
+
+**Check File Locations**:
+```bash
+# Find all files for a brand
+find . -name "*x-men*" -o -name "*X-Men*" | head -10
+```
+
+**Verify Directory Structure**:
+```bash
+# Check if brand directories exist
+ls -la x-men/data/ 2>/dev/null || echo "Brand directory doesn't exist"
+```
+
+**Check File Permissions**:
+```bash
+# Verify read permissions
+ls -la data/uploads/concatenated/ | head -5
+```
+
+---
+
+### 4. ❌ Brand Directory Issues
+
+#### Symptoms
+- Brand analysis created but no directories
+- Files not found in brand directories
+- Cleanup not working properly
+
+#### Diagnostic Steps
+
+1. **Test directory creation**:
+```python
+python -c "
+from app.core.config import settings
+dirs = settings.create_brand_directories('Test Brand')
+print('Created:', dirs['brand_root'])
+"
+```
+
+2. **Check directory permissions**:
+```bash
+ls -ld */data/ 2>/dev/null
+```
+
+3. **Verify cleanup logic**:
+```python
+python -c "
+from app.services.brand_analysis_service import BrandAnalysisService
+BrandAnalysisService._cleanup_global_uploads_for_brand('test brand')
+"
+```
+
+#### Solutions
+
+**Manual Directory Creation**:
+```bash
+# Create brand structure manually
+mkdir -p "test-brand/data/uploads/raw"
+mkdir -p "test-brand/data/uploads/intermediate" 
+mkdir -p "test-brand/data/uploads/concatenated"
+mkdir -p "test-brand/data/exports/results"
+mkdir -p "test-brand/data/exports/reports"
+mkdir -p "test-brand/data/metadata/analyses"
+mkdir -p "test-brand/data/metadata/concatenation_states"
+```
+
+**Fix Permissions**:
+```bash
+# Ensure write permissions
+chmod -R 755 */data/
+```
+
+---
+
+### 5. ❌ File Upload Issues
+
+#### Symptoms
+- Upload fails with timeout
+- File size errors
+- Encoding issues
+
+#### Solutions
+
+**Check File Size**:
+```bash
+# Check file size (limit is 100MB)
+ls -lh your_file.xlsx
+```
+
+**Test Upload**:
+```bash
+curl -X POST http://localhost:8000/api/files/upload \
+  -F "file=@test.xlsx" \
+  -v
+```
+
+**Check File Format**:
+```python
+python -c "
+import pandas as pd
+try:
+    df = pd.read_excel('your_file.xlsx')
+    print(f'File OK: {len(df)} rows, {len(df.columns)} columns')
+except Exception as e:
+    print(f'File error: {e}')
+"
+```
+
+---
+
+### 6. ❌ CORS Issues
+
+#### Symptoms
+- Browser console shows CORS errors
+- Frontend can't reach backend
+- Options requests failing
+
+#### Solutions
+
+**Check CORS Configuration**:
+```python
+# In app/core/config.py
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite
+    "http://localhost:3000",  # React
+    "http://localhost:8080",  # Your frontend
+]
+```
+
+**Test CORS**:
+```bash
+curl -H "Origin: http://localhost:8080" \
+     -H "Access-Control-Request-Method: POST" \
+     -X OPTIONS \
+     http://localhost:8000/api/data/filtered
+```
+
+---
+
+### 7. ❌ Data Processing Issues
+
+#### Symptoms
+- Filtering returns empty results
+- Analysis fails
+- Export errors
+
+#### Diagnostic Steps
+
+1. **Test file loading**:
+```python
+python -c "
+import pandas as pd
+df = pd.read_excel('path/to/file.xlsx')
+print(f'Loaded: {len(df)} rows, {len(df.columns)} columns')
+print('Columns:', list(df.columns)[:5])
+"
+```
+
+2. **Check filter logic**:
+```python
+python -c "
+from app.services.data_service import DataService
+from app.models.data_models import FilterRequest
+request = FilterRequest(
+    filename='test.xlsx',
+    filters={'Region': ['North']},
+    limit=10
+)
+try:
+    result = DataService.get_filtered_data(request)
+    print('Filter OK')
+except Exception as e:
+    print(f'Filter error: {e}')
+"
+```
+
+#### Solutions
+
+**Check Data Quality**:
+```python
+# Load and inspect data
+import pandas as pd
+df = pd.read_excel('your_file.xlsx')
+print(df.info())
+print(df.head())
+print(df['Your_Column'].value_counts())
+```
+
+**Verify Column Names**:
+```python
+# Check for exact column names
+print(df.columns.tolist())
+# Check for hidden characters
+print([repr(col) for col in df.columns[:5]])
+```
+
+---
+
+## 🔧 Backend Restart Procedures
+
+### Normal Restart
+```bash
+# Stop current process (Ctrl+C in terminal)
+# Start again
+cd backend/python
+python main.py
+```
+
+### Clean Restart
+```bash
+# Stop backend
+# Clear Python cache
+find . -name "*.pyc" -delete
+find . -name "__pycache__" -type d -exec rm -rf {} +
+
+# Clear any lock files
+rm -f *.lock 2>/dev/null
+
+# Restart
+python main.py
+```
+
+### Development Restart
+```bash
+# Stop backend
+# Install/update dependencies
+pip install -r requirements.txt
+
+# Run with debug logging
+python main.py --log-level debug
+```
+
+---
+
+## 📊 Monitoring Commands
+
+### Check Backend Status
+```bash
+# Health check
+curl -s http://localhost:8000/health | jq .
+
+# Detailed status
+curl -s http://localhost:8000/api/status | jq .
+
+# List available endpoints
+curl -s http://localhost:8000/openapi.json | jq '.paths | keys'
+```
+
+### Check Directory Structure
+```bash
+# List all brand directories
+ls -la */data/ 2>/dev/null
+
+# Check specific brand
+ls -la x-men/data/uploads/ 2>/dev/null
+
+# Check global directories
+ls -la data/uploads/
+```
+
+### Check File Counts
+```bash
+# Count files by directory
+find */data/uploads/ -type f | wc -l 2>/dev/null
+find data/uploads/ -type f | wc -l 2>/dev/null
+
+# List recent files
+find . -name "*.xlsx" -type f -mtime -1
+```
+
+---
+
+## 🧪 Testing Commands
+
+### API Testing
+```bash
+# Test health
+curl http://localhost:8000/health
+
+# Test brand creation
+curl -X POST http://localhost:8000/api/analyses \
+  -H "Content-Type: application/json" \
+  -d '{"brandName": "Test Brand", "analysisType": "MMM"}'
+
+# Test data filtering (with existing file)
+curl -X POST http://localhost:8000/api/data/filtered \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "test.xlsx", "filters": {}, "limit": 5}'
+```
+
+### PowerShell Testing
+```powershell
+# Health check
+Invoke-RestMethod -Uri "http://localhost:8000/health" -Method GET
+
+# Create analysis
+Invoke-RestMethod -Uri "http://localhost:8000/api/analyses" -Method POST `
+  -Headers @{"Content-Type"="application/json"} `
+  -Body '{"brandName": "Test Brand", "analysisType": "MMM"}'
+
+# List analyses
+Invoke-RestMethod -Uri "http://localhost:8000/api/analyses" -Method GET
+```
+
+---
+
+## 📝 Log Analysis
+
+### Backend Logs
+The backend logs to console by default. Look for:
+
+**Startup Messages**:
+```
+INFO:     Started server process
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000
+```
+
+**Error Messages**:
+```
+ERROR:    Exception in ASGI application
+FileNotFoundError: File not found: filename.xlsx
+```
+
+**Request Logs**:
+```
+INFO:     127.0.0.1:50182 - "POST /api/data/filtered HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50182 - "POST /api/data/filtered HTTP/1.1" 404 Not Found
+```
+
+### Enable Debug Logging
+```python
+# In main.py, add:
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+---
+
+## 🆘 Emergency Procedures
+
+### Complete Reset
+```bash
+# DANGER: This removes ALL data
+# Stop backend
+rm -rf */data/  # Remove all brand directories
+rm -rf data/    # Remove global directory
+python main.py  # Restart backend
+```
+
+### Backup Before Troubleshooting
+```bash
+# Create backup
+tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz */data/ data/
+
+# Restore backup
+tar -xzf backup_YYYYMMDD_HHMMSS.tar.gz
+```
+
+### Clean Installation
+```bash
+# Remove all Python cache
+find . -name "*.pyc" -delete
+find . -name "__pycache__" -type d -exec rm -rf {} +
+
+# Reinstall dependencies
+pip uninstall -r requirements.txt -y
+pip install -r requirements.txt
+
+# Start fresh
+python main.py
+```
+
+---
+
+## 📞 Getting Help
+
+### Information to Collect
+1. **Error Message**: Full error text and stack trace
+2. **Request Details**: URL, method, payload
+3. **File Information**: Name, size, location
+4. **Environment**: Python version, OS, backend version
+5. **Steps to Reproduce**: Exact sequence of actions
+
+### Useful Debug Commands
+```bash
+# System information
+python --version
+pip list | grep -E "(fastapi|pandas|uvicorn)"
+ls -la */data/ 2>/dev/null | head -10
+
+# Backend information
+curl -s http://localhost:8000/api/status
+curl -s http://localhost:8000/openapi.json | jq '.info'
+
+# File system status
+df -h .
+ls -la . | head -10
+```
+
+---
+
+**Last Updated**: 2025-08-17  
+**Troubleshooting Guide Version**: 1.0.0

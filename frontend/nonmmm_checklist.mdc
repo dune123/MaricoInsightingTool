@@ -1,0 +1,534 @@
+# Non-MMM Analysis Implementation Checklist
+
+## Overview
+This document outlines the step-by-step implementation plan for creating a new Non-MMM Analysis user flow in the BrandBloom Insights application. The implementation will create entirely new components and services while maintaining the existing MMM analysis workflow intact.
+
+## Progress Summary
+- **Phase 1: Foundation & Architecture Setup** - ✅ COMPLETED (100%)
+- **Phase 2: Core Components Development** - 🔄 IN PROGRESS (60%)
+  - ✅ Analysis Type Step (100%) - **CRITICAL FIX: Backend validation error resolved**
+  - ✅ Data Upload Step (100%)
+  - ✅ Non-MMM Wizard & Routing (100%)
+  - ⏳ Target Variable Selection Step (0%)
+  - ⏳ Expected Signs Configuration Step (0%)
+- **Phase 3: Data Analysis Components** - ⏳ NOT STARTED (0%)
+- **Phase 4: Chart Analysis Components** - ⏳ NOT STARTED (0%)
+- **Phase 5: Modeling Components** - ⏳ NOT STARTED (0%)
+- **Phase 6: Backend Integration** - 🔄 IN PROGRESS (40%)
+  - ✅ Services Directory (100%)
+  - ✅ State Persistence Service (100%)
+  - ✅ **CRITICAL: Backend validation for NON_MMM analysis type (100%)**
+  - ⏳ Other Services (0%)
+  - ⏳ API Integration (0%)
+- **Phase 7: UI/UX Components** - 🔄 IN PROGRESS (25%)
+  - ✅ Navigation System (100%)
+  - ⏳ Responsive Design (0%)
+  - ⏳ Error Handling (0%)
+- **Phase 8: Testing & Quality Assurance** - ⏳ NOT STARTED (0%)
+- **Phase 9: Documentation & Deployment** - ⏳ NOT STARTED (0%)
+
+**Overall Progress: 35% Complete**
+
+## User Flow Summary
+1. **User Type Selection**: Data Scientist
+2. **Analysis Type**: Non-MMM Analysis
+3. **Brand Name Entry**: Enter brand name (existing analysis resume or new analysis) ⚠️ **CRITICAL: Brand parameter required for all backend API calls**
+4. **Data Upload**: Upload xlsx/csv files (with brand parameter)
+5. **Target Variable Selection**: Select target variable from columns
+6. **Expected Signs Configuration**: Set expected signs for all variables
+7. **Data Summary**: Statistical summary with column type management
+8. **Data Distribution**: Histograms for all variables
+9. **Chart Analysis**: Line charts and scatter plots with trendlines
+10. **Model Building**: Model selection and variable configuration
+11. **Model Results**: Statistical results and model management
+
+## Critical Issues Resolved
+
+### Backend Validation Error (422 Unprocessable Content) - ✅ FIXED
+**Issue**: The backend was rejecting NON_MMM analysis creation with a 422 validation error because the Pydantic model only accepted "MMM" or "Fresh Analysis" as valid analysis types.
+
+**Root Cause**: 
+- Backend model validation pattern: `^(MMM|Fresh Analysis)$`
+- Frontend was sending: `"NON_MMM"`
+- Result: Validation failure and 422 error
+
+**Solution Implemented**:
+1. **Updated Backend Model**: Modified `CreateAnalysisRequest` and `BrandAnalysis` models to accept "NON_MMM"
+2. **Updated Validation Pattern**: Changed from `^(MMM|Fresh Analysis)$` to `^(MMM|Fresh Analysis|NON_MMM)$`
+3. **Updated Documentation**: Updated API documentation and route descriptions to include NON_MMM support
+
+**Files Modified**:
+- `../backend/python/app/models/analysis_models.py` - Updated validation patterns
+- `../backend/python/app/routes/analysis_routes.py` - Updated documentation
+- `../backend/python/BACKEND_Python_DOCUMENTATION.mdc` - Updated analysis types
+
+**Result**: NON_MMM analysis creation now works successfully without validation errors.
+
+## Phase 1: Foundation & Architecture Setup
+
+### 1.1 Project Structure Analysis
+- [x] Review existing folder structure in `src/components/steps/`
+- [x] Identify where to place new Non-MMM components
+- [x] Plan new service architecture for Non-MMM analysis
+- [x] Design new type definitions for Non-MMM data structures
+
+### 1.2 New Component Architecture
+- [x] Create `src/components/steps/nonmmm/` directory
+- [x] Create `src/components/wizard/NonMMMWizard.tsx` for workflow management
+- [x] Design component hierarchy for Non-MMM workflow
+- [x] Plan state management strategy for Non-MMM analysis
+- [x] Design routing structure for Non-MMM steps
+
+### 1.3 Type Definitions
+- [x] Create `src/types/nonmmm.ts` for Non-MMM specific types
+- [x] Define interfaces for Non-MMM analysis data
+- [x] Create types for expected signs, chart configurations, and model results
+- [x] Ensure compatibility with existing analysis types
+- [x] Create `src/types/nonmmm.ts` with comprehensive type definitions
+
+## Phase 2: Core Components Development
+
+### 2.1 Non-MMM Analysis Type Step
+- [x] Create `src/components/steps/nonmmm/NonMMMAnalysisTypeStep.tsx`
+- [x] Implement brand name input with validation
+- [x] Add existing analysis detection and resume functionality
+- [x] Integrate with existing analysis context
+- [x] Implement brand-specific directory structure
+- [x] **FIXED**: Integrate with initialization service for brand creation (same as MMM)
+- [x] **FIXED**: Add existing analysis dialog for brand conflicts
+- [x] **FIXED**: Non-MMM button now shows brand input field (same as MMM)
+- [x] **FIXED**: Brand input field handles both MMM and Non-MMM analysis types
+- [x] **FIXED**: Prevent auto-progression to next step when analysis type is selected
+- [x] **FIXED**: Use local state to prevent global state triggering navigation before brand is entered
+- [x] **FIXED**: Separate brand input areas for MMM and Non-MMM analysis types
+- [x] **FIXED**: Non-MMM card now shows its own brand input field when selected
+- [x] **FIXED**: Separate brand name state variables for MMM and Non-MMM inputs
+- [x] **FIXED**: Non-MMM analysis creation backend API format (NON_MMM instead of Non-MMM)
+- [x] **CRITICAL FIX**: Backend validation error for NON_MMM analysis type (422 error resolved)
+
+### 2.2 Data Upload Step
+- [x] Create `src/components/steps/nonmmm/NonMMMDataUploadStep.tsx`
+- [x] Implement file upload (xlsx/csv) functionality
+- [x] Add file validation and error handling
+- [x] Display columns and sheets information
+- [x] Integrate with existing file service
+- [x] **FIXED**: Include brand parameter in file upload API calls
+- [x] **FIXED**: Replace simulated upload with real FileService integration
+
+### 2.3 Non-MMM Wizard & Routing
+- [x] Create `src/components/wizard/NonMMMWizard.tsx` for workflow management
+- [x] Implement step navigation and progress tracking
+- [x] Add routing structure for Non-MMM analysis workflow
+- [x] Update `src/App.tsx` to include Non-MMM routes
+- [x] Enable Non-MMM analysis entry point in existing MMM analysis step
+
+### 2.4 Target Variable Selection Step
+- [ ] Create `src/components/steps/nonmmm/TargetVariableSelectionStep.tsx`
+- [ ] Display all columns from uploaded data
+- [ ] Implement click-to-select target variable functionality
+- [ ] Add visual feedback for selected target variable
+- [ ] Save selection to analysis state
+
+### 2.5 Expected Signs Configuration Step
+- [ ] Create `src/components/steps/nonmmm/ExpectedSignsStep.tsx`
+- [ ] Display table of all variables (excluding target)
+- [ ] Implement sign toggle functionality (+ve, -ve, ~)
+- [ ] Add visual indicators for each sign type
+- [ ] Save expected signs configuration to state
+
+## Phase 3: Data Analysis Components
+
+### 3.1 Data Summary Step
+- [ ] Create `src/components/steps/nonmmm/DataSummaryStep.tsx`
+- [ ] Implement statistical summary display (mean, median, std dev)
+- [ ] Add column type detection and display
+- [ ] Implement column type modification functionality
+- [ ] Integrate with Python backend for data type conversion
+- [ ] Save data summary state
+
+### 3.2 Data Distribution Step
+- [ ] Create `src/components/steps/nonmmm/DataDistributionStep.tsx`
+- [ ] Implement histogram generation for all variables
+- [ ] Display 4 charts per row layout
+- [ ] Add chart customization options
+- [ ] Integrate with existing chart components
+- [ ] Save distribution analysis state
+
+## Phase 4: Chart Analysis Components
+
+### 4.1 Chart Analysis Container
+- [ ] Create `src/components/steps/nonmmm/ChartAnalysisStep.tsx`
+- [ ] Design container structure for variable charts
+- [ ] Implement line chart with trendline functionality
+- [ ] Implement scatter plot with trendline functionality
+- [ ] Add trendline type selection (linear, polynomial degree 2, polynomial degree 3)
+
+### 4.2 Chart Filtering System
+- [ ] Implement "Expected Result" and "Unexpected Result" filter buttons
+- [ ] Add logic to determine expected vs unexpected based on trendline slope
+- [ ] Integrate with expected signs configuration
+- [ ] Add dynamic chart filtering functionality
+
+### 4.3 Custom Chart Container
+- [ ] Implement "Add New Container" functionality
+- [ ] Add variable selection dropdowns for custom charts
+- [ ] Create dynamic chart generation based on variable selection
+- [ ] Save custom chart configurations to state
+
+## Phase 5: Modeling Components
+
+### 5.1 Model Selection Step
+- [ ] Create `src/components/steps/nonmmm/ModelSelectionStep.tsx`
+- [ ] Implement model type selection (linear, log linear, log-log, ridge, bayesian)
+- [ ] Add model description and use case information
+- [ ] Design model configuration interface
+
+### 5.2 Variable Selection Interface
+- [ ] Create checkbox container for independent variables
+- [ ] Implement variable selection logic
+- [ ] Add "Run Model" button functionality
+- [ ] Integrate with model execution backend
+
+### 5.3 Model Results Display
+- [ ] Create model results container
+- [ ] Implement sub-table generation for each model
+- [ ] Display statistical results (p-value, VIF, R², etc.)
+- [ ] Add model deletion functionality
+- [ ] Save model results to state
+
+## Phase 6: Backend Integration
+
+### 6.1 Python Backend Services
+- [x] Create `src/services/nonmmm/` directory
+- [ ] Implement `NonMMMAnalysisService.ts` for main analysis operations
+- [ ] Create `NonMMMDataService.ts` for data processing operations
+- [ ] Implement `NonMMMModelService.ts` for modeling operations
+- [ ] Add `NonMMMChartService.ts` for chart generation
+
+### 6.1.1 **CRITICAL: State Persistence Service**
+- [x] Create `NonMMMStateService.ts` for comprehensive state management
+- [x] Implement `saveStepState(stepId, stepData, substepData)` method
+- [x] Implement `loadStepState(stepId)` method for state restoration
+- [x] Implement `saveUserProgress(position, completedSteps)` method
+- [x] Implement `resumeFromStep(stepId)` method for workflow resumption
+- [x] Implement `autoSave()` method for automatic state persistence
+- [x] Implement `stateConflictResolution()` method for backend sync
+- [x] Implement `stateVersioning()` method for conflict prevention
+
+### 6.2 API Integration
+- [ ] Design API endpoints for Non-MMM analysis
+- [ ] Implement data type conversion endpoints
+- [ ] Add chart generation API endpoints
+- [ ] Create model execution and results endpoints
+- [ ] Integrate with existing Python FastAPI backend
+
+### 6.3 State Persistence
+- [ ] Design JSON state structure for Non-MMM analysis
+- [ ] Implement state saving and loading functionality
+- [ ] Add progress tracking for each step
+- [ ] Ensure state persistence across browser sessions
+
+#### **6.3.1 Granular State Saving Implementation**
+- [ ] **CRITICAL**: Save state after EVERY completed action (file upload, variable selection, sign change, etc.)
+- [ ] **CRITICAL**: Save state after EVERY substep completion (not just full step completion)
+- [ ] **CRITICAL**: Save state after EVERY dropdown/checkbox selection change
+- [ ] **CRITICAL**: Save state after EVERY chart generation and modification
+- [ ] **CRITICAL**: Save state after EVERY model execution and result generation
+- [ ] **CRITICAL**: Save user's exact position in workflow after every action
+- [ ] **CRITICAL**: Implement auto-save functionality for critical user actions
+- [ ] **CRITICAL**: Save state to both local storage and backend JSON files
+- [ ] **CRITICAL**: Implement state versioning to prevent conflicts and enable rollback
+
+## Phase 7: UI/UX Components
+
+### 7.1 Navigation System
+- [x] Integrate Non-MMM steps with existing wizard navigation
+- [x] Implement step validation and progression logic
+- [x] Add progress indicators for Non-MMM workflow
+- [x] Ensure seamless navigation between MMM and Non-MMM flows
+
+### 7.2 Responsive Design
+- [ ] Implement mobile-responsive layouts for all Non-MMM components
+- [ ] Add touch-friendly interactions for mobile devices
+- [ ] Ensure consistent styling with existing MMM components
+- [ ] Test responsive behavior across different screen sizes
+
+### 7.3 Error Handling & User Feedback
+- [ ] Implement comprehensive error handling for all Non-MMM operations
+- [ ] Add loading states and progress indicators
+- [ ] Create user-friendly error messages
+- [ ] Implement toast notifications for success/error states
+
+## Phase 8: Testing & Quality Assurance
+
+### 8.1 Component Testing
+- [ ] Write unit tests for all Non-MMM components
+- [ ] Test component interactions and state management
+- [ ] Verify error handling and edge cases
+- [ ] Test responsive design and accessibility
+
+### 8.2 Integration Testing
+- [ ] Test Non-MMM workflow end-to-end
+- [ ] Verify integration with existing MMM workflow
+- [ ] Test state persistence and restoration
+- [ ] Validate API integration and data flow
+
+### 8.3 User Experience Testing
+- [ ] Test workflow navigation and progression
+- [ ] Verify data persistence across steps
+- [ ] Test error scenarios and recovery
+- [ ] Validate responsive behavior on different devices
+
+## Phase 9: Documentation & Deployment
+
+### 9.1 Code Documentation
+- [ ] Add comprehensive comments to all Non-MMM components
+- [ ] Update component documentation with usage examples
+- [ ] Document state management and data flow
+- [ ] Create API documentation for new endpoints
+
+### 9.2 User Documentation
+- [ ] Create user guide for Non-MMM analysis workflow
+- [ ] Document feature differences between MMM and Non-MMM
+- [ ] Add troubleshooting guide for common issues
+- [ ] Create video tutorials for complex workflows
+
+### 9.3 Deployment Preparation
+- [ ] Update build configuration for new components
+- [ ] Test production build and deployment
+- [ ] Verify all dependencies are properly included
+- [ ] Prepare deployment checklist and rollback plan
+
+## Technical Considerations
+
+### State Management
+- **Analysis Context**: Extend existing AnalysisContext to support Non-MMM analysis
+- **Local State**: Use component-level state for step-specific data
+- **Persistence**: Implement JSON-based state saving for workflow resumption
+- **Synchronization**: Ensure state consistency between frontend and backend
+
+### **CRITICAL: Granular State Persistence System**
+The Non-MMM analysis MUST implement comprehensive state persistence that saves user progress after EVERY completed action, not just at step completion. This ensures users can resume their analysis from exactly where they left off.
+
+#### **State Persistence Requirements by Step**
+
+##### **Step 1: Non-MMM Analysis Type**
+- [ ] **CRITICAL**: Save brand name immediately after user completes input (on blur/enter)
+- [ ] **CRITICAL**: Save analysis type selection (Non-MMM) after selection
+- [ ] **CRITICAL**: Save timestamp of analysis creation
+- [ ] **CRITICAL**: Save user's current position in workflow
+- [ ] **CRITICAL**: Save existing analysis detection results
+
+##### **Step 2: Data Upload**
+- [ ] **CRITICAL**: Save file selection state (before upload)
+- [ ] **CRITICAL**: Save file upload status (uploading, completed, failed)
+- [ ] **CRITICAL**: Save uploaded file metadata (filename, size, type, timestamp)
+- [ ] **CRITICAL**: Save file processing status (processing, completed, failed)
+- [ ] **CRITICAL**: Save extracted columns and sheets information
+- [ ] **CRITICAL**: Save any file validation errors or warnings
+- [ ] **CRITICAL**: Save timestamp of each substep completion
+
+##### **Step 3: Target Variable Selection**
+- [ ] **CRITICAL**: Save selected target variable immediately after selection
+- [ ] **CRITICAL**: Save timestamp of target variable selection
+- [ ] **CRITICAL**: Save validation status of target variable
+- [ ] **CRITICAL**: Save user's confirmation of target variable choice
+
+##### **Step 4: Expected Signs Configuration**
+- [ ] **CRITICAL**: Save expected sign for each variable immediately after selection
+- [ ] **CRITICAL**: Save timestamp of each sign change
+- [ ] **CRITICAL**: Save complete expected signs configuration
+- [ ] **CRITICAL**: Save validation status of signs configuration
+- [ ] **CRITICAL**: Save user's confirmation of signs setup
+
+##### **Step 5: Data Summary**
+- [ ] **CRITICAL**: Save statistical summary data for each variable
+- [ ] **CRITICAL**: Save column type information for each variable
+- [ ] **CRITICAL**: Save any column type modifications made by user
+- [ ] **CRITICAL**: Save timestamp of each data modification
+- [ ] **CRITICAL**: Save data quality assessment results
+- [ ] **CRITICAL**: Save user's confirmation of data summary
+
+##### **Step 6: Data Distribution**
+- [ ] **CRITICAL**: Save histogram configuration for each variable
+- [ ] **CRITICAL**: Save chart layout preferences (4 charts per row)
+- [ ] **CRITICAL**: Save any chart customization settings
+- [ ] **CRITICAL**: Save timestamp of chart generation
+- [ ] **CRITICAL**: Save user's review and approval of distributions
+
+##### **Step 7: Chart Analysis**
+- [ ] **CRITICAL**: Save line chart configuration for each variable
+- [ ] **CRITICAL**: Save scatter plot configuration for each variable
+- [ ] **CRITICAL**: Save trendline type selection for each chart (linear, polynomial degree 2, polynomial degree 3)
+- [ ] **CRITICAL**: Save chart filtering preferences (Expected/Unexpected)
+- [ ] **CRITICAL**: Save custom chart container configurations
+- [ ] **CRITICAL**: Save timestamp of each chart modification
+- [ ] **CRITICAL**: Save user's chart analysis preferences
+
+##### **Step 8: Model Building**
+- [ ] **CRITICAL**: Save selected model type immediately after selection
+- [ ] **CRITICAL**: Save independent variable selections (checkboxes)
+- [ ] **CRITICAL**: Save model configuration parameters
+- [ ] **CRITICAL**: Save timestamp of model configuration
+- [ ] **CRITICAL**: Save user's model setup preferences
+
+##### **Step 9: Model Results**
+- [ ] **CRITICAL**: Save model execution status (running, completed, failed)
+- [ ] **CRITICAL**: Save model results and statistical metrics
+- [ ] **CRITICAL**: Save model performance indicators (R², p-values, VIF)
+- [ ] **CRITICAL**: Save timestamp of model completion
+- [ ] **CRITICAL**: Save user's review of model results
+- [ ] **CRITICAL**: Save any model deletions or modifications
+
+#### **State Persistence Implementation Requirements**
+
+##### **Immediate State Saving (After Every Completed Action)**
+- [ ] **CRITICAL**: Save state after EVERY completed user action (not every keystroke)
+- [ ] **CRITICAL**: Save state after EVERY data processing step completion
+- [ ] **CRITICAL**: Save state after EVERY validation step completion
+- [ ] **CRITICAL**: Save state after EVERY API response processing
+- [ ] **CRITICAL**: Save state after EVERY dropdown selection change
+- [ ] **CRITICAL**: Save state after EVERY checkbox selection/deselection
+- [ ] **CRITICAL**: Save state after EVERY file upload completion
+- [ ] **CRITICAL**: Save state after EVERY chart generation
+- [ ] **CRITICAL**: Save state after EVERY model execution
+
+##### **State Structure & Tracking**
+- [ ] **CRITICAL**: Each step has its own state object with substep tracking
+- [ ] **CRITICAL**: Each substep has its own state tracking and completion status
+- [ ] **CRITICAL**: User progress position is ALWAYS saved and updated
+- [ ] **CRITICAL**: Timestamps for every state change and action completion
+- [ ] **CRITICAL**: Validation status for every input and processing step
+- [ ] **CRITICAL**: Completion status for every substep and workflow stage
+
+##### **Resume Functionality & Workflow Continuity**
+- [ ] **CRITICAL**: User can resume from ANY step or substep
+- [ ] **CRITICAL**: All previous selections and configurations are restored
+- [ ] **CRITICAL**: All processed data and generated results are available
+- [ ] **CRITICAL**: User's exact position in workflow is restored precisely
+- [ ] **CRITICAL**: No data loss when navigating between steps or refreshing browser
+- [ ] **CRITICAL**: Workflow continues exactly where user left off
+
+##### **State Synchronization & Persistence**
+- [ ] **CRITICAL**: Frontend state syncs with backend state in real-time
+- [ ] **CRITICAL**: State is saved to both local storage and backend JSON files
+- [ ] **CRITICAL**: State conflicts are resolved automatically with versioning
+- [ ] **CRITICAL**: State versioning for conflict resolution and rollback
+- [ ] **CRITICAL**: State backup and recovery mechanisms
+
+##### **State Service Architecture**
+- [ ] **CRITICAL**: Create `NonMMMStateService.ts` for comprehensive state management
+- [ ] **CRITICAL**: Implement `saveStepState(stepId, stepData, substepData)` method
+- [ ] **CRITICAL**: Implement `loadStepState(stepId)` method for state restoration
+- [ ] **CRITICAL**: Implement `saveUserProgress(position, completedSteps)` method
+- [ ] **CRITICAL**: Implement `resumeFromStep(stepId)` method for workflow resumption
+- [ ] **CRITICAL**: Implement `autoSave()` method for automatic state persistence
+- [ ] **CRITICAL**: Implement `stateConflictResolution()` method for backend sync
+- [ ] **CRITICAL**: Implement `stateVersioning()` method for conflict prevention
+
+#### **State Persistence Architecture Summary**
+**CRITICAL REQUIREMENT**: The Non-MMM analysis must implement a comprehensive state persistence system that:
+
+1. **Saves State After Every Completed Action**: Not just at step completion, but after every meaningful user action
+2. **Tracks User Progress**: Always knows exactly where the user is in their analysis journey
+3. **Enables Seamless Resumption**: Users can resume from any step with all previous work intact
+4. **Prevents Data Loss**: No user input or configuration is ever lost during navigation
+5. **Maintains Workflow Continuity**: Analysis continues exactly where it left off
+
+**Key Implementation Points**:
+- State is saved to both local storage (for immediate access) and backend JSON files (for persistence)
+- Every step and substep has its own state object with completion tracking
+- Timestamps are recorded for every state change for debugging and conflict resolution
+- State versioning prevents conflicts and enables rollback if needed
+- Auto-save functionality ensures critical user actions are never lost
+
+### Performance Optimization
+- **Lazy Loading**: Load Non-MMM components only when needed
+- **Data Caching**: Implement caching for processed data and chart results
+- **Chart Optimization**: Use efficient chart rendering for large datasets
+- **Memory Management**: Implement proper cleanup for chart components
+
+### Security & Validation
+- **File Validation**: Ensure secure file upload and processing
+- **Data Sanitization**: Validate all user inputs and data
+- **API Security**: Implement proper authentication and authorization
+- **Error Handling**: Prevent sensitive information leakage in error messages
+
+### Accessibility
+- **Screen Reader Support**: Ensure all components are accessible
+- **Keyboard Navigation**: Implement keyboard shortcuts and navigation
+- **Color Contrast**: Maintain proper contrast ratios for all UI elements
+- **Focus Management**: Proper focus handling for interactive elements
+
+## Dependencies & Integration Points
+
+### Existing Components to Leverage
+- **File Upload**: Reuse existing file upload components and services
+- **Chart Components**: Extend existing chart components for Non-MMM needs
+- **UI Components**: Use existing shadcn/ui components for consistency
+- **Navigation**: Integrate with existing wizard navigation system
+
+### New Dependencies Required
+- **Chart Libraries**: Additional chart types for Non-MMM analysis
+- **Statistical Libraries**: Libraries for advanced statistical calculations
+- **Data Processing**: Enhanced data manipulation capabilities
+- **Model Execution**: Backend services for statistical modeling
+
+## Risk Assessment & Mitigation
+
+### High Risk Items
+- **State Management Complexity**: Risk of state conflicts between MMM and Non-MMM
+- **Performance Impact**: Large datasets and complex charts may affect performance
+- **Backend Integration**: Complex statistical modeling may require significant backend changes
+
+### Mitigation Strategies
+- **Modular Architecture**: Keep Non-MMM components completely separate from MMM
+- **Performance Testing**: Implement performance monitoring and optimization
+- **Incremental Development**: Build and test components incrementally
+- **Comprehensive Testing**: Extensive testing to ensure stability and reliability
+
+## Success Criteria
+
+### Functional Requirements
+- [ ] Complete Non-MMM analysis workflow implementation
+- [ ] Seamless integration with existing MMM workflow
+- [ ] Proper state persistence and restoration
+- [ ] Responsive design across all device types
+
+### Performance Requirements
+- [ ] Fast loading times for all Non-MMM components
+- [ ] Efficient chart rendering for large datasets
+- [ ] Smooth navigation between steps
+- [ ] Minimal memory usage and cleanup
+
+### Quality Requirements
+- [ ] Comprehensive error handling and user feedback
+- [ ] Accessibility compliance for all components
+- [ ] Cross-browser compatibility
+- [ ] Mobile-responsive design
+
+## Timeline Estimate
+
+### Phase 1-2 (Foundation & Core Components): 2-3 weeks
+### Phase 3-4 (Data Analysis & Charts): 3-4 weeks
+### Phase 5-6 (Modeling & Backend): 2-3 weeks
+### Phase 7-8 (UI/UX & Testing): 2-3 weeks
+### Phase 9 (Documentation & Deployment): 1-2 weeks
+
+**Total Estimated Timeline: 10-15 weeks**
+
+## Next Steps
+
+1. **Review and Approve**: Review this checklist with stakeholders
+2. **Resource Allocation**: Assign developers to specific phases
+3. **Environment Setup**: Prepare development and testing environments
+4. **Phase 1 Start**: Begin with foundation and architecture setup
+5. **Regular Reviews**: Schedule weekly progress reviews and adjustments
+
+---
+
+*This checklist will be updated as implementation progresses and new requirements or challenges are identified.*
+description:
+globs:
+alwaysApply: true
+---

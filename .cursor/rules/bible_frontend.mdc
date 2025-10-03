@@ -1,0 +1,50 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+This is a webapplication for a billion dollar corporate client.
+They are a CPG/ FMCG business. 
+Maintain cleaanliness and professionalism while looking and feeling premium.
+No funky nonsense.
+READ brandDesign.mdc before you start changing how the frontend looks.
+
+And remember, General Analysis is the same as non-mmm analysis. I will be using these 2 interchangeably.
+
+1. Always assume the frontend server is running. Never try to close and restart.
+2. First read the FRONTEND_CODEBASE_DOCUMENTATION.mdc before you begin making changes. This is non-negotiable.
+3. Make changes to FRONTEND_CODEBASE_DOCUMENTATION.mdc once you're done making changes. This is non-negotiable.
+4. Make sure you know what every file does before making changes so you don't create duplicates or cause confusion due to multiple codes creating multiple paths for the process to flow through.
+5, Don't break any progress to fix linter errors. rethink the logic, why you had made certain changes that cuased the linter, and now how to fix the linter without breaking the changes.
+6. Keep codes and files modular.
+7. Follow the clean folder structure and follow coding best practices.
+8. Use NodeJS Backend for state management
+
+Benefits of Split backend:
+Node.js: Fast state operations, metadata, user sessions
+Python: Heavy data processing, analytics, file manipulation
+Clear separation: Each backend optimized for its strengths
+Scalability: Can scale state management independently from data processing
+Bottom Line
+For state management, metadata, and quick service operations specifically:
+Node.js is better because:
+✅ JSON-native - natural fit for state data
+✅ Faster I/O - quicker response times for state operations
+✅ Event-driven - better for real-time state sync
+✅ Lightweight - less overhead for simple CRUD operations
+✅ Concurrent - handles multiple state operations efficiently
+Python should handle:
+- Heavy data processing
+- File analysis and manipulation
+- Machine learning operations
+- Complex data transformations
+Your Node.js backend is actually well-suited for the metadata/state management role it was originally designed for! 🎯
+
+UserFlow: (MMM Analysis)
+1. Choose whether Brand Leader or Data Scientist
+2. If Data scientist, Choose whether existing analysis resume or new analysis begin (in case of MMM). This is where you show any existing analyses to choose from.
+3. If new analysis, there is notihng as a saved state or anything such right now. initialize new analysis with the name fed by user. Now the user will upload the data and the new analysis will begin for the first time.
+4. User uploads data -> user chooses to add columns, add that to state -> user chooses sheet names and chooses to concatenate, add relevant info to state -> user chooses to add rpi, add relevant info to state
+4. If resuming analysis, only then can you recall from the latest saved state. otherwise no point even trying.
+
+

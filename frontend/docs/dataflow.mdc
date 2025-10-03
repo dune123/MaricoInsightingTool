@@ -1,0 +1,1478 @@
+# Data Flow Documentation
+
+## Overview
+
+This document describes how data flows through the BrandBloom Insights application, including data processing, transformation, retrieval, and state management across the multi-page wizard architecture.
+
+## Architecture Overview
+
+The application uses a dual backend architecture with a multi-page routing frontend:
+
+### **Backend Architecture**
+- **Primary Backend**: Python FastAPI with Modular Architecture (`backend/python/main.py`) on port 8000
+  - **Modular Design**: Organized into focused modules (services, routes, utils, models)
+  - **Lightweight Main**: Main file reduced from 1591 to 95 lines (94% reduction)
+  - Handles ALL file operations (upload, processing, concatenation)
+  - **NEW**: Handles ALL metadata state persistence operations (save/retrieve/delete)
+  - Core analytics, model building, and data processing  
+  - **Single source of truth**: Files stored only in `backend/python/uploads/`
+  - **Single source of truth**: Metadata state stored in `backend/python/metadata/concatenation_states/`
+  - **API Endpoints**: All endpoints use `/api/` prefix (no versioning)
+  - Main API endpoints for frontend communication
+- **Secondary Backend**: Node.js Express (`backend/nodejs/server.js`) on port 3001  
+  - Legacy metadata management and auxiliary operations
+  - **API Endpoints**: All endpoints use `/api/` prefix (no versioning)
+  - **Not used for file operations or state persistence** to maintain architectural simplicity
+
+### **Frontend Architecture**
+The application uses a multi-page routing system with centralized state management through React Context, where each step has its own dedicated page and URL.
+
+### **API Routing Updates (Latest)**
+- **Removed API versioning**: All API endpoints now use `/api/` prefix instead of `/api/v1/`
+- **Frontend services**: Updated to use non-versioned endpoints
+- **Backend routes**: Both Python FastAPI and Node.js Express backends updated
+- **Consistent structure**: All API calls now follow `/api/{resource}` pattern
+
+## Data Flow Stages
+
+### 1. Initial State Management
+**Location**: `src/context/AnalysisContext.tsx`
+**Flow**: Application starts with empty initial state
+```typescript
+const initialState: AppState = {
+  userType: null,
+  analysisType: null,
+  analysisMode: null,
+  analysisData: null,
+  selectedBrand: '',
+  filterColumns: [],
+  modelResult: null,
+  scenarioInputs: [],
+  currentStep: 1,
+};
+```
+
+### 2. User Type Selection
+**Route**: `/step/1/user-type`
+**Data Flow**:
+1. User selects type (brand-leader | data-scientist)
+2. Data stored in context via `setUserType()`
+3. Route protection validates selection before navigation
+4. Navigation to `/step/2/analysis-type`
+
+### 3. Analysis Configuration
+**Routes**: `/step/2/analysis-type` → `/step/3/analysis-mode`
+**Data Flow**:
+1. Analysis type selection (mmm-template | fresh-analysis)
+2. Analysis mode selection (new | existing)
+3. Both stored in context state
+4. Route protection ensures sequential completion
+
+### 4. Data Upload & Processing
+**Route**: `/step/4/data-upload`
+**Data Flow**:
+1. **File Upload**: User uploads CSV/Excel file to Python backend exclusively (port 8000)
+2. **Raw File Storage**: File saved to `backend/python/uploads/raw/` with timestamped filename
+3. **File Validation**: Backend validates format and file type (.xlsx, .csv)
+4. **Excel Sheet Detection**: Real-time sheet analysis using pandas and openpyxl
+5. **Column Extraction**: First 10 columns extracted from first sheet for preview
+6. **Sheet Information API**: `/api/v1/files/{filename}/sheets` provides complete sheet metadata
+7. **Excel Column Modification Prompt**: For Excel files, immediately prompt user to add packsize, region, and channel columns
+8. **Optional Column Enhancement**: If user agrees, apply business logic to add/update columns:
+   - **Column Names**: "PackSize", "Region", "Channel" (positioned after Month column)
+   - **NTW sheets**: Region="NTW", Channel="GT+MT", PackSize=rest of sheet name after "NTW"
+   - **MT sheets**: Region="NTW", Channel="MT", PackSize=rest of sheet name after "MT"
+   - **GT sheets**: Region="NTW", Channel="GT", PackSize=rest of sheet name after "GT"
+   - **Other sheets**: First word = Region, remaining words = PackSize, Channel="GT"
+9. **Data Quality Filter**: Remove columns with <18 records of actual data from selected sheets
+10. **Modified File Storage**: Updated file saved to uploads/intermediate/ directory (preserving raw original)
+11. **Context Storage**: Processed data stored as `AnalysisData` with real sheet information
+12. **Structure**:
+   ```typescript
+   interface AnalysisData {
+     fileName: string;
+     columns: Array<{name: string, type: string}>;
+     rowCount: number;
+     summary: StatisticalSummary;
+     sheets?: SheetData[];
+     isConcatenated?: boolean;
+     concatenationConfig?: {
+       selectedSheets: string[];
+       resultingColumns: string[];
+     };
+   }
+   ```
+
+### 5. Data Concatenation & Processing
+**Route**: `/step/5/data-concatenation`
+**Data Flow**:
+1. **State Check**: First checks Python metadata backend for existing concatenation state
+2. **State Restoration**: If existing state found, restores all data and UI state from saved metadata
+3. **Sheet Selection Retrieval**: Uses previously selected sheets from upload step (if no existing state)
+4. **Backend Concatenation**: Python backend performs step-by-step concatenation algorithm:
+   - **Source Files**: Reads from `backend/python/uploads/raw/` directory
+   - **Step 1**: First selected sheet becomes base structure (all columns and rows preserved)
+   - **Step 2**: Each subsequent sheet processed individually with intelligent column alignment
+   - **Step 3**: Missing columns in new sheets filled with NaN values
+   - **Step 4**: New columns from subsequent sheets added dynamically to result
+   - **Step 5**: Previous sheet data filled with NaN for new columns
+   - **Step 6**: **Empty Column Removal** - Automatically removes columns that are 100% empty (all NaN/null)
+   - **Step 7**: Source_Sheet column added to track data lineage
+   - **Step 8**: **Column Categorization** - Automatically categorizes columns into business groups:
+     * Revenue: Contains "Volume", "Value", or "Unit" (case-insensitive)
+     * Distribution: Contains "WTD" or "Stores" (case-insensitive)
+     * Pricing: Contains "Price" or "RPI" (case-insensitive)
+     * Promotion: Contains "Promo", "TUP", or "BTL" (case-insensitive)
+     * Media: Contains "GRP" or "Spend" (case-insensitive)
+     * Others: All remaining columns
+5. **File Storage**: Creates concatenated Excel file in `backend/python/uploads/concat/` directory
+6. **State Persistence**: Saves complete processing state to Python metadata backend
+7. **Enhanced Data Preview**: Displays actual concatenated data with comprehensive scrollable interface
+8. **Preview Data Enhancement**: Backend returns up to 100 rows of actual concatenated data for preview
+9. **Intelligent Column Display**: Shows categorized columns with color-coded badges by business function
+10. **Target Variable Selection**: Interactive selection of target variable from Revenue category columns
+11. **Brand Categorization**: Automatic brand extraction and interactive categorization
+12. **Download Functionality**: Direct download from Python backend concat directory
+13. **Context Update**: Updates analysis data with concatenated file information, real column mapping, categorization details, selected target variable, and brand metadata
+14. **Expected Signs Calculation**: Automatically calculates expected signs for Distribution, Pricing, Promotion, and Media variables based on brand relationships
+15. **Visual Sign Display**: Shows expected signs with color coding (Green +, Red -, Blue +) below variable names
+16. **Business Logic Integration**: Applies marketing mix modeling best practices for sign expectations
+17. **Persistent State**: All selections and processing results saved to prevent data loss on navigation
+8. **Structure**:
+   ```typescript
+   interface SheetData {
+     sheetName: string;
+     columns: DataColumn[];
+     rowCount: number;
+     isSelected: boolean;
+   }
+   ```
+
+### 5.1. Expected Signs for Variables
+**Functionality**: Automatic expected signs calculation and display for marketing mix modeling variables
+
+#### **Expected Signs Business Rules**:
+1. **Distribution Variables**:
+   - Our brand distribution: **+ (Green)** - Higher distribution increases our sales
+   - Other brand distribution: **- (Red)** - Competitor distribution hurts our sales
+   
+2. **Pricing Variables**:
+   - Our brand pricing: **- (Red)** - Higher prices reduce our volume
+   - Other brand pricing: **+ (Green)** - Competitor price increases help our volume
+   - RPI (Relative Price Index): **- (Red)** - All RPI variables expected negative
+   
+3. **Promotion Variables**:
+   - Our brand promotions: **+ (Green)** - Our promotions increase sales
+   - Other brand promotions: **- (Red)** - Competitor promotions hurt our sales
+   
+4. **Media Variables**:
+   - Our brand media: **+ (Green)** - Our media drives sales
+   - Competitor media: **- (Red)** - Competitor media hurts our sales
+   - Halo brand media: **+ (Blue)** - Halo brand media helps our sales
+
+#### **Implementation Flow**:
+1. **Brand Categorization**: User selects target variable → System extracts "Our Brand"
+2. **Brand Classification**: All brands categorized into Our/Competitors/Halo categories
+3. **Variable Analysis**: For each variable in Distribution/Pricing/Promotion/Media:
+   - Extract brand name from variable name (remove prefixes like "Volume", "Price", etc.)
+   - Match extracted brand to brand categories
+   - Apply business rules to determine expected sign and color
+4. **Visual Display**: Expected signs shown as colored badges below variable names
+5. **User Feedback**: Hover tooltips explain reasoning behind each assignment
+
+#### **Data Structures**:
+```typescript
+interface VariableExpectedSign {
+  variable: string;           // Variable name
+  category: string;          // Distribution/Pricing/Promotion/Media
+  expectedSign: '+' | '-';   // Expected sign
+  color: 'green' | 'red' | 'blue';  // Color coding
+  reason: string;            // Explanation of the assignment
+}
+
+interface ExpectedSignsMap {
+  [variableName: string]: VariableExpectedSign;
+}
+```
+
+#### **Services**:
+- **Frontend**: `src/services/expectedSigns.ts` - Sign calculation and display logic
+- **Backend**: `backend/python/app/services/expected_signs_service.py` - Business rules implementation
+- **Integration**: Seamlessly integrated into ColumnCategorization component
+
+### 6. Data Summary & Quality Assessment
+**Route**: `/step/6/data-summary`
+**Data Flow**:
+1. **Retrieval**: Accesses `analysisData` from context
+2. **Categorization**: Separates numeric, categorical, date columns
+3. **Visualization**: Generates distribution charts
+4. **Quality Metrics**: Displays data quality indicators
+5. **No transformation**: Data passes through unchanged
+
+### 7. Brand Selection & Filtering
+**Routes**: `/step/7/brand-selection` → `/step/8/filter-selection`
+**Data Flow**:
+1. **Brand Selection**: 
+   - Extracts available brands from data
+   - Stores selected brand(s) in context
+2. **Filter Configuration**:
+   - Presents available columns for filtering
+   - Stores selected filter columns
+   - Updates context state
+
+### 8. Exploratory Data Analysis (Conditional)
+**Route**: `/step/9/eda` (Data Scientists only)
+**Data Flow**:
+1. **User Type Check**: Brand leaders skip this step
+2. **Correlation Analysis**: Generates correlation matrix
+3. **Data Visualization**: Creates distribution charts
+4. **Statistical Analysis**: Performs descriptive statistics
+5. **Read-Only**: No data transformation, only analysis
+
+### 9. Expected Signs Configuration
+**Route**: `/step/10/expected-signs`
+**Data Flow**:
+1. **Variable Extraction**: Gets variables from analysis data
+2. **Sign Configuration**: User sets expected relationships
+3. **Validation**: Ensures logical consistency
+4. **Storage**: Signs stored for model building
+
+### 10. Model Building & Execution
+**Route**: `/step/11/model-building`
+**Data Flow**:
+1. **Variable Selection**: User chooses model variables
+2. **Model Configuration**: Selects model type (linear, ridge, etc.)
+3. **Model Execution**: `ModelService.generateMockResults()`
+4. **Result Generation**: Creates coefficients, statistics, diagnostics
+5. **Context Update**: Stores `ModelResult` in context
+6. **Structure**:
+   ```typescript
+   interface ModelResult {
+     variables: ModelVariable[];
+     rSquared: number;
+     adjustedRSquared: number;
+     pValue: number;
+     residualPlots: any[];
+     diagnostics: ModelDiagnostics;
+   }
+   ```
+
+### 11. Model Results Display
+**Route**: `/step/12/model-results`
+**Data Flow**:
+1. **Data Retrieval**: Accesses `modelResult` from context
+2. **Visualization**: Displays coefficients, statistics
+3. **Quality Assessment**: Shows model diagnostics
+4. **Validation**: Presents model quality metrics
+5. **Read-Only**: No data modification
+
+### 12. Optimization & Scenario Planning
+**Route**: `/step/13/optimizer`
+**Data Flow**:
+1. **P6M Data Generation**: Creates baseline scenario values
+2. **Scenario Configuration**: User inputs optimization parameters
+3. **Impact Calculation**: Computes scenario impacts
+4. **Optimization**: Runs budget allocation algorithms
+5. **Export Preparation**: Formats data for download
+6. **Final Storage**: Stores `scenarioInputs` in context
+
+## State Management Patterns
+
+### Context Provider Structure
+```typescript
+<AnalysisProvider>
+  <BrowserRouter>
+    <Routes>
+      {/* Individual step routes */}
+    </Routes>
+  </BrowserRouter>
+</AnalysisProvider>
+```
+
+### Data Persistence
+- **Session Persistence**: Data maintained during browser session
+- **Route Protection**: Validates data availability before navigation
+- **State Validation**: Each page checks prerequisites
+- **Progressive Building**: Data accumulates through workflow
+
+### Navigation & State Updates
+1. **User Action**: Triggers state update via context methods
+2. **State Update**: Context dispatches action to reducer
+3. **Route Protection**: Page components validate state
+4. **Navigation**: React Router handles URL transitions
+5. **Persistence**: State maintained across page changes
+
+## Data Transformation Pipeline
+
+### Input → Processing → Storage → Display
+
+1. **Raw Data Input**: File upload or user selections
+2. **Validation & Processing**: Service layer transforms data
+3. **Context Storage**: Centralized state management
+4. **Route Distribution**: Pages access relevant data
+5. **Component Display**: UI components render data
+6. **User Interaction**: Triggers new data flows
+
+## Error Handling & Validation
+
+### Data Validation Points
+1. **File Upload**: Format and size validation
+2. **Route Access**: Prerequisites checking
+3. **Model Building**: Variable selection validation
+4. **State Consistency**: Cross-step data validation
+
+### Error Recovery
+- **Graceful Degradation**: Missing data shows appropriate messages
+- **Route Redirection**: Invalid access redirects to correct step
+- **Toast Notifications**: User feedback for validation errors
+- **State Reset**: Option to restart workflow if needed
+
+## Performance Considerations
+
+### Optimization Strategies
+1. **Lazy Loading**: Step components loaded on demand
+2. **State Efficiency**: Minimal re-renders with selective updates
+3. **Route Protection**: Prevents unnecessary processing
+4. **Data Memoization**: Charts and analysis cached when possible
+5. **Single Backend Architecture**: Eliminates cross-backend communication overhead
+6. **Direct File Access**: No file synchronization delays between backends
+
+### Memory Management
+- **Context Cleanup**: State cleared on workflow completion
+- **Component Unmounting**: Proper cleanup on route changes
+- **Efficient File Processing**: Single-location file storage reduces memory footprint
+- **Chart Rendering**: Optimized visualization performance
+- **No File Duplication**: Single source of truth eliminates duplicate storage
+
+## Future Data Flow Enhancements
+
+### Planned Improvements
+1. **Enhanced Analytics**: Advanced statistical processing capabilities
+2. **Data Persistence**: Save workflow progress to database
+3. **Concurrent Users**: Multi-user data isolation and session management
+4. **Advanced Concatenation**: Support for more complex data transformations
+5. **Export Features**: Multiple format support (CSV, JSON, Parquet)
+6. **Caching Strategy**: Redis-based caching for improved performance
+7. **File Validation**: Enhanced file format and content validation
+8. **Batch Processing**: Support for multiple file uploads and processing
+
+## Architecture Summary
+
+## 🚀 Major Architecture Overhaul: Brand-Based Analysis System (2024-12-23)
+
+### **Revolutionary Change: From Hardcoded to Dynamic Brand Management**
+
+**Previous System Issues:**
+- ❌ Hardcoded filenames: `NIELSEN - X-Men - Data Input for MMM_state.json`
+- ❌ No brand organization - everything mixed together
+- ❌ "Review Existing" had no way to list analyses
+- ❌ Static, inflexible state management
+
+**New Brand-Centric Architecture:**
+```
+analyses/
+├── brand-x-men/
+│   ├── analysis.json          # Brand analysis metadata
+│   ├── uploads/
+│   │   ├── raw/              # Original files  
+│   │   ├── intermediate/     # Processed files
+│   │   └── concatenated/     # Final concatenated files
+│   └── states/
+│       ├── concatenation.json
+│       ├── filters.json
+│       └── model.json
+├── brand-coca-cola/
+└── brand-nike/
+```
+
+**New User Journey:**
+1. **Brand Name Entry** → Creates dedicated analysis workspace
+2. **Dynamic State Management** → All data organized by brand
+3. **Review Existing** → Visual list of all brand analyses
+4. **Seamless Continuation** → Automatic navigation to current step (e.g., step 5 data concatenation)
+5. **State Restoration** → All context and progress automatically restored
+
+**Technical Implementation:**
+- **Backend**: Complete analysis management service with CRUD operations
+- **Frontend**: Brand analysis service with dynamic state tracking
+- **Database**: Structured JSON metadata per brand analysis
+- **API**: RESTful endpoints for analysis lifecycle management
+
+## 🔧 Critical Bug Fix: Metadata State Naming Consistency (2024-12-23)
+
+### **Fixed Concatenation State Persistence Issue**
+
+**Problem**: Users experienced metadata state retrieval failures with 404 errors despite successful state saves.
+
+**Root Cause**: Filename inconsistency between save and retrieve operations:
+- **Saving Operation**: Used `originalFileName` (base filename without timestamp)
+  - Example: "NIELSEN - X-Men - Data Input for MMM.xlsx"
+- **Retrieval Operation**: Used `sourceFileName` (processed filename with timestamp)  
+  - Example: "NIELSEN - X-Men - Data Input for MMM_1754884454.xlsx"
+
+**Solution**: Updated `DataConcatenationStep.tsx` to use `originalFileName` consistently for both operations:
+```typescript
+// BEFORE - Inconsistent naming
+const checkExistingState = useCallback(async () => {
+  const stateResult = await MetadataService.getConcatenationState(sourceFileName); // Wrong!
+}, [sourceFileName, ...]); // Wrong dependency!
+
+// AFTER - Consistent naming  
+const checkExistingState = useCallback(async () => {
+  const stateResult = await MetadataService.getConcatenationState(originalFileName); // Fixed!
+}, [originalFileName, ...]); // Fixed dependency!
+```
+
+**File Naming Strategy Clarification**:
+- **sourceFileName**: Processed filename with timestamp for actual file operations 
+- **originalFileName**: Base filename without timestamp for metadata state tracking
+- **concatenatedFileName**: Output filename for concatenated file storage
+
+**Benefits Achieved**:
+- ✅ **Restored State Persistence**: Metadata state properly retrieved across navigation
+- ✅ **Eliminated 404 Errors**: State lookup now uses correct filename format
+- ✅ **Improved User Experience**: No more data loss when navigating between pages
+- ✅ **Clear Naming Convention**: Documented file naming strategy for future maintenance
+
+This data flow documentation reflects the **simplified single-backend architecture** implemented on 2024-12-20, featuring:
+
+- **Single Source of Truth**: All files stored in `backend/python/uploads/`
+- **Unified Backend**: Python FastAPI handles all file operations
+- **Step-by-Step Concatenation**: Intelligent column alignment algorithm
+- **Real Data Processing**: No mock data fallbacks in production workflow
+- **Comprehensive Routing**: Multi-page architecture with state management
+- **Enhanced Error Handling**: Detailed logging and user feedback
+
+**Last Updated**: 2024-12-23 - Modular Backend Architecture Implementation
+
+## Brand Categorization Data Flow (Step 5 Enhancement)
+
+### Variable Selection and Data Filtering Workflow
+
+#### 1. Target Variable Selection Trigger
+**Location**: `src/components/steps/DataConcatenationStep.tsx`
+**Flow**: User selects target variable from Revenue columns
+```typescript
+handleTargetVariableSelection(columnName: string) → {
+  1. Extract brand name from target variable
+  2. Generate complete brand metadata
+  3. Update analysis context with brand information
+  4. Display brand categorization interface
+  5. Save target variable in metadata state
+}
+```
+
+#### 2. Filter Selection from Others Category
+**Location**: `src/components/steps/DataConcatenationStep.tsx`
+**Flow**: User selects filter variables from Others columns (multi-select)
+```typescript
+handleFilterSelection(columnName: string) → {
+  1. Toggle filter in selectedFilters array
+  2. Update local state and analysis context
+  3. Save updated filter selection in metadata state
+  4. Show visual feedback with purple theme
+  5. Store filters for data operations
+}
+```
+
+#### 2. Brand Metadata Generation
+**Service**: `src/services/brandExtractor.ts`
+**Process**:
+```typescript
+createBrandMetadata(targetVariable, allColumns, columnCategories) → {
+  1. extractBrandFromTargetVariable() // "Volume X-Men For Boss" → "X-Men For Boss"
+  2. extractAllBrandsFromColumns()    // Find all brands from Revenue
+  3. categorizeBrands()               // Organize into categories
+  4. Return BrandMetadata object
+}
+```
+
+#### 3. Brand Categories Structure
+```typescript
+interface BrandCategories {
+  ourBrand: string;        // Extracted from target variable
+  competitors: string[];   // All other brands from Revenue columns
+  haloBrands: string[];    // Initially empty, populated by user interaction
+}
+```
+
+#### 4. Interactive Brand Management Data Flow
+**Component**: `src/components/steps/concatenation/BrandCategorization.tsx`
+**User Interactions**:
+```typescript
+// Move brand from Competitors to Halo Brands
+handleMoveToHalo(brandName) → {
+  1. Remove brand from competitors array
+  2. Add brand to haloBrands array
+  3. Update brand categories state
+  4. Trigger context update via onBrandCategoriesChange()
+}
+
+// Move brand from Halo Brands back to Competitors
+handleMoveToCompetitors(brandName) → {
+  1. Remove brand from haloBrands array
+  2. Add brand to competitors array
+  3. Update brand categories state
+  4. Trigger context update via onBrandCategoriesChange()
+}
+```
+
+#### 5. Context Updates and Persistence
+**Flow**: Interactive changes → Context → Persistent state
+```typescript
+handleBrandCategoriesChange(categories) → {
+  1. Update local component state
+  2. Update analysis context brandMetadata
+  3. Update timestamp for change tracking
+  4. Display user feedback via toast notifications
+}
+```
+
+#### 6. Data Structure in Analysis Context
+```typescript
+interface AnalysisData {
+  // ... existing fields
+  targetVariable?: string;           // "Volume X-Men For Boss"
+  brandMetadata?: {
+    targetVariable: string;          // "Volume X-Men For Boss"
+    ourBrand: string;               // "X-Men For Boss"
+    allBrands: string[];            // ["X-Men For Boss", "Romano", "Clear Men"]
+    categories: BrandCategories;    // Interactive categorization
+    extractedAt: string;            // ISO timestamp
+  };
+}
+```
+
+#### 7. Brand Data Lifecycle
+1. **Extraction**: Automatic on target variable selection
+2. **Categorization**: Initial automatic organization
+3. **Interaction**: User-driven brand movement between categories
+4. **Persistence**: Maintained in analysis context throughout workflow
+5. **Availability**: Accessible for downstream analysis steps
+
+#### 8. UI Data Flow and Visual Organization
+**Layout**: Three-column brand categorization interface
+- **Left (1/3)**: Our Brand - Non-interactive, green theme
+- **Middle (1/3)**: Halo Brands - Interactive, blue theme  
+- **Right (1/3)**: Competitors - Interactive, orange theme
+
+**User Experience Flow**:
+```
+Target Variable Selected → Brand Extracted → Categories Displayed → 
+User Clicks Competitor → Brand Moves to Halo → State Updated → 
+Context Persisted → Visual Feedback Provided
+```
+
+This brand categorization enhancement adds intelligent brand organization capabilities to the data concatenation step, supporting marketing mix modeling requirements while maintaining modular, maintainable code architecture.
+
+## Data Filtering Workflow (Real-time Analysis Feature)
+
+### 1. Filter-Based Data Retrieval
+**Endpoint**: `POST /api/v1/data/filtered`
+**Location**: `backend/python/main.py`
+**Purpose**: Apply filters to concatenated data and return filtered results for analysis
+
+```typescript
+FilterRequest → {
+  filename: string,           // Concatenated Excel file
+  filters: {                  // Filter criteria
+    [column]: [values]        // e.g., {"Month": ["Jan", "Feb"], "Region": ["US"]}
+  },
+  columns?: string[],         // Specific columns to return
+  limit?: number             // Max rows (default: 1000)
+}
+```
+
+**Backend Process**:
+1. **File Location**: Look for concatenated file in `concat/` → `processed/` → `raw/` directories
+2. **Data Loading**: Read Excel file using pandas with first sheet by default
+3. **Filter Application**: Apply case-insensitive string matching or exact numeric matching
+4. **Column Selection**: Return only requested columns if specified
+5. **Result Limiting**: Cap results at specified limit for performance
+6. **Response**: Include filtered data, row counts, applied filters, and filter options
+
+### 2. Frontend Filter Management
+**Service**: `src/services/filterService.ts`
+**Hook**: `src/hooks/useFilteredData.ts`
+**Component**: `src/components/ui/filtered-data-table.tsx`
+
+**Filter State Flow**:
+```typescript
+User Selection → {
+  1. selectedFilters from AnalysisContext (purple Others category selection)
+  2. filterValues managed by useFilteredData hook
+  3. API call to /api/v1/data/filtered with current filters
+  4. Real-time data update in components
+  5. Filter persistence across navigation
+}
+```
+
+### 3. Data Filtering Integration Points
+
+#### A. Column Categorization Step (Purple Theme)
+- **Filter selection** from Others category with purple aesthetic
+- **Multi-select capability** with toggle functionality  
+- **State persistence** in metadata and analysis context
+- **Visual feedback** with purple highlighting and checkmarks
+
+#### B. Analysis Components
+- **FilteredDataTable**: Reusable component with built-in filter controls
+- **useFilteredData hook**: Centralized filter state management
+- **Real-time updates**: Data refreshes when filters change
+- **Export functionality**: CSV export of filtered data
+
+#### C. Filter Persistence Architecture
+- **Context State**: `selectedFilters` array in AnalysisContext
+- **Metadata Storage**: Filters saved in concatenation state JSON files
+- **Navigation Safety**: Filters restored when returning to concatenation step
+- **State Restoration**: Automatic sync between local and context state
+
+### 4. Filter Options and Validation
+**Dynamic Filter Population**:
+1. **Option Retrieval**: Get unique values for each filter column from dataset
+2. **Data Validation**: Ensure filter values exist in current dataset
+3. **UI Updates**: Populate filter dropdowns with available options
+4. **Performance**: Limit to 50 unique values per column for UI responsiveness
+
+### 5. Filter Workflow Example
+```typescript
+// User selects "Month" and "Region" as filters in Others category
+selectedFilters: ["Month", "Region"]
+
+// User applies specific filter values
+filterValues: {
+  "Month": ["January", "February"],
+  "Region": ["US", "UK"]
+}
+
+// Backend applies filters to concatenated data
+POST /api/v1/data/filtered → {
+  "filename": "data_concatenated.xlsx",
+  "filters": {
+    "Month": ["January", "February"],
+    "Region": ["US", "UK"]  
+  }
+}
+
+// Response with filtered data
+{
+  "success": true,
+  "data": {
+    "rows": [...],              // Filtered data rows
+    "totalRows": 150,           // Filtered count
+    "originalRows": 1000,       // Original count
+    "appliedFilters": {...},    // Confirmed applied filters
+    "filterOptions": {...}      // Available filter options
+  }
+}
+```
+
+This filtering enhancement enables real-time data analysis capabilities while maintaining state persistence and providing a seamless user experience across navigation.
+
+## Excel Column Enhancement Workflow (File Upload Enhancement)
+
+### 1. Column Modification Dialog
+**Trigger**: Immediately after successful Excel file upload and sheet detection
+**Location**: `src/components/steps/DataUploadStep.tsx`
+**Purpose**: Ask user if they want to enhance their Excel file with business-relevant columns
+
+**User Experience Flow**:
+```typescript
+File Upload Complete → Sheet Detection → Modification Dialog → {
+  User Choice: "Yes, Add Columns" → Column Modification → Updated Sheet Info
+  User Choice: "Skip for Now" → Proceed with Original File
+}
+```
+
+### 2. Column Modification Logic
+**Endpoint**: `POST /api/v1/files/{filename}/modify-columns`
+**Backend**: Python FastAPI (`backend/python/main.py`)
+**Purpose**: Add or update packsize, region, and channel columns based on sheet naming conventions
+
+**Sheet Name Processing Rules**:
+```python
+def determine_column_values(sheet_name: str) -> tuple[str, str, str]:
+    words = sheet_name.strip().split()
+    
+    if sheet_name.upper().startswith("NTW"):
+        # Remove "NTW" and use rest as packsize
+        packsize = " ".join(words[1:]) if len(words) > 1 else ""
+        return "NTW", "GT+MT", packsize
+    elif sheet_name.upper().startswith("MT"):
+        # Remove "MT" and use rest as packsize
+        packsize = " ".join(words[1:]) if len(words) > 1 else ""
+        return "NTW", "MT", packsize
+    elif sheet_name.upper().startswith("GT"):
+        # Remove "GT" and use rest as packsize
+        packsize = " ".join(words[1:]) if len(words) > 1 else ""
+        return "NTW", "GT", packsize
+    else:
+        # First word = region, remaining words = packsize
+        region = words[0] if words else "Unknown"
+        packsize = " ".join(words[1:]) if len(words) > 1 else ""
+        return region, "GT", packsize
+```
+
+### 3. Column Update Strategy
+**Function**: `add_or_update_columns(df, region, channel, packsize)`
+**Column Names**: "PackSize", "Region", "Channel" (proper casing)
+**Positioning**: Right after "Month" column (or at beginning if Month column not found)
+**Behavior**:
+1. **Existing Columns Check**: Case-insensitive search for PackSize, Region, Channel columns
+2. **Update Existing**: Replace values in existing columns with new business logic values
+3. **Add Missing**: Create new columns positioned after Month column
+4. **Column Reordering**: Maintains proper column sequence with new columns in correct position
+5. **Preserve Data**: All original data and structure maintained
+
+### 4. File Processing Workflow
+**Process**:
+```python
+1. Read Excel file with all sheets
+2. For each sheet:
+   - Determine region, channel, packsize from sheet name
+   - Check for existing target columns
+   - Update existing or add new columns
+   - Preserve all original data
+3. Overwrite original file with enhanced version
+4. Return updated sheet information to frontend
+```
+
+### 5. Frontend Integration
+**Dialog Features**:
+- **Clear Explanation**: Shows what columns will be added and why
+- **Business Logic Display**: Explains auto-population rules for different sheet types
+- **User Choice**: Skip or proceed with modification
+- **Progress Feedback**: Loading states during modification process
+- **Success Confirmation**: Toast notifications and updated sheet display
+
+**State Management**:
+- `showModificationDialog`: Controls dialog visibility
+- `isModifyingColumns`: Loading state during API call
+- `modificationApplied`: Tracks if modification was completed
+- Updated `sheetsInfo` reflects modified file structure
+
+### 6. Enhanced User Experience
+**Benefits**:
+- **Proactive Enhancement**: Suggests useful business columns immediately
+- **Educational**: Explains the business logic and column purposes
+- **Optional**: User can skip if not needed
+- **Seamless**: No disruption to existing workflow
+- **Transparent**: Clear feedback on what was changed
+
+**Dialog Content**:
+- **Column Explanations**: What each column represents
+- **Auto-population Rules**: How values are determined from sheet names
+- **Example Scenarios**: Shows NTW, MT, GT, and custom sheet handling
+- **Progress Indicators**: Clear feedback during modification process
+
+This enhancement adds significant business value by automatically structuring data with relevant business dimensions while maintaining user choice and workflow transparency.
+
+## 🧹 Data Quality Enhancement Feature (2024-12-23)
+
+### **Automatic Low-Data Column Removal**
+
+**Feature**: During the Excel column modification process, automatically remove columns with insufficient data quality from selected sheets.
+
+#### **Implementation Details**:
+
+##### **Data Quality Logic**:
+- **Threshold**: Columns with fewer than 18 records of actual data are automatically removed
+- **Data Definition**: Valid records = non-null, non-empty, non-NaN values (excludes blank cells, empty strings, null values)
+- **Preservation**: Business columns (PackSize, Region, Channel, Month) are preserved regardless of data count
+- **Sheet Scope**: Only applies to user-selected sheets during modification process
+
+##### **Backend Implementation** (`backend/python/main.py`):
+- **New Function**: `remove_low_data_columns(df, min_records=18)` 
+- **Integration**: Applied before business column addition in modification workflow
+- **Process Flow**:
+  1. Read original sheet from `uploads/raw/`
+  2. Apply data quality filter (remove low-data columns)
+  3. Add/update business columns (PackSize, Region, Channel)
+  4. Save enhanced file to `uploads/intermediate/`
+- **Reporting**: Track removed columns by sheet for user feedback
+
+##### **Enhanced Modification Workflow**:
+```python
+# STEP 1: Data Quality Filter
+df_cleaned, removed_columns = remove_low_data_columns(df, min_records=18)
+
+# STEP 2: Business Column Enhancement  
+df_final = add_or_update_columns(df_cleaned, region, channel, packsize)
+
+# STEP 3: Track and Report Changes
+total_removed_columns[sheet_name] = removed_columns
+```
+
+##### **Frontend Integration** (`src/components/steps/DataUploadStep.tsx`):
+- **Enhanced Response**: Display data quality improvements in success messages
+- **Detailed Feedback**: Show count of removed columns and affected sheets
+- **Transparency**: Expandable details showing which columns were removed from each sheet
+- **Visual Design**: Blue-themed data quality information card with collapsible details
+
+#### **User Experience Features**:
+
+##### **Automatic Processing**:
+- **Seamless Integration**: No additional user action required
+- **Smart Filtering**: Preserves important business columns automatically
+- **Quality Improvement**: Removes columns that would not contribute to analysis
+
+##### **Comprehensive Feedback**:
+- **Success Message**: "File enhanced successfully. Added PackSize, Region, and Channel columns to X selected sheets. Data quality improvement: Removed Y columns with insufficient data (<18 records)."
+- **Detail Card**: Blue-themed information panel showing:
+  - Total columns removed across all sheets
+  - Number of affected sheets
+  - Expandable breakdown by sheet name and specific column names
+
+##### **Technical Benefits**:
+- **Cleaner Data**: Downstream analysis works with higher quality datasets
+- **Performance**: Smaller file sizes with fewer empty columns
+- **Analysis Accuracy**: Focus on columns with sufficient data for meaningful insights
+- **Preservation**: Important business dimensions always maintained
+
+#### **Data Quality Criteria**:
+
+##### **Column Evaluation**:
+```python
+# Valid record count logic
+valid_count = 0
+for value in df[column]:
+    if pd.notna(value) and value != "" and str(value).strip() != "":
+        valid_count += 1
+
+# Remove if insufficient data
+if valid_count < 18:
+    columns_to_remove.append(column)
+```
+
+##### **Business Column Protection**:
+- **Preserved Columns**: 'packsize', 'region', 'channel', 'month' (case-insensitive)
+- **Rationale**: These columns are essential for marketing mix modeling analysis
+- **Smart Handling**: Newly added business columns are never removed regardless of original data
+
+#### **Response Structure Enhancement**:
+
+##### **API Response Addition**:
+```typescript
+interface ColumnModificationResponse {
+  // ... existing fields
+  dataQuality: {
+    sheetsWithRemovedColumns: number;
+    totalColumnsRemoved: number;
+    removedColumnsBySheet: Record<string, string[]>;
+  };
+}
+```
+
+##### **Benefits Achieved**:
+- **🎯 Data Quality**: Automatic removal of low-value columns
+- **📊 Better Analysis**: Focus on columns with sufficient data
+- **🚀 Performance**: Smaller, cleaner datasets for processing
+- **👁️ Transparency**: Complete visibility into what was changed
+- **🔒 Safety**: Critical business columns always preserved
+- **⚡ Efficiency**: No manual column review required
+
+### **File Processing Pipeline Enhancement**:
+```
+Raw Upload → Data Quality Filter → Business Column Addition → Intermediate Storage
+uploads/raw/ → Column Removal (<18 records) → PackSize/Region/Channel → uploads/intermediate/
+```
+
+This data quality enhancement ensures that users always work with clean, analysis-ready datasets while maintaining complete transparency about the improvements made to their data.
+
+## 📊 Enhanced Price Sheet Creation Feature (2024-12-23)
+
+### **Automatic Price Sheet Generation During Concatenation**
+
+**Feature**: Automatically creates a dedicated "Price" sheet during the concatenation process with region-based month-wise price data for each packsize.
+
+#### **Implementation Details**:
+
+##### **Price Sheet Creation Logic** (`backend/python/app/services/excel_service.py`):
+- **Automatic Trigger**: Price sheet created automatically during concatenation workflow
+- **Data Sources**: Extracts data from all selected sheets during concatenation
+- **Sheet Name**: Creates a new sheet named "Price" in the concatenated workbook
+- **Column Organization**: Region (column 1), Month (column 2), followed by all price columns
+
+##### **Enhanced Data Processing**:
+- **Region Detection**: Automatically finds region columns using case-insensitive matching ('region', 'area', 'territory')
+- **Month Conversion**: Converts month data to proper date format (MMM-YY) for correct chronological sorting
+- **Price Column Discovery**: Identifies ALL columns containing "Price" in their name (case-insensitive)
+- **Unique Combinations**: Ensures no duplicate region x month combinations
+- **Data Aggregation**: For duplicates, takes the first non-null value
+
+##### **Month Format Standardization**:
+```python
+# Input formats supported:
+"January 2023" → "Jan-23"
+"2023-01" → "Jan-23"  
+"Jan-23" → "Jan-23" (already correct)
+# Date objects → "Jan-23"
+```
+
+##### **Price Column Detection**:
+- **Enhanced Logic**: Finds any column with "PRICE" anywhere in the name
+- **Examples**: "Price", "Unit_Price", "Average_Price", "Price_Brand_X", "Regional_Price"
+- **Case-Insensitive**: Works with various naming conventions
+
+#### **Data Flow Enhancement**:
+
+##### **Concatenation Process with Price Sheet**:
+```
+1. Read Selected Sheets → 2. Extract Region/Month/Price Data → 3. Format Month to MMM-YY →
+4. Remove Duplicates → 5. Sort Chronologically → 6. Create Price Sheet → 7. Save to Workbook
+```
+
+##### **Price Sheet Structure**:
+```
+Region | Month  | Price_Brand_A | Price_Brand_B | Unit_Price | Average_Price
+-------|--------|---------------|---------------|------------|---------------
+NTW    | Jan-23 | 25.50        | 30.25         | 28.00      | 27.92
+NTW    | Feb-23 | 26.00        | 30.75         | 28.50      | 28.42
+GT     | Jan-23 | 24.00        | 29.50         | 27.25      | 26.92
+...
+```
+
+#### **Enhanced API Response**:
+
+##### **PriceSheetInfo Model Enhancement**:
+```typescript
+interface PriceSheetInfo {
+  created: boolean;
+  rowCount: number;
+  columns: string[];
+  uniqueRegions: number;        // NEW: Count of unique regions
+  uniqueMonths: number;         // NEW: Count of unique months  
+  priceColumns: string[];       // NEW: List of price-specific columns
+  message: string;              // NEW: Detailed creation message
+}
+```
+
+##### **Concatenation Response Enhancement**:
+- **Price Sheet Status**: Indicates if Price sheet was created successfully
+- **Detailed Metrics**: Provides counts of regions, months, and price columns
+- **User Feedback**: Clear message about Price sheet creation results
+
+#### **User Experience Benefits**:
+
+##### **Automatic Processing**:
+- **No User Action Required**: Price sheet created automatically during concatenation
+- **Intelligent Data Discovery**: Automatically finds relevant region, month, and price columns
+- **Error Resilience**: Gracefully handles missing columns or invalid data
+
+##### **Business Value**:
+- **Ready for Analysis**: Provides clean, organized price data for immediate analysis
+- **Time Series Ready**: Proper month formatting enables chronological analysis
+- **Cross-Regional Comparison**: Organized by region for comparative analysis
+- **Complete Price Overview**: All price-related columns in one accessible location
+
+##### **Data Quality Assurance**:
+- **No Duplicates**: Ensures unique region-month combinations
+- **Chronological Order**: Months sorted in proper time sequence
+- **Clean Data**: Only includes rows with valid price data
+- **Standardized Format**: Consistent date format across all data
+
+#### **Technical Implementation**:
+
+##### **Enhanced Methods**:
+- `_create_price_sheet()`: Main price sheet creation logic
+- `_find_enhanced_price_columns()`: Comprehensive price column detection
+- `_format_month_to_date()`: Intelligent month format conversion
+- `_sort_price_data_by_date()`: Chronological sorting functionality
+
+##### **Error Handling**:
+- **Graceful Degradation**: Continues concatenation even if Price sheet creation fails
+- **Comprehensive Logging**: Detailed logs for troubleshooting
+- **Fallback Mechanisms**: Uses original month format if conversion fails
+- **User Notification**: Clear feedback about Price sheet creation status
+
+#### **Success Message Examples**:
+- **Success**: "Successfully concatenated 5 sheets with step-by-step column alignment. Created Price sheet with 24 unique region-month combinations"
+- **Partial Success**: "Successfully concatenated 5 sheets with step-by-step column alignment. Price sheet could not be created - no valid region/month/price data found"
+
+### **Benefits Achieved**:
+- **🎯 Automated Price Analysis**: Ready-to-use price data structure
+- **📅 Proper Time Series**: Chronologically sorted month data
+- **🗺️ Regional Insights**: Clear region-based organization
+- **📊 Complete Price View**: All price columns in one location
+- **⚡ Zero Manual Work**: Fully automated during concatenation
+- **🔍 Intelligent Detection**: Finds price columns regardless of naming convention
+- **✅ Data Quality**: Ensures unique, valid, and properly formatted data
+
+This Price sheet enhancement provides immediate business value by creating organized, analysis-ready price data that supports marketing mix modeling and regional price analysis workflows.
+
+## 🔧 Enhanced Data Concatenation Step - Dynamic File Access (2024-12-23)
+
+### **Multi-Approach Data Loading for Robust Existing Analysis Support**
+
+**Enhancement**: Implemented comprehensive fallback mechanisms to ensure existing analyses can always access their concatenated data, regardless of file location or backend organization changes.
+
+#### **Three-Tier Data Loading System**:
+
+##### **Approach 1: Direct Concatenated File Access**
+```typescript
+POST /api/data/filtered
+{
+  "filename": "NIELSEN - X-Men - Data Input for MMM_concatenated.xlsx",
+  "filters": {},
+  "limit": 100
+}
+```
+- **Purpose**: Direct access to concatenated files in backend concat/ directory
+- **Advantage**: Most current and complete data
+- **Fallback**: If file not found or access fails, proceed to Approach 2
+
+##### **Approach 2: Analysis Context Data Reconstruction**
+```typescript
+if (analysisData?.isConcatenated) {
+  finalColumns = analysisData.concatenationConfig?.resultingColumns;
+  finalTotalRows = analysisData.rowCount;
+  // Create sample row for immediate user feedback
+}
+```
+- **Purpose**: Use existing analysis context data to reconstruct preview
+- **Advantage**: Always available when analysis is loaded from backend
+- **Display**: Creates informative sample row: "Data available - select target variable to view"
+
+##### **Approach 3: Saved Preview Data Fallback**
+```typescript
+if (savedState.previewData?.length > 0) {
+  finalData = savedState.previewData;
+  finalColumns = Object.keys(savedState.previewData[0]);
+}
+```
+- **Purpose**: Use previously saved preview data from metadata state
+- **Advantage**: Provides actual historical data preview
+- **Use Case**: When concatenated file is moved but metadata state intact
+
+#### **Enhanced ExistingAnalysisSelection Data Flow**:
+
+##### **Comprehensive AnalysisData Construction**:
+```typescript
+// Enhanced analysisData for better state restoration triggers
+const analysisData = {
+  filename: originalFileName,
+  processedFilename: concatenatedFileName,
+  sheets: selectedSheets.map(sheet => ({ sheetName: sheet, isSelected: true })),
+  columns: columnCategories.map(col => ({ name: col, type: 'categorical', values: [] })),
+  concatenationConfig: {
+    selectedSheets: savedState.selectedSheets,
+    resultingColumns: allColumns.map(String),
+    customFileName: concatenatedFileName
+  },
+  targetVariable: savedState.targetVariable,
+  selectedFilters: savedState.selectedFilters,
+  brandMetadata: savedState.brandMetadata,
+  priceSheet: savedState.priceSheet,
+  rpiSheet: savedState.rpiSheet
+};
+```
+
+#### **Enhanced State Restoration Flow**:
+```
+Existing Analysis Selection →
+Enhanced AnalysisData Created →
+Navigation to Data Concatenation Step →
+State Restoration Triggered →
+Three-Approach Data Loading Executed →
+Best Available Data Displayed →
+Complete Context Restored →
+User Can Immediately Continue Work
+```
+
+#### **Benefits for Data Flow**:
+
+##### **Robustness**:
+- **File Location Independence**: Works regardless of backend file organization
+- **Network Resilience**: Graceful handling of temporary backend issues
+- **Data Integrity**: Multiple data sources ensure users never lose access to their work
+
+##### **Performance**:
+- **Progressive Loading**: Best available data shown immediately
+- **Efficient Fallbacks**: Each approach optimized for its use case
+- **Preview Optimization**: Limited to 100 rows for fast initial display
+
+##### **User Experience**:
+- **Seamless Continuation**: No "data not found" errors for valid analyses
+- **Immediate Feedback**: Users see their data within seconds
+- **Transparent Process**: Clear console logging without overwhelming UI
+
+#### **Error Handling and Recovery**:
+
+##### **Graceful Degradation**:
+- **Method 1 Fails**: Automatic fallback to Method 2 without user awareness
+- **Method 2 Fails**: Automatic fallback to Method 3 with appropriate messaging
+- **All Methods Fail**: Clear error message with recovery suggestions
+
+##### **User Communication**:
+- **Loading State**: "If you're continuing an existing analysis, the system is loading your data..."
+- **Error State**: "Unable to load concatenated data. The file may have been moved or deleted."
+- **Success State**: Immediate display of data with full interaction capabilities
+
+This enhancement ensures that the data concatenation step serves as a reliable bridge between existing analysis selection and continued workflow, regardless of backend file organization or temporary access issues.
+
+*Data flow enhancement completed: 2024-12-23*
+
+## Brand Conflict Resolution Data Flow (2024-12-23)
+
+### **Enhanced MMM Template Analysis Flow with Brand Checking**
+
+**Feature**: Prevents duplicate brand analyses by checking existence before creation and providing user choice for resume or overwrite.
+
+#### **Data Flow Process**:
+
+##### **Step 1: Brand Name Input**
+**Location**: `src/components/steps/AnalysisTypeStep.tsx`
+**Trigger**: User selects MMM Template and enters brand name
+```typescript
+User Input: brandName = "X-Men"
+State: showBrandInput = true
+```
+
+##### **Step 2: Brand Existence Check**
+**API Call**: `GET /api/analyses/check-brand/{brand_name}`
+**Backend Service**: `BrandAnalysisService.check_brand_exists()`
+**Process**:
+1. **Analysis ID Generation**: Create URL-safe ID from brand name
+2. **File System Check**: Look for `analyses/{analysis_id}/analysis.json`
+3. **Progress Calculation**: If exists, calculate current step and progress
+4. **Response Formation**: Return existence status with analysis details
+
+**Response Structure**:
+```typescript
+{
+  "success": true,
+  "exists": boolean,
+  "message": string,
+  "data": {
+    "analysisId": string,
+    "brandName": string,
+    "currentStep": number,
+    "status": string,
+    "lastModified": string,
+    "progress": {...}
+  }
+}
+```
+
+##### **Step 3A: Brand Doesn't Exist - Direct Creation**
+**Flow**: Brand check returns `exists: false`
+**Action**: Proceed directly to analysis creation
+```typescript
+createNewAnalysis(forceOverwrite: false) → {
+  API: POST /api/analyses { brandName, analysisType: "MMM", forceOverwrite: false }
+  Backend: BrandAnalysisService.create_analysis(request, force_overwrite=False)
+  Result: New analysis created, user navigated to next step
+}
+```
+
+##### **Step 3B: Brand Exists - Show Dialog**
+**Flow**: Brand check returns `exists: true`
+**UI State**: `showExistingDialog = true, existingAnalysisData = analysis_details`
+**Dialog Information Display**:
+- Brand name confirmation
+- Current step of existing analysis
+- Analysis status (created, in_progress, completed, etc.)
+- Last modified timestamp
+- Clear explanations of user options
+
+##### **Step 4A: User Chooses Resume**
+**Handler**: `handleResumeAnalysis()`
+**Data Flow**:
+```typescript
+Resume Flow → {
+  1. Set analysis context: setCurrentAnalysisId(existingAnalysisData.analysisId)
+  2. Set brand context: setSelectedBrand(brandName)
+  3. Set analysis type: setAnalysisType('mmm')
+  4. Navigation: User directed to current step of existing analysis
+  5. State restoration: Analysis context loaded with existing progress
+}
+```
+
+##### **Step 4B: User Chooses Overwrite**
+**Handler**: `handleOverwriteAnalysis()`
+**Data Flow**:
+```typescript
+Overwrite Flow → {
+  API: POST /api/analyses { brandName, analysisType: "MMM", forceOverwrite: true }
+  Backend Process:
+    1. Delete existing analysis directory: shutil.rmtree(analysis_dir)
+    2. Create fresh analysis structure
+    3. Initialize new analysis metadata
+    4. Return new analysis details
+  Result: Fresh analysis created, user starts from step 1
+}
+```
+
+#### **Backend Data Flow Details**:
+
+##### **Brand Existence Check Logic**:
+```python
+def check_brand_exists(brand_name: str):
+    analysis_id = _create_analysis_id(brand_name)  # URL-safe conversion
+    analysis_dir = _get_analysis_dir(analysis_id)  # analyses/{analysis_id}/
+    analysis_file = analysis_dir / "analysis.json"
+    
+    if analysis_file.exists():
+        # Load and update progress
+        analysis_data = json.load(analysis_file)
+        analysis_data = _update_progress_and_step(analysis_data)
+        return detailed_response_with_progress
+    else:
+        return not_exists_response
+```
+
+##### **Progress Calculation Enhancement**:
+```python
+def _update_progress_and_step(analysis_data):
+    # Check multiple locations for progress indicators:
+    # 1. Analysis directory uploads
+    # 2. Global uploads directory (legacy)
+    # 3. Concatenation state files
+    # 4. Filter and model states
+    
+    progress = {
+        "dataUploaded": check_uploads_exist(),
+        "concatenationCompleted": check_concatenation_state(),
+        "targetVariableSelected": check_target_variable(),
+        "brandCategorized": check_brand_metadata(),
+        "filtersApplied": check_filter_state(),
+        "modelBuilt": check_model_state(),
+        "resultsGenerated": check_results_state()
+    }
+    
+    current_step = _calculate_current_step(progress)
+    return updated_analysis_data
+```
+
+##### **Overwrite Operation Flow**:
+```python
+def create_analysis(request, force_overwrite=False):
+    if analysis_exists and force_overwrite:
+        # Safe deletion of existing analysis
+        try:
+            shutil.rmtree(analysis_dir)  # Remove all analysis data
+        except Exception as e:
+            logger.warning(f"Failed to remove existing: {e}")
+    
+    # Create fresh analysis structure
+    _ensure_analysis_structure(analysis_id)
+    create_new_analysis_metadata()
+    save_analysis_file()
+```
+
+#### **Error Handling Data Flow**:
+
+##### **Corrupted Analysis Files**:
+```python
+try:
+    analysis_data = json.load(analysis_file)
+except Exception as e:
+    return {
+        "exists": True,
+        "data": {
+            "analysisId": analysis_id,
+            "brandName": brand_name,
+            "status": "error",
+            "error": str(e)
+        }
+    }
+```
+
+##### **Network Failure Handling**:
+```typescript
+try {
+    const existsResult = await brandAnalysisService.checkBrandExists(brandName);
+} catch (error) {
+    // Graceful degradation - show error but allow retry
+    toast({
+        title: "Check Failed",
+        description: "Failed to check brand existence. Please try again.",
+        variant: "destructive"
+    });
+}
+```
+
+#### **State Management Data Flow**:
+
+##### **Analysis Context Updates**:
+```typescript
+// Resume existing analysis
+setCurrentAnalysisId(existingAnalysisData.analysisId);  // Links to existing
+setSelectedBrand(brandName.trim());                      // User input
+setAnalysisType('mmm');                                 // Analysis type
+
+// Create new analysis (overwrite)
+setCurrentAnalysisId(newAnalysisData.analysisId);      // Fresh analysis ID
+setSelectedBrand(brandName.trim());                     // User input
+setAnalysisType('mmm');                                // Analysis type
+```
+
+##### **Navigation Flow**:
+- **Resume**: User navigated to existing analysis current step
+- **New**: User navigated to step 1 (next step after analysis type)
+- **Cancel**: Return to brand input form
+
+#### **Benefits for Data Flow**:
+
+##### **Data Integrity**:
+- **Single Source of Truth**: One analysis per brand name
+- **Consistent State**: Analysis context always matches backend state
+- **No Data Loss**: Existing work preserved unless explicitly overwritten
+
+##### **Performance**:
+- **Efficient Checking**: Quick file system check before heavy operations
+- **Minimal API Calls**: Single check prevents unnecessary creation attempts
+- **Smart Navigation**: Direct routing to appropriate step
+
+##### **User Experience**:
+- **Informed Decisions**: Complete analysis status before user choice
+- **Seamless Resume**: Immediate context restoration for existing analyses
+- **Safe Overwrite**: Explicit user consent before data deletion
+
+This brand conflict resolution enhancement ensures robust data management while providing flexible user workflows for both resuming existing work and starting fresh analyses.
+
+*Brand conflict resolution data flow documented: 2024-12-23*
+
+## 🔧 Critical Fix: Global File Cleanup During Analysis Rewrite (2024-12-23)
+
+### **Problem Identified: File Persistence Issue**
+
+**Issue**: When users attempted to rewrite an existing analysis, old files remained in global upload directories, causing the new concatenation process to pick up old data instead of new uploads.
+
+#### **Root Cause Analysis**:
+
+##### **File Storage Architecture Mismatch**:
+- **Upload Location**: Files uploaded to global directories (`backend/python/uploads/raw/`, `backend/python/uploads/intermediate/`)
+- **Analysis Deletion**: Only removes analysis-specific directories (`backend/python/metadata/analyses/{analysis_id}/`)
+- **Concatenation Source**: Reads from global directories, not analysis-specific ones
+- **Result**: Old files persist and interfere with new analysis
+
+##### **Workflow Breakdown**:
+```
+User Action: "Rewrite Analysis" → 
+Backend: Delete analysis directory only → 
+Files Remain: In global uploads/ directories → 
+New Upload: Adds to existing files in global directories → 
+Concatenation: Finds both old and new files → 
+User Experience: Gets mixed/old data instead of fresh concatenation
+```
+
+#### **Solution Implemented**:
+
+##### **Enhanced Analysis Overwrite Logic**:
+```python
+# NEW: Comprehensive cleanup during overwrite
+if analysis_file.exists() and force_overwrite:
+    # 1. Remove analysis-specific directory
+    shutil.rmtree(analysis_dir)
+    
+    # 2. CRITICAL FIX: Clean up global upload directories
+    brand_name_lower = request.brandName.lower()
+    BrandAnalysisService._cleanup_global_uploads_for_brand(brand_name_lower)
+```
+
+##### **Global File Cleanup Method**:
+```python
+def _cleanup_global_uploads_for_brand(brand_name_lower: str):
+    # Clean up files in all global directories:
+    # - backend/python/uploads/raw/
+    # - backend/python/uploads/intermediate/
+    # - backend/python/uploads/concat/
+    # - backend/python/processed/
+    # - backend/python/metadata/concatenation_states/
+    
+    # Case-insensitive brand name matching
+    # Comprehensive file removal with proper error handling
+    # Detailed logging for audit trail
+```
+
+##### **Enhanced Delete Analysis Logic**:
+```python
+def delete_analysis(analysis_id: str):
+    # 1. Get brand name before deletion
+    # 2. Remove analysis directory
+    # 3. Clean up global upload directories for the brand
+    # 4. Remove old metadata state files
+```
+
+#### **Directories Cleaned**:
+
+##### **Upload Directories**:
+- `backend/python/uploads/raw/` - Original uploaded files
+- `backend/python/uploads/intermediate/` - Processed files after column modification
+- `backend/python/uploads/concat/` - Concatenated result files
+- `backend/python/processed/` - Legacy processed files
+
+##### **Metadata Cleanup**:
+- `backend/python/metadata/concatenation_states/` - Old state files
+- Brand-specific state files identified by filename matching
+
+#### **Safety Features**:
+
+##### **Conservative Matching**:
+- Case-insensitive brand name matching in filenames
+- Only removes files that clearly belong to the specific brand
+- Preserves files from other brands/analyses
+
+##### **Error Handling**:
+- Graceful handling of file access errors
+- Comprehensive logging for audit trail
+- Individual file failures don't stop overall cleanup process
+
+##### **Audit Trail**:
+- Detailed logging of all cleaned files
+- Success/failure reporting for each cleanup operation
+- Clear separation between analysis directory and global file cleanup
+
+#### **Benefits Achieved**:
+
+##### **Data Integrity**:
+- ✅ **Clean Slate**: Rewritten analyses start with completely fresh data
+- ✅ **No File Mixing**: Old files can't interfere with new concatenation
+- ✅ **Predictable Results**: Users get exactly what they upload in new analysis
+
+##### **User Experience**:
+- ✅ **Reliable Rewrite**: "Rewrite Analysis" now works as expected
+- ✅ **Fresh Concatenation**: New uploads properly concatenated without old data
+- ✅ **Clear Workflow**: Users can confidently restart analyses
+
+##### **System Maintenance**:
+- ✅ **Storage Cleanup**: Prevents accumulation of orphaned files
+- ✅ **Performance**: Reduces file system clutter
+- ✅ **Consistency**: Global and analysis-specific storage stay in sync
+
+#### **Implementation Details**:
+
+##### **File Matching Logic**:
+```python
+# Match files by case-insensitive brand name inclusion
+brand_name_lower = "x-men"
+filename_lower = "NIELSEN - X-Men - Data Input for MMM_1754890031.xlsx".lower()
+
+if brand_name_lower in filename_lower:  # Match found - safe to delete
+    file_path.unlink()
+```
+
+##### **Comprehensive Coverage**:
+- **File Extensions**: `.xlsx`, `.csv`, `.json` (for state files)
+- **Naming Patterns**: Any file containing brand name anywhere in filename
+- **Directory Scope**: All upload and processing directories
+- **State Files**: Metadata files linked to the brand
+
+### **Testing Recommendations**:
+
+#### **Functional Testing**:
+1. **Upload Analysis**: Create analysis with sample data
+2. **Rewrite Test**: Use "Overwrite Analysis" with different data
+3. **Verification**: Confirm only new data appears in concatenation
+4. **File Check**: Verify old files removed from global directories
+
+#### **Edge Case Testing**:
+1. **Similar Brand Names**: Test with brands having similar names
+2. **Special Characters**: Test brand names with special characters
+3. **Long File Names**: Test with very long file names
+4. **Permission Issues**: Test cleanup behavior with file permission errors
+
+This critical fix ensures that the analysis rewrite functionality works reliably and provides users with the clean, predictable workflow they expect when starting fresh analyses.
+
+*Global file cleanup fix implemented: 2024-12-23*

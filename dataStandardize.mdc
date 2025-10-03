@@ -1,0 +1,180 @@
+# Data Standardization Implementation Plan
+
+## Overview
+Implement data standardization for Non-MMM modeling with user choice between original and standardized data.
+
+## Updated Workflow
+**Current:** Data Upload → Data Summary → Chart Analysis → Model Building → Download Analysis
+**New:** Data Upload → Data Summary → Chart Analysis → **Data Standardization** → Model Building → Download Analysis
+
+## Key Features
+1. **Data Standardization Service** - Python backend service for data preprocessing
+2. **Data Selection UI** - User choice between Original vs Standardized data in model building
+3. **Standardized File Creation** - New Excel files with standardized data
+4. **Modeling Integration** - Models use selected data type (original or standardized)
+
+## Implementation Tasks
+
+### Phase 1: Backend Foundation
+- [ ] **Create Data Standardization Service** (`backend/python/app/services/data_standardization_service.py`)
+  - [ ] `standardize_dataframe(df, method='zscore')` - Apply standardization to numeric columns
+  - [ ] `create_standardized_file(original_file_path, brand, analysis_id)` - Create new standardized Excel file
+  - [ ] `get_standardization_metadata(standardized_file_path)` - Track standardization parameters
+  - [ ] Support methods: Z-Score, Min-Max, Robust Scaling, Unit Vector
+
+- [ ] **Add Standardization API Endpoint** (`backend/python/app/routes/nonmmm_routes.py`)
+  - [ ] `POST /api/nonmmm/standardize-data` - Standardize data and create new file
+  - [ ] Input: filename, brand, standardization method, target variable, independent variables
+  - [ ] Output: standardized file path, standardization metadata
+
+- [ ] **Implement File Management**
+  - [ ] Create `{brandname}/data/uploads/standardized/` directory
+  - [ ] File naming: `brand_data_standardized_{method}_{timestamp}.xlsx`
+  - [ ] Store standardization metadata in `{brandname}/data/metadata/standardization/`
+
+### Phase 2: Frontend Integration
+- [ ] **Create Data Standardization Step** (`frontend/src/analysis/nonmmm/steps/NonMMMDataStandardizationStep.tsx`)
+  - [ ] Standardization method selection (Z-Score, Min-Max, Robust, Unit Vector)
+  - [ ] Preview of standardization effects
+  - [ ] Variable selection for standardization
+  - [ ] Progress tracking and validation
+
+- [ ] **Update Non-MMM Wizard** (`frontend/src/analysis/nonmmm/wizard/NonMMMWizard.tsx`)
+  - [ ] Add step 4: Data Standardization (between Chart Analysis and Model Building)
+  - [ ] Update step routing and navigation
+  - [ ] Update progress calculation
+
+- [ ] **Add Data Selection UI** (`frontend/src/analysis/nonmmm/steps/NonMMMModelBuildingStep.tsx`)
+  - [ ] Add data selection toggle: "Original Data" vs "Standardized Data"
+  - [ ] Position above model type selection
+  - [ ] Update model training to use selected data type
+
+### Phase 3: Modeling Integration
+- [ ] **Update Model Training** (`backend/python/app/routes/nonmmm_routes.py`)
+  - [ ] Modify `train_statistical_model()` to accept data type parameter
+  - [ ] Update file search logic: `standardized_dir` → `concat_dir` → `raw_dir`
+  - [ ] Store data type used in model results
+
+- [ ] **Update Model State Management**
+  - [ ] Add data type selection to model configuration
+  - [ ] Store standardization metadata with model results
+  - [ ] Update model results display to show data type used
+
+### Phase 4: State Management
+- [ ] **Update Non-MMM State** (`frontend/src/analysis/nonmmm/types/nonmmm.ts`)
+  - [ ] Add `standardizedFile?: string`
+  - [ ] Add `standardizationMethod?: string`
+  - [ ] Add `standardizationCompleted?: boolean`
+  - [ ] Add `standardizationMetadata?: object`
+
+- [ ] **Update State Service** (`frontend/src/analysis/nonmmm/services/NonMMMStateService.ts`)
+  - [ ] Add methods for standardization state management
+  - [ ] Persist standardization completion status
+
+### Phase 5: Testing & Documentation
+- [ ] **Test Standardization**
+  - [ ] Test with various data types and sizes
+  - [ ] Validate standardization accuracy
+  - [ ] Test model performance with standardized data
+
+- [ ] **Update Documentation**
+  - [ ] Update `BACKEND_Python_DOCUMENTATION.mdc`
+  - [ ] Update `FRONTEND_CODEBASE_DOCUMENTATION.mdc`
+  - [ ] Add API documentation for new endpoints
+
+## Technical Specifications
+
+### Standardization Methods
+1. **Z-Score Standardization:** `(x - mean) / std`
+2. **Min-Max Scaling:** `(x - min) / (max - min)`
+3. **Robust Scaling:** `(x - median) / IQR`
+4. **Unit Vector Scaling:** `x / ||x||`
+
+### File Structure
+```
+{brandname}/data/
+├── uploads/
+│   ├── raw/                    # Original files
+│   └── standardized/           # NEW: Standardized files
+├── exports/results/            # Model results
+└── metadata/
+    └── standardization/        # NEW: Standardization metadata
+```
+
+### API Endpoints
+- `POST /api/nonmmm/standardize-data` - Create standardized data file
+- `GET /api/nonmmm/standardization-status/{filename}` - Get standardization status
+- `GET /api/nonmmm/download-standardized/{filename}` - Download standardized file
+
+### UI Components
+- Data Standardization Step (new step 4)
+- Data Selection Toggle in Model Building Step
+- Standardization Method Selection
+- Standardization Preview
+
+## Success Criteria
+- [ ] Users can standardize data before modeling
+- [ ] Users can choose between original and standardized data for modeling
+- [ ] Standardized files are properly created and stored
+- [ ] Model training works with both data types
+- [ ] Standardization metadata is tracked and displayed
+- [ ] Backward compatibility maintained for existing analyses
+
+## Implementation Order
+1. Backend standardization service
+2. API endpoints
+3. Frontend standardization step
+4. Data selection UI in model building
+5. Model training updates
+6. State management updates
+7. Testing and documentation
+
+---
+**Status:** ✅ IMPLEMENTATION COMPLETE
+**Priority:** High
+**Completed:** 2025-01-31
+**Implementation Time:** 1 day
+
+## ✅ Implementation Summary
+
+### Completed Tasks:
+- [x] **Backend Foundation**
+  - [x] Created Data Standardization Service (`data_standardization_service.py`)
+  - [x] Added standardization API endpoints (`/standardize-data`, `/standardization-status`, `/download-standardized`)
+  - [x] Implemented file management with standardized directory structure
+  - [x] Added comprehensive error handling and validation
+
+- [x] **Frontend Integration**
+  - [x] Created Data Standardization Step component (`NonMMMDataStandardizationStep.tsx`)
+  - [x] Updated Non-MMM wizard to include standardization step (Step 5)
+  - [x] Added data type selection UI in Model Building step
+  - [x] Implemented progress tracking and state persistence
+
+- [x] **Modeling Integration**
+  - [x] Updated model training to support data type selection (original vs standardized)
+  - [x] Enhanced file search logic to prioritize standardized files when requested
+  - [x] Added data type information to model results
+
+- [x] **Documentation**
+  - [x] Updated backend documentation with standardization service details
+  - [x] Updated frontend documentation with new workflow
+  - [x] Added API endpoint documentation
+
+### Key Features Delivered:
+1. **4 Standardization Methods**: Z-Score, Min-Max, Robust Scaling, Unit Vector
+2. **Variable Selection**: Choose which variables to standardize
+3. **Data Type Choice**: Original vs Standardized data selection in modeling
+4. **File Management**: Proper storage and retrieval of standardized files
+5. **State Persistence**: Complete workflow state management
+6. **Error Handling**: Comprehensive validation and error recovery
+
+### User Workflow:
+1. Data Upload → 2. Data Summary → 3. Chart Analysis → **4. Data Standardization** → 5. Model Building → 6. Download Analysis
+
+### Technical Achievements:
+- ✅ Backend service with 4 standardization methods
+- ✅ 3 new API endpoints for standardization
+- ✅ Frontend component with method selection and variable choice
+- ✅ Data type selection in model building
+- ✅ Complete workflow integration
+- ✅ Comprehensive documentation updates

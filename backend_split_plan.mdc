@@ -1,0 +1,459 @@
+# BrandBloom Insights - Backend Split Plan (Stages 1-5)
+
+## Executive Summary
+
+**Objective**: Migrate ALL state management from Python to Node.js backend while keeping Python for data processing.
+
+**Current Status**: 
+- Python backend (port 8000) handles EVERYTHING including state management
+- Node.js backend (port 3001) has basic state endpoints but isn't used
+- Frontend hardcoded to use Python for all operations
+
+**Target Architecture**:
+```
+┌─────────────────────────────────────────────────┐
+│              USER INTERFACE                     │
+└─────────────────┬───────────────────────────────┘
+                  │
+    ┌─────────────┴─────────────┐
+    │                           │
+    ▼                           ▼
+┌─────────────────┐         ┌─────────────────┐
+│   NODE.JS       │         │    PYTHON       │
+│   PORT 3001     │         │    PORT 8000    │
+│                 │         │                 │
+│ • ALL State     │         │ • File Proc     │
+│ • ALL Metadata  │         │ • Data Analysis │  
+│ • JSON I/O      │         │ • Excel Ops     │
+│ • Session Data  │         │ • RPI Analysis  │
+│ • Quick Ops     │         │ • Heavy Compute │
+└─────────────────┘         └─────────────────┘
+```
+
+---
+
+## Stage 1: Analysis & Gap Identification ✅
+
+### Python State Operations (MUST MIGRATE ALL):
+```python
+# CURRENTLY IN PYTHON - MOVING TO NODE.JS:
+POST   /api/metadata/state/save           # Concatenation state save (includes filter state)
+GET    /api/metadata/state/{filename}     # State retrieval (includes filter state)
+DELETE /api/metadata/state/{filename}     # State deletion
+GET    /api/metadata/states               # List all states
+PUT    /api/metadata/state/{filename}     # Update existing state (includes filter updates)
+POST   /api/metadata/cleanup              # Cleanup old states
+GET    /api/metadata/state/{filename}/export # Export state data
+GET    /api/metadata/health               # Metadata health check
+```
+
+### Node.js Current Status:
+```javascript
+// ✅ ALREADY EXISTS (STATE MANAGEMENT):
+POST   /api/metadata/state/save           # Basic implementation
+GET    /api/metadata/state/:filename      # Basic implementation
+DELETE /api/metadata/state/:filename     # Basic implementation
+GET    /api/metadata/health               # Basic implementation
+
+// ✅ ALREADY EXISTS (FILTER MANAGEMENT):
+GET    /api/filters/:filename/suggestions # Filter column suggestions
+POST   /api/filters/:filename/validate    # Filter validation
+POST   /api/filters/:filename/save        # Filter selection storage
+GET    /api/filters/:filename/available   # Available columns
+
+// ❌ MISSING (NEED TO ADD):
+GET    /api/metadata/states               # List all states
+PUT    /api/metadata/state/:filename      # Update state (including filter state)
+POST   /api/metadata/cleanup              # Cleanup functionality
+GET    /api/metadata/state/:filename/export # Export functionality
+```
+
+### Frontend Dependencies:
+- `MetadataService.ts` - Currently hardcoded to Python (MUST CHANGE)
+- `FilterService.ts` - Filter operations (ALREADY USES PYTHON - NEEDS UPDATE)
+- `BrandAnalysisService.ts` - Uses state operations (MUST UPDATE)
+- All step components that save/load filter + concatenation state (MUST REDIRECT)
+
+---
+
+## Stage 2: Complete Node.js State Management (Day 1)
+
+### Task 2.1: Add Missing Endpoints to Node.js
+**Priority**: HIGH
+**Time**: 2 hours
+**Status**: PENDING
+
+#### Add to `backend/nodejs/routes/metadataRoutes.js` (after existing routes):
+
+```javascript
+/**
+ * GET /api/metadata/states - List all states
+ */
+router.get('/states', async (req, res) => {
+  try {
+    const stateDir = path.join('backend', 'nodejs', 'metadata', 'concatenation_states');
+    await fs.ensureDir(stateDir);
+    
+    const files = await fs.readdir(stateDir);
+    const stateFiles = files.filter(file => file.endsWith('_state.json'));
+    
+    const states = [];
+    for (const file of stateFiles) {
+      try {
+        const stateData = await fs.readJson(path.join(stateDir, file));
+        states.push({
+          stateFileName: file,
+          originalFileName: stateData.originalFileName,
+          savedAt: stateData.savedAt,
+          status: stateData.status || 'completed'
+        });
+      } catch (error) {
+        console.warn(`Skipping corrupted state file ${file}`);
+      }
+    }
+    
+    // Sort by most recent first
+    states.sort((a, b) => new Date(b.savedAt) - new Date(a.savedAt));
+    
+    res.json({
+      success: true,
+      message: `Found ${states.length} states`,
+      data: { states, total_count: states.length }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list states: ' + error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/metadata/state/:originalFileName - Update state
+ */
+router.put('/state/:originalFileName', async (req, res) => {
+  try {
+    const { originalFileName } = req.params;
+    const updates = req.body;
+    
+    const stateDir = path.join('backend', 'nodejs', 'metadata', 'concatenation_states');
+    const stateFileName = `${originalFileName.replace(/\.[^/.]+$/, '')}_state.json`;
+    const stateFilePath = path.join(stateDir, stateFileName);
+    
+    const exists = await fs.pathExists(stateFilePath);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'State not found'
+      });
+    }
+    
+    const currentState = await fs.readJson(stateFilePath);
+    const updatedState = {
+      ...currentState,
+      ...updates,
+      lastModified: new Date().toISOString()
+    };
+    
+    await fs.writeJson(stateFilePath, updatedState, { spaces: 2 });
+    
+    res.json({
+      success: true,
+      message: 'State updated successfully',
+      data: updatedState
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update state: ' + error.message
+    });
+  }
+});
+
+/**
+ * POST /api/metadata/cleanup - Cleanup old states
+ */
+router.post('/cleanup', async (req, res) => {
+  try {
+    const daysOld = parseInt(req.query.days_old) || 30;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    
+    const stateDir = path.join('backend', 'nodejs', 'metadata', 'concatenation_states');
+    await fs.ensureDir(stateDir);
+    
+    const files = await fs.readdir(stateDir);
+    const stateFiles = files.filter(file => file.endsWith('_state.json'));
+    
+    let cleanedCount = 0;
+    for (const file of stateFiles) {
+      const filePath = path.join(stateDir, file);
+      const stats = await fs.stat(filePath);
+      
+      if (stats.mtime < cutoffDate) {
+        await fs.remove(filePath);
+        cleanedCount++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Cleaned up ${cleanedCount} old states`,
+      data: { cleanedCount, daysOld }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cleanup: ' + error.message
+    });
+  }
+});
+
+/**
+ * GET /api/metadata/state/:originalFileName/export - Export state
+ */
+router.get('/state/:originalFileName/export', async (req, res) => {
+  try {
+    const { originalFileName } = req.params;
+    
+    const stateDir = path.join('backend', 'nodejs', 'metadata', 'concatenation_states');
+    const stateFileName = `${originalFileName.replace(/\.[^/.]+$/, '')}_state.json`;
+    const stateFilePath = path.join(stateDir, stateFileName);
+    
+    const exists = await fs.pathExists(stateFilePath);
+    if (!exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'State not found'
+      });
+    }
+    
+    res.download(stateFilePath, `${originalFileName}_state.json`);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to export: ' + error.message
+    });
+  }
+});
+```
+
+### Task 2.2: Test Node.js Endpoints
+**Priority**: HIGH
+**Time**: 30 minutes
+**Status**: PENDING
+
+#### Quick test all endpoints work:
+```bash
+# Test Node.js state endpoints
+curl -X GET http://localhost:3001/api/metadata/health
+curl -X GET http://localhost:3001/api/metadata/states
+curl -X POST http://localhost:3001/api/metadata/cleanup?days_old=30
+```
+
+---
+
+## Stage 3: Frontend Smart Routing (Day 1)
+
+### Task 3.1: Add Smart Backend Routing
+**Priority**: HIGH
+**Time**: 1 hour
+**Status**: PENDING
+
+#### Add to `frontend/src/config/apiConfig.ts` (keep existing functions, add these):
+
+```typescript
+/**
+ * Get Node.js backend URL for state operations
+ */
+export function getStateApiUrl(): string {
+  return 'http://localhost:3001/api/metadata';
+}
+
+/**
+ * Get Python backend URL for data operations  
+ */
+export function getDataApiUrl(): string {
+  return 'http://localhost:8000/api';
+}
+```
+
+### Task 3.2: Update MetadataService 
+**Priority**: HIGH
+**Time**: 30 minutes
+**Status**: PENDING
+
+#### Replace URLs in `frontend/src/analysis/mmm/services/metadataService.ts`:
+
+```typescript
+// Change these lines:
+// OLD:
+private static readonly PYTHON_BASE_URL = 'http://localhost:8000/api/metadata';
+
+// NEW:
+private static readonly NODEJS_BASE_URL = 'http://localhost:3001/api/metadata';
+
+// Update all fetch calls to use NODEJS_BASE_URL instead of PYTHON_BASE_URL
+```
+
+### Task 3.3: Update FilterService
+**Priority**: HIGH
+**Time**: 15 minutes
+**Status**: PENDING
+
+#### Check `frontend/src/analysis/mmm/services/filterService.ts`:
+
+```typescript
+// Ensure FilterService uses Node.js for filter operations:
+// Node.js already handles:
+// - Filter suggestions
+// - Filter validation  
+// - Filter selection storage
+
+// Make sure any filter state persistence goes to Node.js metadata endpoints
+```
+
+### Task 3.4: Update Other Services (IF NEEDED)
+**Priority**: MEDIUM
+**Time**: 1 hour
+**Status**: PENDING
+
+#### Check these files and update state management URLs:
+- `BrandAnalysisService.ts` - Only if it does state operations
+- Any other service that saves/loads concatenation state or filter state
+
+---
+
+## Stage 4: State Data Migration (Day 1)
+
+### Task 4.1: Simple State Migration
+**Priority**: HIGH
+**Time**: 30 minutes
+**Status**: PENDING
+
+#### Manual Migration Steps:
+1. **Copy state files from Python to Node.js:**
+```bash
+# If Python state files exist, copy them
+cp backend/python/metadata/concatenation_states/*.json backend/nodejs/metadata/concatenation_states/ 2>/dev/null || echo "No Python state files found"
+```
+
+2. **Or just start fresh** (recommended):
+   - Node.js backend will start with empty state
+   - New state files will be created as users work
+   - Old Python states will be ignored
+
+### Task 4.2: Test Migration
+**Priority**: HIGH
+**Time**: 15 minutes
+**Status**: PENDING
+
+#### Test steps:
+1. Start Node.js backend: `cd backend/nodejs && npm start`
+2. Test state endpoints: `curl http://localhost:3001/api/metadata/health`
+3. Test frontend state save/load works
+
+---
+
+## Stage 5: Testing & Validation (Day 1)
+
+### Task 5.1: Manual Testing
+**Priority**: HIGH
+**Time**: 1 hour
+**Status**: PENDING
+
+#### Test These Scenarios:
+1. **Complete workflow test:**
+   - Upload file (Python backend)
+   - Concatenate sheets (Python backend) 
+   - Save state (Node.js backend)
+   - Navigate away and back
+   - Load state (Node.js backend)
+
+2. **State management test:**
+   - Save concatenation state
+   - List all states
+   - Update state
+   - Delete state
+   - Export state
+
+3. **Error handling test:**
+   - Test with missing files
+   - Test with invalid state data
+   - Test backend unavailable scenarios
+
+### Task 5.2: Performance Verification
+**Priority**: MEDIUM
+**Time**: 30 minutes
+**Status**: PENDING
+
+#### Quick performance check:
+- Time state save operations (should be faster than Python)
+- Memory usage check for Node.js backend
+- Response time comparison for state endpoints
+
+---
+
+## Summary: Migration Checklist
+
+### Stage 1: Analysis ✅
+- [x] Identified all Python state operations to migrate
+- [x] Found Node.js has basic state endpoints
+- [x] Identified frontend dependencies
+
+### Stage 2: Node.js Backend
+- [ ] Add missing endpoints (states, update, cleanup, export)
+- [ ] Test all Node.js endpoints work
+
+### Stage 3: Frontend Updates  
+- [ ] Update MetadataService to use Node.js backend
+- [ ] Test frontend state operations work
+- [ ] Check other services don't break
+
+### Stage 4: Migration
+- [ ] Copy existing state files (or start fresh)
+- [ ] Verify Node.js can read/write state files
+
+### Stage 5: Testing
+- [ ] Test complete user workflow
+- [ ] Test state management operations  
+- [ ] Verify performance improvements
+
+---
+
+## Final Architecture
+
+After completion:
+```
+FRONTEND
+    ↓
+┌─────────────────┐    ┌─────────────────┐
+│    NODE.JS      │    │     PYTHON      │
+│    (3001)       │    │     (8000)      │
+│                 │    │                 │
+│ ALL State Ops:  │    │ Data Ops:       │
+│ • Save State    │    │ • File Upload   │
+│ • Load State    │    │ • File Process  │
+│ • Update State  │    │ • Data Analysis │
+│ • Delete State  │    │ • Excel Ops     │
+│ • List States   │    │ • Data Export   │
+│ • Export State  │    │ • RPI Analysis  │
+│                 │    │ • ML/Stats      │
+│ Filter Ops:     │    │ • Heavy Compute │
+│ • Suggestions   │    │                 │
+│ • Validation    │    │                 │
+│ • Storage       │    │                 │
+└─────────────────┘    └─────────────────┘
+```
+
+**Benefits**: 
+- ✅ Faster state operations (Node.js JSON-native)
+- ✅ Reduced Python backend load  
+- ✅ Clear separation of concerns
+- ✅ Better scalability
+
+---
+
+**Total Time Estimate**: 3-4 days (Stages 1-5)
+**Risk Level**: LOW (simple migration)
+**Next Step**: Start Stage 2 - Add Node.js endpoints

@@ -1,0 +1,337 @@
+# 📁 BrandBloom Insights Directory Structure
+
+## 🎯 Overview
+
+BrandBloom Insights uses a **brand-specific directory structure** where each brand gets its own isolated data directory. This ensures complete separation of brand data and clean management of analysis workflows.
+
+## 🏗️ Brand-Specific Structure
+
+### Root Level Structure
+```
+backend/python/
+├── <brandname>/                    # 🏷️ Brand-specific root directory
+│   └── data/                       # 📊 All brand data contained here
+│       ├── uploads/                # 📤 File uploads for this brand
+│       ├── exports/                # 📥 Analysis results and exports
+│       └── metadata/               # 🗃️ Brand analysis metadata
+├── data/                          # 📦 Legacy global directory (deprecated)
+├── app/                           # 💻 Application source code
+├── docs/                          # 📚 Documentation
+└── README.md                      # 📖 Main documentation
+```
+
+### Detailed Brand Directory Structure
+```
+<brandname>/                       # Example: x-men/
+└── data/
+    ├── uploads/                   # 📤 All file uploads
+    │   ├── raw/                   # 📄 Original uploaded files
+    │   │   ├── NIELSEN - X-Men - Data Input_1692350400.xlsx
+    │   │   └── supplementary_data.csv
+    │   ├── intermediate/          # 🔄 Processed/modified files
+    │   │   ├── X-Men_processed_1692350500.xlsx
+    │   │   └── X-Men_cleaned.xlsx
+    │   └── concatenated/          # 🔗 Final concatenated datasets
+    │       ├── X-Men_concatenated_1692350600.xlsx
+    │       └── X-Men_final_dataset.xlsx
+    ├── exports/                   # 📥 Analysis outputs
+    │   ├── results/               # 📊 Processed analysis results
+    │   │   ├── X-Men_filtered_results.csv
+    │   │   ├── X-Men_summary_stats.json
+    │   │   └── X-Men_model_output.xlsx
+    │   └── reports/               # 📋 Generated reports
+    │       ├── X-Men_analysis_report.pdf
+    │       ├── X-Men_insights.json
+    │       └── X-Men_dashboard_data.csv
+    └── metadata/                  # 🗃️ Configuration and state
+        ├── analyses/              # 📈 Analysis configurations
+        │   ├── analysis.json      # Main analysis metadata
+        │   ├── model_config.json  # Model parameters
+        │   └── progress_state.json # Current progress
+        └── concatenation_states/  # 🔗 Data processing states
+            ├── concatenation_config.json
+            └── column_mappings.json
+```
+
+## 🏷️ Brand Name Sanitization
+
+Brand names are automatically sanitized for filesystem compatibility:
+
+### Sanitization Rules
+- Convert to lowercase
+- Replace spaces with hyphens (`-`)
+- Remove special characters except hyphens and underscores
+- Remove multiple consecutive hyphens
+- Ensure minimum length of 2 characters
+
+### Examples
+```
+"X-Men"           → "x-men"
+"Coca Cola"       → "coca-cola"
+"L'Oréal Paris"   → "loreal-paris"
+"P&G Tide"        → "pg-tide"
+"Brand 123!"      → "brand-123"
+```
+
+## 📊 Data Flow Through Directories
+
+### 1. Upload Flow
+```
+User Upload → <brandname>/data/uploads/raw/
+            ↓
+Processing → <brandname>/data/uploads/intermediate/
+            ↓
+Final Data → <brandname>/data/uploads/concatenated/
+```
+
+### 2. Analysis Flow
+```
+Concatenated Data → Analysis Engine
+                   ↓
+Results → <brandname>/data/exports/results/
+         ↓
+Reports → <brandname>/data/exports/reports/
+```
+
+### 3. Metadata Flow
+```
+User Actions → State Updates → <brandname>/data/metadata/
+Analysis Config → <brandname>/data/metadata/analyses/
+Processing State → <brandname>/data/metadata/concatenation_states/
+```
+
+## 🎯 Directory Purposes
+
+### `/uploads/raw/`
+**Purpose**: Original uploaded files  
+**Content**: Unmodified files as uploaded by users  
+**Retention**: Permanent (until brand analysis deleted)  
+**Examples**:
+- `NIELSEN - X-Men - Data Input for MMM_1692350400.xlsx`
+- `monthly_sales_data.csv`
+- `brand_performance_Q1.xlsx`
+
+### `/uploads/intermediate/`
+**Purpose**: Processed and modified files  
+**Content**: Files with column modifications, cleaning, or partial processing  
+**Retention**: Temporary (can be recreated from raw)  
+**Examples**:
+- `X-Men_column_mapped_1692350500.xlsx`
+- `X-Men_data_cleaned.xlsx`
+- `X-Men_sheets_selected.xlsx`
+
+### `/uploads/concatenated/`
+**Purpose**: Final concatenated datasets ready for analysis  
+**Content**: Combined and processed datasets  
+**Retention**: Important (used for analysis)  
+**Examples**:
+- `X-Men_concatenated_1692350600.xlsx`
+- `X-Men_final_dataset.xlsx`
+- `X-Men_mmm_ready_data.xlsx`
+
+### `/exports/results/`
+**Purpose**: Analysis results and processed data  
+**Content**: Filtered data, statistics, model outputs  
+**Retention**: Important (analysis outputs)  
+**Examples**:
+- `X-Men_filtered_north_region.csv`
+- `X-Men_monthly_summary.json`
+- `X-Men_correlation_matrix.xlsx`
+
+### `/exports/reports/`
+**Purpose**: Generated reports and insights  
+**Content**: PDF reports, dashboard data, visualizations  
+**Retention**: Important (final deliverables)  
+**Examples**:
+- `X-Men_marketing_mix_analysis.pdf`
+- `X-Men_campaign_insights.json`
+- `X-Men_roi_dashboard_data.csv`
+
+### `/metadata/analyses/`
+**Purpose**: Analysis configuration and progress  
+**Content**: Analysis metadata, progress tracking, configuration  
+**Retention**: Critical (tracks analysis state)  
+**Examples**:
+- `analysis.json` - Main analysis metadata
+- `progress_state.json` - Current step and progress
+- `model_parameters.json` - Model configuration
+
+### `/metadata/concatenation_states/`
+**Purpose**: Data processing configuration  
+**Content**: Concatenation settings, column mappings, sheet selections  
+**Retention**: Important (for reproducibility)  
+**Examples**:
+- `concatenation_config.json` - Sheet selection and settings
+- `column_mappings.json` - Column rename mappings
+- `target_variable_config.json` - Target variable selection
+
+## 🔄 Directory Lifecycle
+
+### Brand Creation
+1. User creates new brand analysis
+2. System creates complete directory structure
+3. `analysis.json` created with initial metadata
+4. Ready for file uploads
+
+### During Analysis
+1. Files uploaded to `/uploads/raw/`
+2. Processing creates files in `/uploads/intermediate/`
+3. Concatenation produces files in `/uploads/concatenated/`
+4. Analysis results saved to `/exports/results/`
+5. Reports generated in `/exports/reports/`
+6. Metadata continuously updated
+
+### Brand Overwrite
+1. User chooses to overwrite existing brand
+2. **Complete cleanup** of all brand directories
+3. **Removal** of legacy global files for this brand
+4. **Fresh creation** of brand directory structure
+5. Clean slate for new analysis
+
+### Brand Deletion
+1. User deletes brand analysis
+2. **Complete removal** of brand directory
+3. **Cleanup** of legacy global files
+4. **Removal** of metadata references
+
+## 🧹 Cleanup Mechanisms
+
+### Automatic Cleanup (Brand Overwrite)
+When creating a new analysis with `forceOverwrite: true`:
+
+1. **Brand-Specific Cleanup**:
+   - Remove entire `<brandname>/` directory
+   - Clean variations of brand name (spaces, hyphens)
+
+2. **Legacy Global Cleanup**:
+   - Remove files from `data/uploads/raw/`
+   - Remove files from `data/uploads/intermediate/`
+   - Remove files from `data/uploads/concatenated/`
+   - Remove files from `data/exports/`
+   - Remove metadata from `data/metadata/`
+
+3. **Pattern Matching**:
+   - Case-insensitive brand name matching
+   - Multiple brand name variations
+   - Timestamp pattern recognition
+
+### Manual Cleanup
+```bash
+# Clean specific brand
+DELETE /api/analyses/{analysis_id}
+
+# Clean orphaned metadata
+POST /api/metadata/cleanup
+```
+
+## 🔍 File Discovery Logic
+
+The system searches for files in this order:
+
+### Priority Order
+1. **Brand-specific directories** (highest priority)
+   - `<brandname>/data/uploads/concatenated/`
+   - `<brandname>/data/uploads/intermediate/`
+   - `<brandname>/data/uploads/raw/`
+
+2. **Legacy global directories** (fallback)
+   - `data/uploads/concatenated/`
+   - `data/uploads/intermediate/`
+   - `data/uploads/raw/`
+
+### Brand Extraction
+Files are automatically associated with brands using:
+- Filename patterns: `"NIELSEN - X-Men - Data Input.xlsx"`
+- Directory location: `x-men/data/uploads/`
+- Metadata association: Analysis ID mapping
+
+## 📈 Directory Benefits
+
+### ✅ Advantages of Brand-Specific Structure
+
+1. **Complete Isolation**: Each brand's data is completely separate
+2. **Clean Overwrites**: Starting new analysis cleanly removes all old data
+3. **Easy Management**: Simple to find, backup, or migrate brand data
+4. **Scalable**: No limit on number of brands
+5. **Organized**: Intuitive folder hierarchy
+6. **Secure**: Accidental cross-brand data mixing prevented
+
+### 🔄 Migration from Legacy Structure
+
+The system maintains **backward compatibility**:
+- Legacy global directories still searched as fallback
+- Existing workflows continue to function
+- Gradual migration as brands are updated
+- No breaking changes for existing analyses
+
+## 🛠️ Developer Usage
+
+### Creating Brand Directories
+```python
+from app.core.config import settings
+
+# Create complete brand directory structure
+directories = settings.create_brand_directories("X-Men")
+
+# Access specific directories
+raw_dir = directories["raw_dir"]
+concat_dir = directories["concat_dir"]
+results_dir = directories["processed_dir"]
+```
+
+### Getting Brand Directories
+```python
+# Get directory structure without creating
+directories = settings.get_brand_directories("X-Men")
+
+# Check if brand directory exists
+brand_root = directories["brand_root"]
+if brand_root.exists():
+    print("Brand directory exists")
+```
+
+### File Operations
+```python
+# Save file to brand-specific directory
+brand_dirs = settings.get_brand_directories("X-Men")
+upload_path = brand_dirs["raw_dir"] / "data.xlsx"
+
+# Search for files across brand and global directories
+from app.services.data_service import DataService
+brand_name = DataService._extract_brand_from_filename("X-Men_data.xlsx")
+```
+
+## 📊 Monitoring & Maintenance
+
+### Directory Size Monitoring
+```bash
+# Check brand directory sizes
+du -sh */data/
+
+# Check specific brand
+du -sh x-men/data/
+```
+
+### Cleanup Verification
+```bash
+# Verify brand cleanup
+ls -la x-men/data/ # Should be empty after cleanup
+
+# Check legacy cleanup
+ls -la data/uploads/concatenated/ | grep -i "x-men"
+```
+
+### Health Checks
+```bash
+# Verify directory permissions
+find */data/ -type d -exec ls -ld {} \;
+
+# Check for orphaned files
+find data/ -name "*x-men*" -type f
+```
+
+---
+
+**Last Updated**: 2025-08-17  
+**Structure Version**: 2.0.0 (Brand-Specific)  
+**Previous Version**: 1.0.0 (Global Structure)
