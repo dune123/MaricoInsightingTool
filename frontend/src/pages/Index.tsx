@@ -37,7 +37,7 @@ import { useNavigate } from 'react-router-dom';
 import { UserTypeStep } from "@/analysis/mmm/steps/UserTypeStep";
 import { useAnalysis } from "@/context/AnalysisContext";
 import { LayoutWrapper } from "@/components/wizard/LayoutWrapper";
-import { navigateToDashboard } from '@/utils/navigationUtils';
+// Removed navigateToDashboard import since we'll use React Router navigation
 
 const Index = () => {
   const [selectedUserType, setSelectedUserType] = useState<'brand-leader' | 'data-scientist' | null>(null);
@@ -135,7 +135,7 @@ const Index = () => {
                   <div className="w-80">
                     <button 
                       className="group w-full h-16 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-2xl text-lg font-semibold shadow-lg hover:shadow-xl hover:shadow-primary/25 transition-all duration-300 ease-out transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2"
-                      onClick={() => navigateToDashboard()}
+                      onClick={() => navigate('/dashboard')}
                     >
                       <span className="flex items-center justify-center space-x-3">
                         <span>Analyze Dashboards</span>

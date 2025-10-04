@@ -66,6 +66,9 @@ import { NonMMMWizard } from "@/analysis/nonmmm/wizard/NonMMMWizard";
 import { BrandLeaderWizard } from "@/components/wizard/BrandLeaderWizard";
 import { DataScientistWizard } from "@/components/wizard/DataScientistWizard";
 
+// Dashboard App (merged from ProjectB)
+import DashboardApp from "./dashboard/App";
+
 const queryClient = new QueryClient();
 
 const App = () => {
@@ -126,6 +129,10 @@ const App = () => {
                     <NonMMMWizard />
                   </NonMMMRouteGuard>
                 } />
+                
+                {/* Dashboard Routes - Merged from ProjectB */}
+                <Route path="/dashboard" element={<DashboardApp />} />
+                <Route path="/dashboard/*" element={<DashboardApp />} />
                 
                 {/* Specific 404 route for features not yet implemented */}
                 <Route path="/404" element={<NotFound />} />

@@ -25,38 +25,12 @@
  */
 
 /**
- * Navigate to the PROJECT B Dashboard Application
- * Opens in a new tab for better user experience
+ * Navigate to the Dashboard Application
+ * Now navigates within the same app since ProjectB has been merged
  */
 export const navigateToDashboard = (): void => {
-  const isDevelopment = import.meta.env.DEV;
-  
-  let dashboardUrl: string;
-  
-  if (isDevelopment) {
-    // Development URLs - PROJECTB runs on root path, not /dashboard
-    dashboardUrl = 'http://localhost:8082';
-  } else {
-    // Production URLs - Use environment variable or fallback
-    dashboardUrl = import.meta.env.VITE_DASHBOARD_URL || 'https://brandbloom-dashboard.azurestaticapps.net';
-  }
-  
-  try {
-    // Open PROJECT B in a new tab while keeping current tab active
-    const newWindow = window.open(dashboardUrl, '_blank', 'noopener,noreferrer');
-    
-    if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
-      // If popup was blocked, show user a message but DON'T redirect current tab
-      console.warn('Popup blocked. Please allow popups for this site to open the dashboard.');
-      alert(`Popup blocked! Please allow popups for this site and try again.\n\nOr manually visit: ${dashboardUrl}`);
-    } else {
-      // Successfully opened in new tab - don't focus it, keep current tab active
-      console.log('Dashboard opened in new tab:', dashboardUrl);
-    }
-  } catch (error) {
-    console.error('Error navigating to dashboard:', error);
-    alert(`Unable to open dashboard. Please manually visit: ${dashboardUrl}`);
-  }
+  // Since ProjectB is now merged into the main app, navigate to /dashboard route
+  window.location.href = '/dashboard';
 };
 
 /**
