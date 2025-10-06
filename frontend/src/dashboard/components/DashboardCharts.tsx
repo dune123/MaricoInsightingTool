@@ -89,14 +89,14 @@ const InsightCard: React.FC<{
   if (!content) return null;
   
   return (
-    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 mb-3`}>
+    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 mb-3 max-h-40 overflow-auto`}> {/* ~160px */}
       <div className="flex items-start space-x-2">
         <div className={`w-5 h-5 ${color} mt-0.5 flex-shrink-0`}>
           <Icon className="w-full h-full" />
         </div>
         <div className="flex-1 min-w-0">
           <h4 className={`text-sm font-semibold ${color} mb-1`}>{title}</h4>
-          <p className="text-sm text-gray-700 leading-relaxed">{content}</p>
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{content}</p>
         </div>
       </div>
     </div>
@@ -168,15 +168,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-medium text-gray-600">{cleanTitle}</h3>
           <div className="flex items-center space-x-2">
-            {onAddChartRequest && (
-              <button
-                onClick={() => onAddChartRequest(chart)}
-                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                title="Add to Dashboard"
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            )}
+            {/* KPI cards are view-only in analysis panel: no add button */}
             <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
               <Target className="w-4 h-4 text-blue-600" />
             </div>
@@ -227,7 +219,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
   };
   
   const renderChart = (chart: ChartData) => {
-    const colors = chart.config.colors || DEFAULT_COLORS;
+    const safeConfig = chart.config || {} as any;
+    const colors = (safeConfig.colors && Array.isArray(safeConfig.colors) ? safeConfig.colors : DEFAULT_COLORS);
     
     // For grid layout, we need to ensure proper height
     const chartHeight = isInGrid ? "calc(100% - 60px)" : 260;
@@ -245,9 +238,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
               <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
+                {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
-                  dataKey={chart.config.xKey} 
+                  dataKey={safeConfig.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                 />
@@ -255,7 +248,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                 />
-                {chart.config.showTooltip && (
+                {safeConfig.showTooltip && (
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
@@ -265,9 +258,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     }}
                   />
                 )}
-                {chart.config.showLegend && <Legend />}
-                {Array.isArray(chart.config.yKey) ? (
-                  chart.config.yKey.map((key, index) => (
+                {safeConfig.showLegend && <Legend />}
+                {Array.isArray(safeConfig.yKey) ? (
+                  safeConfig.yKey.map((key: string, index: number) => (
                     <Bar 
                       key={key} 
                       dataKey={key} 
@@ -277,7 +270,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   ))
                 ) : (
                   <Bar 
-                    dataKey={chart.config.yKey} 
+                    dataKey={safeConfig.yKey} 
                     fill={colors[0]}
                     radius={[4, 4, 0, 0]}
                   />
@@ -588,6 +581,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {kpiCards.map((chart) => (
             <div key={chart.id}>
+              {/* KPI cards are view-only; they cannot be added to dashboards */}
               {renderKpiCard(chart)}
             </div>
           ))}
@@ -612,7 +606,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {onAddChartRequest && (
+                    {onAddChartRequest && chart.type !== 'kpi' && (
                       <button
                         onClick={() => {
                           // Create chart with insights data

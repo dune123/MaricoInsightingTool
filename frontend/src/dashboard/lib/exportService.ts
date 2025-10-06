@@ -462,15 +462,16 @@ export const generatePowerPoint = async (
       align: 'center'
     });
 
-    // Add chart slides - each chart gets one slide with chart + insights + recommendations
+    // Add slides per chart in grouped sequence: Chart slide → Insights slide
     for (let i = 0; i < chartImages.length; i++) {
       const chartImage = chartImages[i];
-      console.log(`📄 Creating slide ${i + 1}/${chartImages.length} for: ${chartImage.title}`);
-      
-      const slide = pptx.addSlide();
+      console.log(`📄 Creating slides for: ${chartImage.title} (${i + 1}/${chartImages.length})`);
 
-      // Add slide title
-      slide.addText(chartImage.title, {
+      // 1) Chart slide
+      const chartSlide = pptx.addSlide();
+
+      // Chart slide title
+      chartSlide.addText(chartImage.title, {
         x: 0.5,
         y: 0.2,
         w: 9,
@@ -481,8 +482,8 @@ export const generatePowerPoint = async (
         align: 'center'
       });
 
-      // Add chart type badge
-      slide.addText(chartImage.type.toUpperCase(), {
+      // Chart type badge
+      chartSlide.addText(chartImage.type.toUpperCase(), {
         x: 0.5,
         y: 1,
         w: 1.5,
@@ -494,211 +495,213 @@ export const generatePowerPoint = async (
         align: 'center'
       });
 
-      // Add chart image with proper sizing and alignment
-      console.log(`🖼️ Adding image to slide for: ${chartImage.title}`);
-      console.log(`📊 Image data length: ${chartImage.imageData.length}`);
-      console.log(`🔍 Image data preview: ${chartImage.imageData.substring(0, 50)}...`);
-      
-      // Validate image data format
+      // Add chart image
+      console.log(`🖼️ Adding image to chart slide for: ${chartImage.title}`);
       if (!chartImage.imageData.startsWith('data:image/')) {
         console.error(`❌ Invalid image data format for: ${chartImage.title}`);
         console.log(`🔍 Actual format: ${chartImage.imageData.substring(0, 20)}`);
       }
-      
-      // Test if the image data is valid by creating a test image
-      const testImg = new Image();
-      testImg.onload = () => {
-        console.log(`✅ Image data is valid for: ${chartImage.title} (${testImg.width}x${testImg.height})`);
-      };
-      testImg.onerror = () => {
-        console.error(`❌ Image data is corrupted for: ${chartImage.title}`);
-      };
-      testImg.src = chartImage.imageData;
-      
       try {
-        slide.addImage({
+        chartSlide.addImage({
           data: chartImage.imageData,
           x: 0.3,
           y: 1.3,
-          w: chartWidth, // Configurable width for better chart visibility
-          h: chartHeight  // Configurable height for better chart visibility
+          w: chartWidth,
+          h: chartHeight
         });
-        
         console.log(`✅ Image added successfully for: ${chartImage.title}`);
       } catch (imageError) {
         console.error(`❌ Error adding image for ${chartImage.title}:`, imageError);
         throw imageError;
       }
 
-      // Add insights and recommendations below the chart
+      // 2) Insights slide (immediately after chart slide)
       if (includeInsights && (chartImage.insights || chartImage.description)) {
         const insights = chartImage.insights || extractInsights(chartImage.description || '');
-        let currentY = 5.8;
-        
+        const insightsSlide = pptx.addSlide();
+
+        // Insights slide header with chart context
+        insightsSlide.addText(chartImage.title, {
+          x: 0.5,
+          y: 0.3,
+          w: 9,
+          h: 0.6,
+          fontSize: 22,
+          bold: true,
+          color: '1F2937',
+          align: 'center'
+        });
+
+        insightsSlide.addText('Key Findings & Recommendations', {
+          x: 0.5,
+          y: 1.1,
+          w: 9,
+          h: 0.4,
+          fontSize: 14,
+          bold: true,
+          color: '6B7280',
+          align: 'center'
+        });
+
+        let currentY = 1.8;
+
         // Key Finding
         if (insights.keyFinding) {
-          slide.addText('🔍 Key Finding:', {
-            x: 0.5,
-            y: currentY,
-            w: 2.5,
-            h: 0.3,
-            fontSize: 14,
-            bold: true,
-            color: '1F2937'
-          });
-
-          slide.addText(insights.keyFinding, {
-            x: 0.5,
-            y: currentY + 0.3,
-            w: 9,
-            h: 0.6,
-            fontSize: 12,
-            color: '374151',
-            wrap: true
-          });
-          currentY += 1.0;
-        }
-
-        // Business Impact
-        if (insights.businessImpact) {
-          slide.addText('💼 Business Impact:', {
-            x: 0.5,
-            y: currentY,
-            w: 2.5,
-            h: 0.3,
-            fontSize: 14,
-            bold: true,
-            color: '1F2937'
-          });
-
-          slide.addText(insights.businessImpact, {
-            x: 0.5,
-            y: currentY + 0.3,
-            w: 9,
-            h: 0.6,
-            fontSize: 12,
-            color: '374151',
-            wrap: true
-          });
-          currentY += 1.0;
-        }
-
-        // Recommendation
-        if (includeRecommendations && insights.recommendation) {
-          slide.addText('💡 Recommendation:', {
-            x: 0.5,
-            y: currentY,
-            w: 2.5,
-            h: 0.3,
-            fontSize: 14,
-            bold: true,
-            color: '1F2937'
-          });
-
-          slide.addText(insights.recommendation, {
-            x: 0.5,
-            y: currentY + 0.3,
-            w: 9,
-            h: 0.6,
-            fontSize: 12,
-            color: '374151',
-            wrap: true
-          });
-          currentY += 1.0;
-        }
-
-        // Quantified Recommendation
-        if (includeRecommendations && insights.quantifiedRecommendation) {
-          slide.addText('📊 Quantified Recommendation:', {
+          insightsSlide.addText('🔍 Key Finding', {
             x: 0.5,
             y: currentY,
             w: 3,
             h: 0.3,
-            fontSize: 14,
+            fontSize: 16,
             bold: true,
             color: '1F2937'
           });
-
-          slide.addText(insights.quantifiedRecommendation, {
+          insightsSlide.addText(insights.keyFinding, {
             x: 0.5,
-            y: currentY + 0.3,
+            y: currentY + 0.35,
             w: 9,
-            h: 0.6,
+            h: 0.8,
             fontSize: 12,
             color: '374151',
             wrap: true
           });
-          currentY += 1.0;
+          currentY += 1.2;
+        }
+
+        // Business Impact
+        if (insights.businessImpact) {
+          insightsSlide.addText('💼 Business Impact', {
+            x: 0.5,
+            y: currentY,
+            w: 3,
+            h: 0.3,
+            fontSize: 16,
+            bold: true,
+            color: '1F2937'
+          });
+          insightsSlide.addText(insights.businessImpact, {
+            x: 0.5,
+            y: currentY + 0.35,
+            w: 9,
+            h: 0.8,
+            fontSize: 12,
+            color: '374151',
+            wrap: true
+          });
+          currentY += 1.2;
+        }
+
+        // Recommendation
+        if (includeRecommendations && insights.recommendation) {
+          insightsSlide.addText('💡 Recommendation', {
+            x: 0.5,
+            y: currentY,
+            w: 3,
+            h: 0.3,
+            fontSize: 16,
+            bold: true,
+            color: '1F2937'
+          });
+          insightsSlide.addText(insights.recommendation, {
+            x: 0.5,
+            y: currentY + 0.35,
+            w: 9,
+            h: 0.8,
+            fontSize: 12,
+            color: '374151',
+            wrap: true
+          });
+          currentY += 1.2;
+        }
+
+        // Quantified Recommendation
+        if (includeRecommendations && insights.quantifiedRecommendation) {
+          insightsSlide.addText('📊 Quantified Recommendation', {
+            x: 0.5,
+            y: currentY,
+            w: 4,
+            h: 0.3,
+            fontSize: 16,
+            bold: true,
+            color: '1F2937'
+          });
+          insightsSlide.addText(insights.quantifiedRecommendation, {
+            x: 0.5,
+            y: currentY + 0.35,
+            w: 9,
+            h: 0.8,
+            fontSize: 12,
+            color: '374151',
+            wrap: true
+          });
+          currentY += 1.2;
         }
 
         // Action Items
         if (includeActionItems && insights.actionItems && insights.actionItems.length > 0) {
-          slide.addText('✅ Action Items:', {
+          insightsSlide.addText('✅ Action Items', {
             x: 0.5,
             y: currentY,
-            w: 2.5,
+            w: 3,
             h: 0.3,
-            fontSize: 14,
+            fontSize: 16,
             bold: true,
             color: '1F2937'
           });
-
           const actionItemsText = insights.actionItems.map((item, index) => `${index + 1}. ${item}`).join('\n');
-          slide.addText(actionItemsText, {
+          insightsSlide.addText(actionItemsText, {
             x: 0.5,
-            y: currentY + 0.3,
+            y: currentY + 0.35,
             w: 9,
-            h: Math.min(insights.actionItems.length * 0.3, 1.5),
+            h: Math.min(insights.actionItems.length * 0.35, 1.8),
             fontSize: 12,
             color: '374151',
             wrap: true
           });
-          currentY += Math.min(insights.actionItems.length * 0.3 + 0.5, 2.0);
+          currentY += Math.min(insights.actionItems.length * 0.35 + 0.6, 2.4);
         }
 
         // Risk Factors
         if (includeRiskFactors && insights.riskFactors && insights.riskFactors.length > 0) {
-          slide.addText('⚠️ Risk Factors:', {
+          insightsSlide.addText('⚠️ Risk Factors', {
             x: 0.5,
             y: currentY,
-            w: 2.5,
+            w: 3,
             h: 0.3,
-            fontSize: 14,
+            fontSize: 16,
             bold: true,
             color: 'EF4444'
           });
-
           const riskFactorsText = insights.riskFactors.map((risk, index) => `${index + 1}. ${risk}`).join('\n');
-          slide.addText(riskFactorsText, {
+          insightsSlide.addText(riskFactorsText, {
             x: 0.5,
-            y: currentY + 0.3,
+            y: currentY + 0.35,
             w: 9,
-            h: Math.min(insights.riskFactors.length * 0.3, 1.5),
+            h: Math.min(insights.riskFactors.length * 0.35, 1.8),
             fontSize: 12,
             color: 'EF4444',
             wrap: true
           });
-          currentY += Math.min(insights.riskFactors.length * 0.3 + 0.5, 2.0);
+          currentY += Math.min(insights.riskFactors.length * 0.35 + 0.6, 2.4);
         }
 
         // Opportunities
         if (includeOpportunities && insights.opportunities && insights.opportunities.length > 0) {
-          slide.addText('🚀 Opportunities:', {
+          insightsSlide.addText('🚀 Opportunities', {
             x: 0.5,
             y: currentY,
-            w: 2.5,
+            w: 3,
             h: 0.3,
-            fontSize: 14,
+            fontSize: 16,
             bold: true,
             color: '10B981'
           });
-
           const opportunitiesText = insights.opportunities.map((opp, index) => `${index + 1}. ${opp}`).join('\n');
-          slide.addText(opportunitiesText, {
+          insightsSlide.addText(opportunitiesText, {
             x: 0.5,
-            y: currentY + 0.3,
+            y: currentY + 0.35,
             w: 9,
-            h: Math.min(insights.opportunities.length * 0.3, 1.5),
+            h: Math.min(insights.opportunities.length * 0.35, 1.8),
             fontSize: 12,
             color: '10B981',
             wrap: true
@@ -818,38 +821,7 @@ export const generatePowerPoint = async (
       }
     }
 
-    // Add summary slide
-    const summarySlide = pptx.addSlide();
-    summarySlide.addText('Analysis Summary', {
-      x: 1,
-      y: 1,
-      w: 8,
-      h: 1,
-      fontSize: 28,
-      bold: true,
-      color: '1F2937',
-      align: 'center'
-    });
-
-    summarySlide.addText(`This presentation contains ${chartImages.length} charts from your dashboard analysis.`, {
-      x: 1,
-      y: 2.5,
-      w: 8,
-      h: 1,
-      fontSize: 16,
-      color: '6B7280',
-      align: 'center'
-    });
-
-    summarySlide.addText('Generated by BrandBloom Insights Dashboard', {
-      x: 1,
-      y: 4,
-      w: 8,
-      h: 0.5,
-      fontSize: 12,
-      color: '9CA3AF',
-      align: 'center'
-    });
+    // Removed final summary slide per requirement
 
     // Download the presentation
     console.log(`💾 Saving PowerPoint file: ${fileName}`);

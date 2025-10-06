@@ -168,26 +168,30 @@ You can ask me questions about any of these columns or request analysis of your 
   // Load column names when document is selected
   useEffect(() => {
     const loadColumnInfo = async () => {
-      if (selectedDocument && selectedDocument.file && !selectedDocument.assistantId) {
-        setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
-        
-        try {
-          const result = await FileParser.extractColumns(selectedDocument.file);
-          setColumnInfo({
-            columns: result.columns,
-            rowCount: result.rowCount,
-            fileType: result.fileType,
-            isLoading: false
-          });
-        } catch (error) {
-          console.error('Failed to parse file:', error);
-          setColumnInfo({
-            columns: [],
-            isLoading: false,
-            fileType: 'unknown'
-          });
+      if (selectedDocument && selectedDocument.file) {
+        // Only load if we don't already have column info
+        if (columnInfo.columns.length === 0) {
+          setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
+          
+          try {
+            const result = await FileParser.extractColumns(selectedDocument.file);
+            setColumnInfo({
+              columns: result.columns,
+              rowCount: result.rowCount,
+              fileType: result.fileType,
+              isLoading: false
+            });
+          } catch (error) {
+            console.error('Failed to parse file:', error);
+            setColumnInfo({
+              columns: [],
+              isLoading: false,
+              fileType: 'unknown'
+            });
+          }
         }
-      } else {
+      } else if (!selectedDocument) {
+        // Only clear if no document is selected
         setColumnInfo({
           columns: [],
           isLoading: false,
@@ -197,7 +201,7 @@ You can ask me questions about any of these columns or request analysis of your 
     };
 
     loadColumnInfo();
-  }, [selectedDocument]);
+  }, [selectedDocument, columnInfo.columns.length]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedDocument) {
@@ -212,13 +216,13 @@ You can ask me questions about any of these columns or request analysis of your 
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    
-    // Capture first user message
+    // Capture first user message before adding to messages
     if (onFirstUserMessage && messages.length === 0) {
       onFirstUserMessage(userMessageContent);
     }
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
     
     // Add thinking message immediately after user message
     const thinkingMessage: ChatMessage = {
@@ -272,7 +276,7 @@ You can ask me questions about any of these columns or request analysis of your 
         onDocumentUpdate(completedDoc);
         setIsAnalyzing(false);
         
-        // Now send the chat message with sequential thinking steps
+        // Now send the chat message to Azure while showing thinking progress
         // Step 1: Reasoning
         addThinkingStep({
           type: 'reasoning',
@@ -280,15 +284,12 @@ You can ask me questions about any of these columns or request analysis of your 
           status: 'active',
           metadata: { confidence: 0.9 }
         });
-        
-        // Wait a moment then complete reasoning and start analysis
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+        await new Promise(resolve => setTimeout(resolve, 600));
         addThinkingStep({
           type: 'reasoning',
           content: 'Let me understand what you\'re asking and what insights you need...',
           status: 'completed',
-          metadata: { confidence: 0.9, duration: 1000 }
+          metadata: { confidence: 0.9, duration: 600 }
         });
         
         // Step 2: Analysis
@@ -299,36 +300,29 @@ You can ask me questions about any of these columns or request analysis of your 
           metadata: { confidence: 0.85 }
         });
         
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        const azureServiceAfterAnalysis = new AzureOpenAIService(azureConfig);
+        const assistantResponseAzure = await azureServiceAfterAnalysis.sendChatMessage(
+          threadId,
+          assistantId,
+          userMessageContent
+        );
         
         addThinkingStep({
           type: 'analysis',
-          content: 'Analyzing your data structure and identifying relevant patterns...',
+          content: 'Analysis complete. Preparing response...',
           status: 'completed',
-          metadata: { confidence: 0.85, duration: 1500 }
+          metadata: { confidence: 0.9 }
         });
         
         // Step 3: Synthesis
         addThinkingStep({
           type: 'synthesis',
           content: 'Synthesizing findings and generating comprehensive insights...',
-          status: 'active',
+          status: 'completed',
           metadata: { confidence: 0.95 }
         });
         
-        const result = await createThinkingCompletion([
-          { role: 'user', content: userMessageContent }
-        ]);
-        
-        // Complete synthesis
-        addThinkingStep({
-          type: 'synthesis',
-          content: 'Synthesizing findings and generating comprehensive insights...',
-          status: 'completed',
-          metadata: { confidence: 0.95, duration: 2000 }
-        });
-        
-        // Mark thinking as complete and add the actual response as a new message
+        // Mark thinking as complete and add the actual Azure response
         setMessages(prev => {
           const updatedMessages = prev.map(msg => 
             msg.isThinking && !msg.thinkingComplete ? {
@@ -337,12 +331,11 @@ You can ask me questions about any of these columns or request analysis of your 
             } : msg
           );
           
-          // Add the actual GPT response as a new message
           const assistantResponse: ChatMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: result.content,
-            charts: result.charts,
+            content: assistantResponseAzure.content,
+            charts: assistantResponseAzure.charts,
             timestamp: new Date(),
             isThinking: false,
             thinkingComplete: false
@@ -350,8 +343,23 @@ You can ask me questions about any of these columns or request analysis of your 
           
           return [...updatedMessages, assistantResponse];
         });
+        
+        // If the response contains charts, create a new analysis result
+        if (assistantResponseAzure.charts && assistantResponseAzure.charts.length > 0) {
+          const newAnalysis: AnalysisResult = {
+            summary: assistantResponseAzure.content,
+            insights: [],
+            charts: assistantResponseAzure.charts,
+            metadata: {
+              questionAsked: userMessageContent,
+              responseTime: new Date().toISOString(),
+              chartCount: assistantResponseAzure.charts.length
+            }
+          };
+          onNewAnalysis(userMessageContent, newAnalysis);
+        }
       } else {
-        // Document already analyzed, send message with sequential thinking steps
+        // Document already analyzed, send message to Azure while displaying thinking
         // Step 1: Reasoning
         addThinkingStep({
           type: 'reasoning',
@@ -359,14 +367,12 @@ You can ask me questions about any of these columns or request analysis of your 
           status: 'active',
           metadata: { confidence: 0.9 }
         });
-        
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
+        await new Promise(resolve => setTimeout(resolve, 500));
         addThinkingStep({
           type: 'reasoning',
           content: 'Processing your question and understanding the context...',
           status: 'completed',
-          metadata: { confidence: 0.9, duration: 800 }
+          metadata: { confidence: 0.9 }
         });
         
         // Step 2: Analysis
@@ -377,36 +383,29 @@ You can ask me questions about any of these columns or request analysis of your 
           metadata: { confidence: 0.88 }
         });
         
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        const azureServiceExisting = new AzureOpenAIService(azureConfig);
+        const assistantResponseAzure2 = await azureServiceExisting.sendChatMessage(
+          selectedDocument!.threadId!,
+          selectedDocument!.assistantId!,
+          userMessageContent
+        );
         
         addThinkingStep({
           type: 'analysis',
-          content: 'Analyzing data relationships and extracting relevant insights...',
+          content: 'Analysis complete. Preparing response...',
           status: 'completed',
-          metadata: { confidence: 0.88, duration: 1200 }
+          metadata: { confidence: 0.9 }
         });
         
         // Step 3: Synthesis
         addThinkingStep({
           type: 'synthesis',
           content: 'Synthesizing insights and preparing comprehensive response...',
-          status: 'active',
+          status: 'completed',
           metadata: { confidence: 0.92 }
         });
         
-        const result = await createThinkingCompletion([
-          { role: 'user', content: userMessageContent }
-        ]);
-        
-        // Complete synthesis
-        addThinkingStep({
-          type: 'synthesis',
-          content: 'Synthesizing insights and preparing comprehensive response...',
-          status: 'completed',
-          metadata: { confidence: 0.92, duration: 1800 }
-        });
-        
-        // Mark thinking as complete and add the actual response as a new message
+        // Mark thinking as complete and add the Azure response
         setMessages(prev => {
           const updatedMessages = prev.map(msg => 
             msg.isThinking && !msg.thinkingComplete ? {
@@ -415,12 +414,11 @@ You can ask me questions about any of these columns or request analysis of your 
             } : msg
           );
           
-          // Add the actual GPT response as a new message
           const assistantResponse: ChatMessage = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: result.content,
-            charts: result.charts,
+            content: assistantResponseAzure2.content,
+            charts: assistantResponseAzure2.charts,
             timestamp: new Date(),
             isThinking: false,
             thinkingComplete: false
@@ -430,15 +428,15 @@ You can ask me questions about any of these columns or request analysis of your 
         });
         
         // If the response contains charts, create a new analysis result
-        if (result.charts && result.charts.length > 0) {
+        if (assistantResponseAzure2.charts && assistantResponseAzure2.charts.length > 0) {
           const newAnalysis: AnalysisResult = {
-            summary: result.content,
+            summary: assistantResponseAzure2.content,
             insights: [],
-            charts: result.charts,
+            charts: assistantResponseAzure2.charts,
             metadata: {
               questionAsked: userMessageContent,
               responseTime: new Date().toISOString(),
-              chartCount: result.charts.length
+              chartCount: assistantResponseAzure2.charts.length
             }
           };
           onNewAnalysis(userMessageContent, newAnalysis);
@@ -509,6 +507,36 @@ You can ask me questions about any of these columns or request analysis of your 
       <div className="flex-1 overflow-y-auto">
         {selectedDocument ? (
           <div className="p-4 space-y-4">
+            {/* Column Information Display - Always visible when data is available */}
+            {selectedDocument && columnInfo.columns.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">
+                    Data Structure ({columnInfo.columns.length} columns)
+                  </span>
+                  {columnInfo.rowCount && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                      {columnInfo.rowCount} rows
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {columnInfo.columns.map((column, index) => (
+                    <div
+                      key={index}
+                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-blue-200 whitespace-nowrap"
+                    >
+                      {column}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-blue-600">
+                  💡 Ask me about specific columns or relationships in your data!
+                </div>
+              </div>
+            )}
+
             {/* Messages */}
             {messages.map((message) => (
               <div
@@ -581,38 +609,6 @@ You can ask me questions about any of these columns or request analysis of your 
                 )}
               </div>
             ))}
-
-            {/* Column Information Display */}
-            {selectedDocument && columnInfo.columns.length > 0 && 
-             !isLoading && !isAnalyzing && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center space-x-2 mb-3">
-                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">
-                    Data Structure ({columnInfo.columns.length} columns)
-                  </span>
-                  {columnInfo.rowCount && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                      {columnInfo.rowCount} rows
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {columnInfo.columns.map((column, index) => (
-                    <div
-                      key={index}
-                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-blue-200 whitespace-nowrap"
-                    >
-                      {column}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 text-xs text-blue-600">
-                  💡 Ask me about specific columns or relationships in your data!
-                </div>
-              </div>
-            )}
-
 
             {/* Loading State */}
             {isLoading && !thinkingState.isThinking && (
@@ -754,3 +750,4 @@ You can ask me questions about any of these columns or request analysis of your 
     </div>
   );
 };
+

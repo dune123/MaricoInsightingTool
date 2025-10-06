@@ -37,6 +37,8 @@ interface ChatMessage {
   content: string;
   charts?: import('../types/chart').ChartData[];
   timestamp: Date;
+  isThinking?: boolean;
+  thinkingStep?: 'reasoning' | 'analysis' | 'synthesis';
 }
 
 export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
@@ -52,6 +54,11 @@ export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Debug loading state changes
+  useEffect(() => {
+    console.log('Loading state changed:', isLoading);
+  }, [isLoading]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [columnInfo, setColumnInfo] = useState<{
@@ -78,6 +85,8 @@ export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // No chat persistence across reload for demo; state resets on refresh.
 
   const handleFileUpload = (file: File) => {
     onDocumentUpload(file);
@@ -147,7 +156,7 @@ You can ask me questions about any of these columns or request analysis of your 
         setMessages([]);
       }
     }
-  }, [selectedDocument?.id, selectedDocument?.status, selectedDocument?.assistantId, columnInfo.columns.length]);
+  }, [selectedDocument?.id, selectedDocument?.status, selectedDocument?.assistantId, columnInfo.columns.length, columnInfo.columns, selectedDocument]);
 
   // Update welcome message when column info changes
   useEffect(() => {
@@ -167,32 +176,36 @@ You can ask me questions about any of these columns or request analysis of your 
         return prev;
       });
     }
-  }, [columnInfo.columns.length, selectedDocument?.name, selectedDocument?.assistantId]);
+  }, [columnInfo.columns.length, selectedDocument?.name, selectedDocument?.assistantId, columnInfo.columns, selectedDocument]);
 
   // Load column names when document is selected
   useEffect(() => {
     const loadColumnInfo = async () => {
-      if (selectedDocument && selectedDocument.file && !selectedDocument.assistantId) {
-        setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
-        
-        try {
-          const result = await FileParser.extractColumns(selectedDocument.file);
-          console.log('Column parsing result:', result);
-          setColumnInfo({
-            columns: result.columns,
-            rowCount: result.rowCount,
-            fileType: result.fileType,
-            isLoading: false
-          });
-        } catch (error) {
-          console.error('Failed to parse file:', error);
-          setColumnInfo({
-            columns: [],
-            isLoading: false,
-            fileType: 'unknown'
-          });
+      if (selectedDocument && selectedDocument.file) {
+        // Only load if we don't already have column info
+        if (columnInfo.columns.length === 0) {
+          setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
+          
+          try {
+            const result = await FileParser.extractColumns(selectedDocument.file);
+            console.log('Column parsing result:', result);
+            setColumnInfo({
+              columns: result.columns,
+              rowCount: result.rowCount,
+              fileType: result.fileType,
+              isLoading: false
+            });
+          } catch (error) {
+            console.error('Failed to parse file:', error);
+            setColumnInfo({
+              columns: [],
+              isLoading: false,
+              fileType: 'unknown'
+            });
+          }
         }
-      } else {
+      } else if (!selectedDocument) {
+        // Only clear if no document is selected
         setColumnInfo({
           columns: [],
           isLoading: false,
@@ -202,13 +215,27 @@ You can ask me questions about any of these columns or request analysis of your 
     };
 
     loadColumnInfo();
-  }, [selectedDocument]);
+  }, [selectedDocument, columnInfo.columns.length]);
 
   const handleSendMessage = async () => {
+    console.log('handleSendMessage called with:', { 
+      inputMessage: inputMessage.trim(), 
+      selectedDocument: selectedDocument?.id,
+      isLoading,
+      isAnalyzing
+    });
+    
     if (!inputMessage.trim() || !selectedDocument) {
+      console.log('Message validation failed:', { inputMessage: inputMessage.trim(), selectedDocument });
       return;
     }
 
+    if (isLoading) {
+      console.log('Already loading, ignoring message');
+      return;
+    }
+
+    console.log('Sending message:', inputMessage.trim());
     const userMessageContent = inputMessage.trim();
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -217,16 +244,37 @@ You can ask me questions about any of these columns or request analysis of your 
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    
-    // Capture first user message
+    // Capture first user message before adding to messages
     if (onFirstUserMessage && messages.length === 0) {
       onFirstUserMessage(userMessageContent);
     }
     
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    
+    console.log('Setting loading state to true');
     setIsLoading(true);
     setError(null);
+    
+    // Lightweight thinking bubble (Cursor-like)
+    const thinkingId = crypto.randomUUID();
+    setMessages(prev => [
+      ...prev,
+      {
+        id: thinkingId,
+        role: 'assistant',
+        content: 'Thinking…',
+        timestamp: new Date(),
+        isThinking: true,
+        thinkingStep: 'reasoning'
+      }
+    ]);
+
+    // Add a timeout to ensure loading state is reset even if something goes wrong
+    const loadingTimeout = setTimeout(() => {
+      console.log('Loading timeout reached, forcing loading state to false');
+      setIsLoading(false);
+    }, 30000); // 30 second timeout
 
     try {
       if (!selectedDocument?.assistantId || !selectedDocument?.threadId) {
@@ -237,6 +285,8 @@ You can ask me questions about any of these columns or request analysis of your 
         const analyzingDoc = { ...selectedDocument!, status: 'analyzing' as const };
         onDocumentUpdate(analyzingDoc);
         
+        // Update thinking step to analysis while we call the service
+        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, content: 'Analyzing your data…', thinkingStep: 'analysis' } : m));
         const azureService = new AzureOpenAIService(azureConfig);
         
         const { analysis, assistantId, threadId } = await azureService.analyzeDocument(selectedDocument!.file!);
@@ -259,39 +309,48 @@ You can ask me questions about any of these columns or request analysis of your 
           userMessageContent
         );
         
-        // Preserve the initial column analysis message if it exists
-        setMessages(prev => {
-          // Find the column analysis message (usually the first assistant message with welcome-ready ID)
-          const columnAnalysisMessage = prev.find(msg => 
-            (msg.id === 'welcome-ready' || msg.id === 'welcome') ||
-            (msg.role === 'assistant' && (
-              msg.content.includes('I can see you\'ve selected') ||
-              msg.content.includes('with') && msg.content.includes('columns') ||
-              msg.content.includes('COLUMNS:') || 
-              msg.content.includes('columns:') ||
-              msg.content.includes('Column names:') ||
-              msg.content.includes('Here are the columns')
-            ))
-          );
-          
-          if (columnAnalysisMessage) {
-            // Keep the column analysis message and add the new response
-            return [...prev, assistantResponse];
-          } else {
-            // No column analysis to preserve, just add the new response
-            return [...prev, assistantResponse];
-          }
-        });
+        // Replace thinking message with final assistant response
+        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...assistantResponse, id: thinkingId, isThinking: false } : m));
+        
+        // If the response contains charts, create a new analysis result and add to dashboard history (first chat path)
+        if (assistantResponse.charts && assistantResponse.charts.length > 0) {
+          const newAnalysis: AnalysisResult = {
+            summary: assistantResponse.content,
+            insights: [],
+            charts: assistantResponse.charts,
+            metadata: {
+              questionAsked: userMessageContent,
+              responseTime: new Date().toISOString(),
+              chartCount: assistantResponse.charts.length
+            }
+          };
+          onNewAnalysis(userMessageContent, newAnalysis);
+        }
       } else {
         // Document already analyzed, send message directly
+        console.log('Sending chat message to existing assistant:', {
+          threadId: selectedDocument!.threadId,
+          assistantId: selectedDocument!.assistantId,
+          message: userMessageContent
+        });
+        
+        // Update thinking step to analysis while we call the service
+        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, content: 'Analyzing your data…', thinkingStep: 'analysis' } : m));
         const azureService = new AzureOpenAIService(azureConfig);
+        console.log('Azure service created, calling sendChatMessage...');
+        
         const assistantResponse = await azureService.sendChatMessage(
           selectedDocument!.threadId,
           selectedDocument!.assistantId,
           userMessageContent
         );
 
-        setMessages(prev => [...prev, assistantResponse]);
+        console.log('Received assistant response:', assistantResponse);
+        console.log('Response content length:', assistantResponse.content?.length || 0);
+        console.log('Response charts count:', assistantResponse.charts?.length || 0);
+        
+        // Replace thinking message with final assistant response
+        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...assistantResponse, id: thinkingId, isThinking: false } : m));
         
         // If the response contains charts, create a new analysis result and add to dashboard history
         if (assistantResponse.charts && assistantResponse.charts.length > 0) {
@@ -310,6 +369,11 @@ You can ask me questions about any of these columns or request analysis of your 
       }
     } catch (error) {
       console.error('Chat error:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        selectedDocument: selectedDocument
+      });
       setError(error instanceof Error ? error.message : 'Failed to send message');
       
       // If analysis failed, update document status back to ready
@@ -328,13 +392,17 @@ You can ask me questions about any of these columns or request analysis of your 
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
+      console.log('Setting loading state to false');
+      clearTimeout(loadingTimeout);
       setIsLoading(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    console.log('Key pressed:', e.key, 'isLoading:', isLoading, 'selectedDocument:', !!selectedDocument);
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      console.log('Enter key pressed, calling handleSendMessage');
       handleSendMessage();
     }
   };
@@ -352,15 +420,45 @@ You can ask me questions about any of these columns or request analysis of your 
   ];
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full min-h-0 bg-white">
       {/* FIXED HEADER */}
       <div className="p-4 border-b border-gray-100 flex-shrink-0 bg-white">
       </div>
 
       {/* SCROLLABLE MESSAGES */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
         {selectedDocument ? (
           <div className="p-4 space-y-4">
+            {/* Column Information Display - Always visible when data is available */}
+            {selectedDocument && columnInfo.columns.length > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-900">
+                    Data Structure ({columnInfo.columns.length} columns)
+                  </span>
+                  {columnInfo.rowCount && (
+                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                      {columnInfo.rowCount} rows
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {columnInfo.columns.map((column, index) => (
+                    <div
+                      key={index}
+                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-blue-200 whitespace-nowrap"
+                    >
+                      {column}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-blue-600">
+                  💡 Ask me about specific columns or relationships in your data!
+                </div>
+              </div>
+            )}
+
             {/* Messages */}
             {messages.map((message) => (
               <div
@@ -413,37 +511,6 @@ You can ask me questions about any of these columns or request analysis of your 
                 )}
               </div>
             ))}
-
-            {/* Column Information Display */}
-            {selectedDocument && columnInfo.columns.length > 0 && 
-             !isLoading && !isAnalyzing && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center space-x-2 mb-3">
-                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-                  <span className="text-sm font-medium text-blue-900">
-                    Data Structure ({columnInfo.columns.length} columns)
-                  </span>
-                  {columnInfo.rowCount && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                      {columnInfo.rowCount} rows
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {columnInfo.columns.map((column, index) => (
-                    <div
-                      key={index}
-                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-blue-200 whitespace-nowrap"
-                    >
-                      {column}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 text-xs text-blue-600">
-                  💡 Ask me about specific columns or relationships in your data!
-                </div>
-              </div>
-            )}
 
             {isLoading && (
               <div className="flex items-start space-x-3">
@@ -541,7 +608,15 @@ You can ask me questions about any of these columns or request analysis of your 
               />
             </div>
             <button
-              onClick={handleSendMessage}
+              onClick={() => {
+                console.log('Send button clicked', { 
+                  inputMessage: inputMessage.trim(), 
+                  isLoading, 
+                  selectedDocument: !!selectedDocument,
+                  disabled: !inputMessage.trim() || isLoading || !selectedDocument
+                });
+                handleSendMessage();
+              }}
               disabled={!inputMessage.trim() || isLoading || !selectedDocument}
               className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-2"
             >

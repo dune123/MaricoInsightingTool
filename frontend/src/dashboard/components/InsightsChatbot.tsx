@@ -169,27 +169,31 @@ You can ask me questions about any of these columns or request strategic analysi
   // Load column names when document is selected
   useEffect(() => {
     const loadColumnInfo = async () => {
-      if (selectedDocument && selectedDocument.file && !selectedDocument.assistantId) {
-        setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
-        
-        try {
-          const result = await FileParser.extractColumns(selectedDocument.file);
-          console.log('Column parsing result:', result);
-          setColumnInfo({
-            columns: result.columns,
-            rowCount: result.rowCount,
-            fileType: result.fileType,
-            isLoading: false
-          });
-        } catch (error) {
-          console.error('Failed to parse file:', error);
-          setColumnInfo({
-            columns: [],
-            isLoading: false,
-            fileType: 'unknown'
-          });
+      if (selectedDocument && selectedDocument.file) {
+        // Only load if we don't already have column info
+        if (columnInfo.columns.length === 0) {
+          setColumnInfo(prev => ({ ...prev, isLoading: true, columns: [] }));
+          
+          try {
+            const result = await FileParser.extractColumns(selectedDocument.file);
+            console.log('Column parsing result:', result);
+            setColumnInfo({
+              columns: result.columns,
+              rowCount: result.rowCount,
+              fileType: result.fileType,
+              isLoading: false
+            });
+          } catch (error) {
+            console.error('Failed to parse file:', error);
+            setColumnInfo({
+              columns: [],
+              isLoading: false,
+              fileType: 'unknown'
+            });
+          }
         }
-      } else {
+      } else if (!selectedDocument) {
+        // Only clear if no document is selected
         setColumnInfo({
           columns: [],
           isLoading: false,
@@ -199,7 +203,7 @@ You can ask me questions about any of these columns or request strategic analysi
     };
 
     loadColumnInfo();
-  }, [selectedDocument]);
+  }, [selectedDocument, columnInfo.columns.length]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedDocument) {
@@ -214,13 +218,13 @@ You can ask me questions about any of these columns or request strategic analysi
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    
-    // Capture first user message
+    // Capture first user message before adding to messages
     if (onFirstUserMessage && messages.length === 0) {
       onFirstUserMessage(userMessageContent);
     }
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
     
     setIsLoading(true);
     setError(null);
@@ -368,6 +372,36 @@ You can ask me questions about any of these columns or request strategic analysi
       <div className="flex-1 overflow-y-auto">
         {selectedDocument ? (
           <div className="p-4 space-y-4">
+            {/* Column Information Display - Always visible when data is available */}
+            {selectedDocument && columnInfo.columns.length > 0 && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center space-x-2 mb-3">
+                  <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">
+                    Data Structure ({columnInfo.columns.length} columns)
+                  </span>
+                  {columnInfo.rowCount && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                      {columnInfo.rowCount} rows
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {columnInfo.columns.map((column, index) => (
+                    <div
+                      key={index}
+                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-purple-200 whitespace-nowrap"
+                    >
+                      {column}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 text-xs text-purple-600">
+                  💡 Ask me for strategic insights about your data!
+                </div>
+              </div>
+            )}
+
             {/* Messages */}
             {messages.map((message) => (
               <div
@@ -405,37 +439,6 @@ You can ask me questions about any of these columns or request strategic analysi
                 )}
               </div>
             ))}
-
-            {/* Column Information Display */}
-            {selectedDocument && columnInfo.columns.length > 0 && 
-             !isLoading && !isAnalyzing && (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center space-x-2 mb-3">
-                  <FileSpreadsheet className="w-4 h-4 text-purple-600" />
-                  <span className="text-sm font-medium text-purple-900">
-                    Data Structure ({columnInfo.columns.length} columns)
-                  </span>
-                  {columnInfo.rowCount && (
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
-                      {columnInfo.rowCount} rows
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {columnInfo.columns.map((column, index) => (
-                    <div
-                      key={index}
-                      className="bg-white px-2 py-1 rounded text-xs font-mono text-gray-700 border border-purple-200 whitespace-nowrap"
-                    >
-                      {column}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 text-xs text-purple-600">
-                  💡 Ask me for strategic insights about your data!
-                </div>
-              </div>
-            )}
 
             {isLoading && (
               <div className="flex items-start space-x-3">

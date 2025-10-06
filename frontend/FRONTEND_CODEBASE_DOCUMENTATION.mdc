@@ -2,6 +2,131 @@
 
 ## 🆕 New Features (2025-10-03)
 
+### ✅ Fixed Data Structure Component Disappearing After First Chat (2025-10-03)
+
+#### Overview:
+Fixed a critical issue where the data structure component (showing column names and row count) was disappearing after the first chat message. The problem was in the column info state management - it was being cleared when the document got an `assistantId` after analysis.
+
+#### Root Cause:
+The `useEffect` that loads column info had a condition `!selectedDocument.assistantId` which meant:
+1. **Before first chat**: Document has no `assistantId` → Column info loads ✅
+2. **After first chat**: Document gets `assistantId` → Column info gets cleared ❌
+
+#### Changes Made:
+
+**All Chatbot Components** (ChartingChatbot, ChartingChatbotWithThinking, InsightsChatbot):
+- Removed the `!selectedDocument.assistantId` condition from column loading
+- Added check to only load column info if `columnInfo.columns.length === 0`
+- Preserve column info even after document analysis
+- Only clear column info when no document is selected
+- Fixed useEffect dependency warnings
+
+#### Technical Details:
+- **Before**: `if (selectedDocument && selectedDocument.file && !selectedDocument.assistantId)` ❌
+- **After**: `if (selectedDocument && selectedDocument.file)` + `if (columnInfo.columns.length === 0)` ✅
+- Column info now persists throughout the entire chat session
+- Component remains visible at the top of chat during all conversations
+
+#### User Benefits:
+1. **Persistent Data Structure**: Column names always visible during chat
+2. **Better Context**: Users can reference column names throughout conversation
+3. **Improved UX**: No more disappearing component after first message
+4. **Consistent Experience**: Same behavior across all chatbot types
+
+### ✅ Fixed Chatbot Breaking After First Message (2025-10-03)
+
+#### Overview:
+Fixed a critical issue where chatbots would stop responding after the first message. The problem was in the first user message capture logic - the check was happening after adding the message to the array, so it never triggered.
+
+#### Root Cause:
+The `onFirstUserMessage` callback was never being called because the check `messages.length === 0` was happening AFTER the user message was added to the messages array, making the length always > 0.
+
+#### Changes Made:
+
+**All Chatbot Components** (ChartingChatbot, ChartingChatbotWithThinking, InsightsChatbot):
+- Moved the first user message capture logic BEFORE adding the message to the array
+- Fixed the timing issue that prevented `onFirstUserMessage` from being called
+- Added comprehensive debugging logs to track message flow
+- Added error logging with detailed context
+
+#### Technical Details:
+- **Before**: `setMessages(prev => [...prev, userMessage]); if (messages.length === 0)` ❌
+- **After**: `if (messages.length === 0); setMessages(prev => [...prev, userMessage]);` ✅
+- Added console logging for message validation, Azure service calls, and error handling
+- Improved error context logging for better debugging
+
+#### User Benefits:
+1. **Continuous Chat**: Chatbot now responds to all messages, not just the first one
+2. **Proper Message Capture**: First user message is correctly captured for dashboard history
+3. **Better Debugging**: Console logs help identify any remaining issues
+4. **Improved Reliability**: More robust error handling and state management
+
+### ✅ Fixed Hardcoded "Initial Analysis" Text (2025-10-03)
+
+#### Overview:
+Fixed the hardcoded "Initial Analysis" text in the dashboard history. The system now properly captures and displays the user's first message as the analysis title instead of using the hardcoded fallback.
+
+#### Changes Made:
+
+**App.tsx**:
+- Updated fallback text from "Initial Analysis" to "Data Analysis" 
+- Added debugging logs to track first user message capture
+- Improved question title logic to use actual user message when available
+- Added console logging to help debug message capture timing
+
+#### Technical Implementation:
+- The `handleFirstUserMessage` function already captures the first user message
+- All chatbot components (ChartingChatbot, ChartingChatbotWithThinking, InsightsChatbot) call `onFirstUserMessage` when `messages.length === 0`
+- The dashboard history now uses the actual first user message as the question title
+- Fallback to "Data Analysis" only when no user message is captured (edge case)
+
+#### User Benefits:
+1. **Personalized Titles**: Analysis history now shows the user's actual question
+2. **Better Context**: Users can see what they asked for each analysis
+3. **Improved UX**: More meaningful analysis titles in dashboard history
+4. **Debugging Support**: Console logs help track message capture
+
+### ✅ Data Structure Component Always Visible at Top (2025-10-03)
+
+#### Overview:
+Fixed the data structure component visibility issue in all chatbot components. Previously, the data structure component would disappear during loading/analyzing states, but now it remains visible throughout the entire chat session. Additionally, moved the component to the very top of the chat interface for better user experience.
+
+#### Components Updated:
+
+**ChartingChatbotWithThinking.tsx**:
+- Removed `!isLoading && !isAnalyzing` conditions
+- Moved data structure component to top of chat (before messages)
+- Data structure now always visible when data is available
+- Updated comment to reflect "Always visible when data is available"
+
+**ChartingChatbot.tsx**:
+- Removed `!isLoading && !isAnalyzing` conditions  
+- Moved data structure component to top of chat (before messages)
+- Data structure now always visible when data is available
+- Updated comment to reflect "Always visible when data is available"
+- Fixed useEffect dependency warnings
+
+**InsightsChatbot.tsx**:
+- Removed `!isLoading && !isAnalyzing` conditions
+- Moved data structure component to top of chat (before messages)
+- Data structure now always visible when data is available
+- Updated comment to reflect "Always visible when data is available"
+
+#### User Benefits:
+1. **Persistent Context**: Users can always see their data structure during charting
+2. **Better UX**: No more disappearing component during analysis
+3. **Top Position**: Data structure now appears at the very top of the chat for immediate visibility
+4. **Consistent Experience**: Same behavior across all chatbot types
+5. **Data Reference**: Users can reference column names while asking questions
+
+#### Technical Changes:
+- Simplified conditional rendering logic
+- Removed loading/analyzing state dependencies
+- Moved component positioning from after messages to before messages
+- Updated component comments for clarity
+- Fixed useEffect dependency warnings in ChartingChatbot.tsx
+- Maintained all existing styling and functionality
+
 ### ✅ Persistent Data Structure Summary Component (2025-10-03)
 
 #### Overview:
@@ -719,10 +844,11 @@ Replaced the Model Results step with a new Download Analysis step that generates
   - Analysis completion workflow
 
 ##### 2. PowerPoint Content Structure:
-- **Context Slide**: Data overview from selected sheet
-- **Initial Insights Slide**: Key findings and analysis scope
-- **Chart Analysis Slides**: One slide per variable pair with line chart and scatter plot
-- **Model Results Slide**: Final production model details
+- **Title Slide**: Presentation metadata
+- **Per-Chart Grouping (Updated)**: For each chart, two slides are generated in sequence:
+  - Chart Slide: Chart image with title and type badge
+  - Insights Slide: Key Finding(s), Recommendation(s), optional Quantified Recommendation, Action Items, Risk Factors, Opportunities related to that chart
+- **Key Insights & Recommendations**: Final consolidated summary slide remains at the end
 
 ##### 3. Updated Step Definitions:
 ```typescript

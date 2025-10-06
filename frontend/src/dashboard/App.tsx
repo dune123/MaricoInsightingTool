@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { InsightsChatbot } from './components/InsightsChatbot';
-import { ChartingChatbotWithThinking } from './components/ChartingChatbotWithThinking';
+import { ChartingChatbot } from './components/ChartingChatbot';
 import { Settings } from './components/Settings';
 import { DashboardCharts } from './components/DashboardCharts';
 import { AnalysisResult, DashboardHistoryItem, Dashboard, ChartData } from './types/chart';
@@ -51,6 +51,8 @@ function App() {
     deploymentName: import.meta.env.VITE_AZURE_DEPLOYMENT_NAME || 'gpt-4o-mini'
   });
 
+  // NOTE: We intentionally avoid restoring any state on reload for demo. A fresh reload starts clean.
+
   const handleDocumentUpload = (file: File) => {
     // Allow only CSV or Excel files
     const fileName = file.name.toLowerCase();
@@ -86,24 +88,15 @@ function App() {
     
     if (selectedDocument?.id === updatedDoc.id) {
       setSelectedDocument(updatedDoc);
-      
-      // If document just completed analysis, add to dashboard history
-      if (updatedDoc.status === 'completed' && updatedDoc.analysis && 
-          !dashboardHistory.some(item => item.question === (firstUserMessage || 'Initial Analysis') && item.analysis === updatedDoc.analysis)) {
-        console.log('Adding initial analysis to dashboard history:', updatedDoc.analysis);
-        const newHistoryItem: DashboardHistoryItem = {
-          question: firstUserMessage || 'Initial Analysis',
-          analysis: updatedDoc.analysis,
-          timestamp: new Date()
-        };
-        setDashboardHistory(prev => [newHistoryItem, ...prev]);
-        setSelectedDashboardIndex(0);
-      }
+      // Do not auto-add initial generic "Data Analysis" to dashboard history.
+      // The right panel should only reflect analyses explicitly triggered by user questions
+      // via onNewAnalysis(question, analysis).
     }
   };
 
   const handleFirstUserMessage = (message: string) => {
     if (!firstUserMessage) {
+      console.log('Capturing first user message:', message);
       setFirstUserMessage(message);
     }
   };
@@ -131,15 +124,38 @@ function App() {
   };
 
   const handleAddChartToDashboard = (dashboardId: string, chart: ChartData) => {
+    // Normalize KPI charts so they render consistently in dashboards
+    const normalizeKpi = (c: ChartData): ChartData => {
+      if (c.type !== 'kpi') return c;
+      const cfg = { ...(c.config || {}) } as any;
+      // If value not set, try to parse from description
+      if (!cfg.value) {
+        const m = (c.description || '').match(/\$?([\d,]+(?:\.\d+)?)/);
+        if (m) cfg.value = m[1];
+      }
+      // Clean string values (remove stray trailing commas/spaces)
+      if (typeof cfg.value === 'string') {
+        cfg.value = cfg.value.replace(/[,\s]+$/g, '');
+      }
+      // Default unit detection
+      if (!cfg.unit) cfg.unit = (c.description || '').includes('$') ? '$' : cfg.unit;
+      // Ensure trend fields exist (optional)
+      if (cfg.trend === undefined) cfg.trend = undefined;
+      return { ...c, config: cfg } as ChartData;
+    };
+    const normalized = normalizeKpi(chart);
+    
     // Add layout properties to the chart if not present
     const chartWithLayout = {
-      ...chart,
-      id: chart.id || crypto.randomUUID(),
-      layout: chart.layout || {
+      ...normalized,
+      id: normalized.id || crypto.randomUUID(),
+      layout: normalized.layout || {
         x: 0,
         y: 0,
-        w: chart.type === 'kpi' ? 3 : 6,
-        h: chart.type === 'kpi' ? 2 : 4
+        // Preserve perceived chat size by giving full-width and taller height by default
+        // Users can resize later in the dashboard grid
+        w: normalized.type === 'kpi' ? 3 : 12,
+        h: normalized.type === 'kpi' ? 2 : 8
       }
     };
     
@@ -190,8 +206,14 @@ function App() {
                 ? {
                     ...chart,
                     insights: chart.insights ? (() => {
-                      const newInsights = { ...chart.insights };
-                      delete newInsights[insightType as keyof typeof newInsights];
+                      const newInsights = { ...chart.insights } as typeof chart.insights;
+                      // Map incoming types to actual insight keys stored on chart
+                      const keyMap: Record<'keyfinding' | 'recommendation', keyof NonNullable<typeof chart.insights>> = {
+                        keyfinding: 'keyFinding',
+                        recommendation: 'recommendation'
+                      };
+                      const keyToDelete = keyMap[insightType];
+                      delete (newInsights as any)[keyToDelete];
                       return Object.keys(newInsights).length > 0 ? newInsights : undefined;
                     })() : undefined
                   }
@@ -353,9 +375,9 @@ function App() {
           </div>
         )}
 
-        {/* Chat Interface */}
+        {/* Chat Interface - keep mounted to preserve state; toggle visibility */}
         <div className="flex-1 flex flex-col min-h-0">
-          {activePanel === 'insightsBot' ? (
+          <div className={activePanel === 'insightsBot' ? 'block h-full min-h-0' : 'hidden h-full min-h-0'}>
             <InsightsChatbot 
               azureConfig={azureConfig}
               selectedDocument={selectedDocument}
@@ -365,7 +387,8 @@ function App() {
               onDocumentUpdate={handleDocumentUpdate}
               onFirstUserMessage={handleFirstUserMessage}
             />
-          ) : activePanel === 'dashboardBot' ? (
+          </div>
+          <div className={activePanel === 'dashboardBot' ? 'block h-full min-h-0' : 'hidden h-full min-h-0'}>
             <DashboardBot 
               dashboards={dashboards}
               onCreateNewDashboard={handleCreateNewDashboard}
@@ -377,8 +400,9 @@ function App() {
               chartToAdd={chartToAdd}
               onClearChartToAdd={() => setChartToAdd(null)}
             />
-          ) : (
-            <ChartingChatbotWithThinking 
+          </div>
+          <div className={activePanel === 'documents' ? 'block h-full min-h-0' : 'hidden h-full min-h-0'}>
+            <ChartingChatbot 
               azureConfig={azureConfig}
               selectedDocument={selectedDocument}
               documents={documents}
@@ -388,7 +412,7 @@ function App() {
               onNewAnalysis={handleNewAnalysis}
               onFirstUserMessage={handleFirstUserMessage}
             />
-          )}
+          </div>
         </div>
       </div>
 
