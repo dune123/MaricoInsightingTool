@@ -111,6 +111,9 @@ function App() {
     setSelectedDashboardIndex(0);
   };
 
+  // Disable upload/create after a file is uploaded
+  const uploadDisabled = !!selectedDocument;
+
   const handleCreateNewDashboard = (name: string, initialChart?: ChartData) => {
     const newDashboard: Dashboard = {
       id: crypto.randomUUID(),
@@ -247,19 +250,20 @@ function App() {
         </button>
 
         {/* Create/Upload Button */}
-        <label className="cursor-pointer mb-8">
+        <label className={`mb-8 ${uploadDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} title={uploadDisabled ? 'A file is already uploaded' : 'Upload a file'}>
           <input
             type="file"
             className="sr-only"
             accept=".pdf,.csv,.xlsx,.xls,.txt,.docx"
+            disabled={uploadDisabled}
             onChange={(e) => {
               if (e.target.files && e.target.files[0]) {
                 handleDocumentUpload(e.target.files[0]);
               }
             }}
           />
-          <div className="w-10 h-10 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center justify-center transition-colors duration-200 group">
-            <Plus className="w-5 h-5 text-white" />
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors duration-200 group ${uploadDisabled ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
+            <Plus className={`w-5 h-5 ${uploadDisabled ? 'text-gray-500' : 'text-white'}`} />
           </div>
           <div className="text-xs text-center text-gray-600 mt-1">Create</div>
         </label>
@@ -454,7 +458,6 @@ function App() {
                 onChange={(e) => setSelectedDashboardIndex(e.target.value ? parseInt(e.target.value) : null)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               >
-                <option value="">Select a question...</option>
                 {dashboardHistory.map((item, index) => (
                   <option key={index} value={index}>
                     {item.question}
@@ -473,6 +476,20 @@ function App() {
               isLoading={false}
               onAddChartRequest={handleAddChartRequest}
             />
+          ) : selectedDocument ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-xl">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <BarChart3 className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">File uploaded</h3>
+                <p className="text-gray-600 mb-6">
+                  Your CSV/Excel has been uploaded{selectedDocument?.name ? (<>
+                  : <span className="font-medium"> {selectedDocument.name}</span></>) : null}. You can now ask a question to generate visualizations.
+                </p>
+                {/* Intentionally no CTA button here per requirement */}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
