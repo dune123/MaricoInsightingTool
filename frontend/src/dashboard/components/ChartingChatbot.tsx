@@ -249,20 +249,6 @@ You can ask me questions about any of these columns or request analysis of your 
     console.log('Setting loading state to true');
     setIsLoading(true);
     setError(null);
-    
-    // Lightweight thinking bubble (Cursor-like)
-    const thinkingId = crypto.randomUUID();
-    setMessages(prev => [
-      ...prev,
-      {
-        id: thinkingId,
-        role: 'assistant',
-        content: 'Thinking…',
-        timestamp: new Date(),
-        isThinking: true,
-        thinkingStep: 'reasoning'
-      }
-    ]);
 
     // Add a timeout to ensure loading state is reset even if something goes wrong
     const loadingTimeout = setTimeout(() => {
@@ -279,8 +265,6 @@ You can ask me questions about any of these columns or request analysis of your 
         const analyzingDoc = { ...selectedDocument!, status: 'analyzing' as const };
         onDocumentUpdate(analyzingDoc);
         
-        // Update thinking step to analysis while we call the service
-        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, content: 'Analyzing your data…', thinkingStep: 'analysis' } : m));
         const azureService = new AzureOpenAIService(azureConfig);
         
         const { analysis, assistantId, threadId } = await azureService.analyzeDocument(selectedDocument!.file!);
@@ -303,8 +287,8 @@ You can ask me questions about any of these columns or request analysis of your 
           userMessageContent
         );
         
-        // Replace thinking message with final assistant response
-        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...assistantResponse, id: thinkingId, isThinking: false } : m));
+        // Add final assistant response (no analyzing placeholder message)
+        setMessages(prev => [...prev, assistantResponse]);
         
         // If the response contains charts, create a new analysis result and add to dashboard history (first chat path)
         if (assistantResponse.charts && assistantResponse.charts.length > 0) {
@@ -328,8 +312,6 @@ You can ask me questions about any of these columns or request analysis of your 
           message: userMessageContent
         });
         
-        // Update thinking step to analysis while we call the service
-        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...m, content: 'Analyzing your data…', thinkingStep: 'analysis' } : m));
         const azureService = new AzureOpenAIService(azureConfig);
         console.log('Azure service created, calling sendChatMessage...');
         
@@ -343,8 +325,8 @@ You can ask me questions about any of these columns or request analysis of your 
         console.log('Response content length:', assistantResponse.content?.length || 0);
         console.log('Response charts count:', assistantResponse.charts?.length || 0);
         
-        // Replace thinking message with final assistant response
-        setMessages(prev => prev.map(m => m.id === thinkingId ? { ...assistantResponse, id: thinkingId, isThinking: false } : m));
+        // Add final assistant response (no analyzing placeholder message)
+        setMessages(prev => [...prev, assistantResponse]);
         
         // If the response contains charts, create a new analysis result and add to dashboard history
         if (assistantResponse.charts && assistantResponse.charts.length > 0) {
@@ -476,18 +458,13 @@ You can ask me questions about any of these columns or request analysis of your 
                 >
                   <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                   
-                  {/* Display chart notifications if available */}
-                  {message.charts && message.charts.length > 0 && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center space-x-2 text-blue-700">
-                        <BarChart3 className="w-4 h-4" />
-                        <span className="text-xs font-medium">
-                          {message.charts.length} chart{message.charts.length !== 1 ? 's' : ''} generated
-                        </span>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1">
-                        Check the dashboard view to see your interactive visualizations
-                      </p>
+                  {/* Suggested questions are disabled; keep only compact chart badge if needed */}
+                  {false && message.charts && message.charts.length > 0 && (
+                    <div className="mt-3">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">
+                        <BarChart3 className="w-3 h-3 mr-1" />
+                        {message.charts.length} chart{message.charts.length !== 1 ? 's' : ''}
+                      </span>
                     </div>
                   )}
                   

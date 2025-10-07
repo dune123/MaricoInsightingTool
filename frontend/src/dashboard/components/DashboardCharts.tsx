@@ -85,19 +85,26 @@ const InsightCard: React.FC<{
   title: string, 
   content: string, 
   color: string,
-  bgColor: string 
-}> = ({ icon: Icon, title, content, color, bgColor }) => {
+  bgColor: string,
+  maxHeight?: number,
+  scroll?: boolean
+}> = ({ icon: Icon, title, content, color, bgColor, maxHeight, scroll }) => {
   if (!content) return null;
   
   return (
-    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 mb-3`}>
-      <div className="flex items-start space-x-2">
-        <div className={`w-5 h-5 ${color} mt-0.5 flex-shrink-0`}>
+    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 pb-4 mb-3 shadow-sm`}>
+      <div className="flex items-center space-x-2 mb-2">
+        <div className={`w-5 h-5 ${color} flex-shrink-0`}>
           <Icon className="w-full h-full" />
         </div>
-        <div className="flex-1 min-w-0">
-          <h4 className={`text-sm font-semibold ${color} mb-1`}>{title}</h4>
-          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{content}</p>
+        <h4 className={`text-sm font-semibold ${color}`}>{title}</h4>
+      </div>
+      <div className="min-h-0">
+        <div
+          className="text-sm text-gray-700 leading-relaxed whitespace-pre-line pr-1"
+          style={scroll && maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+        >
+          {content}
         </div>
       </div>
     </div>

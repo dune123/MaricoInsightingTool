@@ -331,13 +331,8 @@ You can ask me questions about any of these columns or request strategic analysi
     return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const suggestedQuestions = [
-    "What strategic opportunities do you see in this data?",
-    "How can we improve our competitive positioning?",
-    "What are the key business risks we should address?",
-    "What market trends should influence our strategy?",
-    "How can we optimize our business performance?"
-  ];
+  // Suggested questions disabled per request
+  const suggestedQuestions: string[] = [];
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -440,7 +435,7 @@ You can ask me questions about any of these columns or request strategic analysi
               </div>
             ))}
 
-            {isLoading && (
+            {false && (
               <div className="flex items-start space-x-3">
                 <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                   <Brain className="w-4 h-4 text-purple-600" />
@@ -460,7 +455,7 @@ You can ask me questions about any of these columns or request strategic analysi
               </div>
             )}
 
-            {isAnalyzing && !isLoading && (
+            {false && (
               <div className="flex items-start space-x-3">
                 <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                   <Brain className="w-4 h-4 text-purple-600" />
@@ -477,8 +472,8 @@ You can ask me questions about any of these columns or request strategic analysi
               </div>
             )}
 
-            {/* Suggested Questions */}
-            {selectedDocument && selectedDocument?.assistantId && (
+            {/* Suggested Questions removed */}
+            {false && selectedDocument && selectedDocument?.assistantId && (
               <div className="py-3">
                 <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
                   <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
