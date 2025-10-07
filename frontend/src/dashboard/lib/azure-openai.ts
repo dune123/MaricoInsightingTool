@@ -1255,9 +1255,15 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
     return charts;
   }
 
-  private cleanContentForDisplay(content: string): string {
+  private cleanContentForDisplay(content: string, chartsCount?: number): string {
     // Remove CHART_DATA_START/END blocks but keep surrounding text
-    let cleanedContent = content.replace(/(?:CHART_DATA_START|CHARTDATASTART)\s*[\s\S]*?(?:CHART_DATA_END|CHARTDATAEND)/gi, '[Chart generated - view in dashboard]');
+    const countText = typeof chartsCount === 'number'
+      ? `${chartsCount} chart${chartsCount !== 1 ? 's' : ''} generated`
+      : 'Charts generated';
+    let cleanedContent = content.replace(
+      /(?:CHART_DATA_START|CHARTDATASTART)\s*[\s\S]*?(?:CHART_DATA_END|CHARTDATAEND)/gi,
+      `[${countText}]`
+    );
     
     // Clean up any extra whitespace
     cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n').trim();
@@ -1440,6 +1446,16 @@ Please respond primarily with CHART_DATA_START/END blocks containing insightful 
 - **NO DATA TRUNCATION**: Never limit scatter plot data to just a few points - include EVERY row from the dataset
 - **VALIDATION REQUIRED**: After generating scatter plot, verify data point count matches total dataset rows
 
+🚨 **MANDATORY SCATTER PLOT TREND LINE REQUIREMENTS**:
+- **ALWAYS INCLUDE TREND LINE**: Every scatter plot MUST have a linear regression trend line
+- **COMPUTE REGRESSION**: Use numpy.polyfit or similar to calculate least squares linear regression (y = mx + b)
+- **TREND LINE STYLING**: Plot trend line in red or dark blue with linewidth=2
+- **SCATTER POINT TRANSPARENCY**: Keep scatter points visible with alpha=0.6 for transparency
+- **INCLUDE EQUATION**: Add regression equation (y = mx + b) and correlation coefficient (r) in chart description
+- **STATISTICAL VALUES**: Include R-squared, correlation coefficient, and p-value in the chart description
+- **VISUAL CLARITY**: Add clear axis labels, title, and grid for readability
+- **EXAMPLE**: For "Defect Rate vs Revenue Generated", show scatter points with red linear regression line indicating correlation direction
+
 **📊 FOR OTHER CHART TYPES - AGGREGATION REQUIRED**:
 - **AGGREGATE DATA PROPERLY**: Group by relevant dimensions and sum/average metrics
 - **CREATE RELEVANT BUSINESS CHARTS**: Show meaningful insights, not raw data dumps
@@ -1462,6 +1478,32 @@ Please respond primarily with CHART_DATA_START/END blocks containing insightful 
   * Time series: "xAxisLabel": "Time Period", "yAxisLabel": "Metric Name"
 
 Keep your text response brief - focus on generating meaningful charts that tell the complete story with COMPLETE, PRECISE data.
+
+🚨 **SCATTER PLOT PYTHON CODE TEMPLATE**:
+\`\`\`python
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
+
+# Create scatter plot with trend line
+plt.figure(figsize=(10, 6))
+plt.scatter(x_data, y_data, alpha=0.6, color='blue', s=50)
+
+# Calculate linear regression
+slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
+line = slope * x_data + intercept
+
+# Plot trend line
+plt.plot(x_data, line, 'r-', linewidth=2, label=f'y = {slope:.3f}x + {intercept:.3f} (r={r_value:.3f})')
+
+# Add labels and formatting
+plt.xlabel('X Axis Label')
+plt.ylabel('Y Axis Label')
+plt.title('Chart Title')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.show()
+\`\`\`
 
 Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
       });
@@ -1516,7 +1558,7 @@ Note: The original data file is already attached to this conversation thread and
       charts.push(...extractedCharts);
       
       // Clean content for display (remove chart blocks but keep text)
-      content = this.cleanContentForDisplay(content);
+      content = this.cleanContentForDisplay(content, charts.length);
       
       // Clean up markdown formatting for better readability
       content = this.cleanMarkdownFormatting(content);

@@ -321,16 +321,28 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
         case 'bar':
           return (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+              <BarChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'Categories'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || 'Values', 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -367,16 +379,28 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
         case 'line':
           return (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+              <LineChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -419,16 +443,28 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
         case 'area':
           return (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+              <AreaChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -547,17 +583,29 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
         case 'scatter':
           return (
             <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+              <ScatterChart data={chart.data} margin={{ top: 10, right: 10, left: 10, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   dataKey={chart.config.yKey as string}
                   tick={{ fontSize: 10 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '10px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -712,8 +760,8 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
       if (chart.insights?.keyFinding) {
         layout.push({
           i: `${chart.id}-keyfinding`,
-          x: chart.layout?.x ?? 8, // Start at column 8 (right 1/3)
-          y: chart.layout?.y ?? currentY,
+          x: 8, // Start at column 8 (right 1/3)
+          y: currentY,
           w: 4, // 4 columns for insights
           h: 3, // Height for key finding
           minW: 3,
@@ -726,8 +774,8 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
       if (chart.insights?.recommendation) {
         layout.push({
           i: `${chart.id}-recommendation`,
-          x: chart.layout?.x ?? 8, // Start at column 8 (right 1/3)
-          y: chart.layout?.y ?? currentY + (chart.insights?.keyFinding ? 3 : 0), // Below key finding if it exists
+          x: 8, // Start at column 8 (right 1/3)
+          y: currentY + (chart.insights?.keyFinding ? 3 : 0), // Below key finding if it exists
           w: 4, // 4 columns for insights
           h: 3, // Height for recommendation
           minW: 3,
@@ -970,6 +1018,9 @@ export const DashboardBot: React.FC<DashboardBotProps> = ({
                     isResizable={true}
                     margin={[16, 16]}
                     containerPadding={[0, 0]}
+                    preventCollision={false}
+                    compactType="vertical"
+                    resizeHandles={['se', 'nw', 'ne', 'sw', 'n', 's', 'e', 'w']}
                   >
                     {dashboard.charts.flatMap((chart) => {
                       const components = [];

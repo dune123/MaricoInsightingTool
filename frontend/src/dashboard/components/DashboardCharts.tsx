@@ -42,29 +42,21 @@ const parseChartDescription = (description: string) => {
     supportingData: ''
   };
 
-  // Extract key finding
-  const keyFindingMatch = description.match(/Key Finding[:\s]*([^.]*\.?[^.]*\.?)/i);
-  if (keyFindingMatch) {
-    sections.keyFinding = keyFindingMatch[1].trim();
-  }
+  // Helper to capture full section text until next recognized heading or end
+  const captureSection = (labelRegex: RegExp) => {
+    const match = description.match(labelRegex);
+    if (!match) return '';
+    const startIndex = match.index! + match[0].length;
+    const rest = description.slice(startIndex);
+    const nextLabel = rest.search(/\n\s*(?:Key Finding|Business Impact|(?:Quantified )?Recommendation|Supporting Data)\b/i);
+    const sectionText = nextLabel === -1 ? rest : rest.slice(0, nextLabel);
+    return sectionText.trim();
+  };
 
-  // Extract business impact
-  const businessImpactMatch = description.match(/Business Impact[:\s]*([^.]*\.?[^.]*\.?)/i);
-  if (businessImpactMatch) {
-    sections.businessImpact = businessImpactMatch[1].trim();
-  }
-
-  // Extract quantified recommendation
-  const recommendationMatch = description.match(/(?:Quantified )?Recommendation[:\s]*([^.]*\.?[^.]*\.?)/i);
-  if (recommendationMatch) {
-    sections.recommendation = recommendationMatch[1].trim();
-  }
-
-  // Extract supporting data
-  const supportingDataMatch = description.match(/Supporting Data[:\s]*([^.]*\.?[^.]*\.?)/i);
-  if (supportingDataMatch) {
-    sections.supportingData = supportingDataMatch[1].trim();
-  }
+  sections.keyFinding = captureSection(/Key Finding[:\s]*/i) || sections.keyFinding;
+  sections.businessImpact = captureSection(/Business Impact[:\s]*/i) || sections.businessImpact;
+  sections.recommendation = captureSection(/(?:Quantified )?Recommendation[:\s]*/i) || sections.recommendation;
+  sections.supportingData = captureSection(/Supporting Data[:\s]*/i) || sections.supportingData;
 
   // Fallback: if no structured sections found, use first sentence as key finding
   if (!sections.keyFinding && !sections.recommendation) {
@@ -92,17 +84,17 @@ const InsightCard: React.FC<{
   if (!content) return null;
   
   return (
-    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 pb-4 mb-3 shadow-sm`}>
+    <div className={`${bgColor} border border-opacity-20 rounded-lg p-2 pb-2 mb-2 shadow-sm`}>
       <div className="flex items-center space-x-2 mb-2">
         <div className={`w-5 h-5 ${color} flex-shrink-0`}>
           <Icon className="w-full h-full" />
         </div>
-        <h4 className={`text-sm font-semibold ${color}`}>{title}</h4>
+        <h4 className={`text-[13px] font-semibold ${color}`}>{title}</h4>
       </div>
       <div className="min-h-0">
         <div
-          className="text-sm text-gray-700 leading-relaxed whitespace-pre-line pr-1"
-          style={scroll && maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
+          className="text-[12px] text-gray-700 leading-snug whitespace-pre-line pr-1"
+          style={maxHeight ? { maxHeight, overflowY: 'auto' } : undefined}
         >
           {content}
         </div>
@@ -270,7 +262,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <BarChart data={sortedBarData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={sortedBarData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={safeConfig.xKey} 
@@ -340,7 +332,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <LineChart data={sortedLineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <LineChart data={sortedLineData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
@@ -416,7 +408,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <AreaChart data={sortedAreaData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <AreaChart data={sortedAreaData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
@@ -664,7 +656,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
@@ -717,7 +709,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   />
                 )}
                 <Scatter fill={colors[0]} />
-                {(chart.config.showTrendLine !== false) && trendLineData.length === 2 && (
+                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length === 2 && (
                   <>
                     {(() => {
                       console.log(`🎨 RENDERING TREND LINE:`);
@@ -740,7 +732,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     />
                   </>
                 )}
-                {(chart.config.showTrendLine !== false) && trendLineData.length !== 2 && (
+                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length !== 2 && (
                   <>
                     {(() => {
                       console.warn(`⚠️ TREND LINE NOT RENDERED:`);
@@ -751,7 +743,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     })()}
                   </>
                 )}
-                {chart.config.showTrendLine === false && (
+                {(chart.config.showTrendLine ?? true) === false && (
                   <>
                     {(() => {
                       console.log(`ℹ️ TREND LINE DISABLED: showTrendLine is ${chart.config.showTrendLine}`);
@@ -850,7 +842,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
             const Icon = getChartIcon(chart.type);
             const parsedDescription = parseChartDescription(chart.description || '');
             return (
-              <div key={chart.id} className={`${isInGrid ? 'h-full flex flex-col' : 'bg-white rounded-xl shadow-sm border border-gray-200 w-full'} p-4`}>
+              <div key={chart.id} className={`${isInGrid ? 'h-full flex flex-col' : 'bg-white rounded-xl shadow-sm border border-gray-200 w-full'} p-4 pb-6`}>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -917,8 +909,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                       </div>
                     </div>
 
-                    {/* Insights Section - Right 1/3 */}
-                    <div className="w-1/3 flex flex-col space-y-4 max-h-96 overflow-y-auto">
+                    {/* Insights Section - Right 1/3 (fixed height, cards scroll internally) */}
+                    <div className="w-1/3 flex flex-col space-y-2" style={{ height: 220 }}>
                       <div>
                         <InsightCard
                           icon={Lightbulb}
@@ -926,6 +918,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                           content={parsedDescription.keyFinding}
                           color="text-amber-600"
                           bgColor="bg-amber-50"
+                          maxHeight={100}
                         />
                       </div>
                       
@@ -936,6 +929,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                           content={parsedDescription.recommendation}
                           color="text-green-600"
                           bgColor="bg-green-50"
+                          maxHeight={100}
                         />
                       </div>
                     </div>

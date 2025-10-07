@@ -11,7 +11,6 @@ import {
   AlertCircle,
   TrendingUp,
   BarChart3,
-  Lightbulb,
   FileSpreadsheet,
   Plus
 } from 'lucide-react';
@@ -387,13 +386,7 @@ You can ask me questions about any of these columns or request analysis of your 
     return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const suggestedQuestions = [
-    "What are the key performance indicators in this data?",
-    "Can you identify any seasonal trends or patterns?",
-    "What recommendations do you have for improving sales?",
-    "How does our product performance compare to benchmarks?",
-    "What opportunities do you see for market expansion?"
-  ];
+  // Suggested questions removed per product requirement
 
   return (
     <div className="flex flex-col h-full min-h-0 bg-white">
@@ -458,15 +451,7 @@ You can ask me questions about any of these columns or request analysis of your 
                 >
                   <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                   
-                  {/* Suggested questions are disabled; keep only compact chart badge if needed */}
-                  {false && message.charts && message.charts.length > 0 && (
-                    <div className="mt-3">
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-[11px] font-medium bg-blue-100 text-blue-700">
-                        <BarChart3 className="w-3 h-3 mr-1" />
-                        {message.charts.length} chart{message.charts.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  )}
+                  {/* Chart badge removed with suggested questions cleanup */}
                   
                   <div className={`text-xs mt-2 ${
                     message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
@@ -520,26 +505,7 @@ You can ask me questions about any of these columns or request analysis of your 
               </div>
             )}
 
-            {/* Suggested Questions */}
-            {selectedDocument && selectedDocument?.assistantId && (
-              <div className="py-3">
-                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                  <Lightbulb className="w-4 h-4 mr-2 text-yellow-500" />
-                  Suggested Questions
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {suggestedQuestions.map((question, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setInputMessage(question)}
-                      className="text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-full hover:bg-blue-100 transition-colors duration-200"
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Suggested Questions removed */}
 
             <div ref={messagesEndRef} />
           </div>

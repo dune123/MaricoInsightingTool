@@ -400,4 +400,79 @@
   .grid-delete-button {
     pointer-events: auto !important;
   }
+
+  /* Custom resize handles for dashboard grid */
+  .react-grid-item.react-grid-item > .react-resizable-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #3b82f6;
+    border: 2px solid white;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .react-grid-item.react-grid-item:hover > .react-resizable-handle {
+    opacity: 1;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle:hover {
+    opacity: 1;
+    background: #1d4ed8;
+    transform: scale(1.1);
+  }
+
+  /* Specific handle positions */
+  .react-grid-item.react-grid-item > .react-resizable-handle-se {
+    bottom: -10px;
+    right: -10px;
+    cursor: se-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-nw {
+    top: -10px;
+    left: -10px;
+    cursor: nw-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-ne {
+    top: -10px;
+    right: -10px;
+    cursor: ne-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-sw {
+    bottom: -10px;
+    left: -10px;
+    cursor: sw-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-n {
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    cursor: n-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-s {
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    cursor: s-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-e {
+    right: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: e-resize;
+  }
+
+  .react-grid-item.react-grid-item > .react-resizable-handle-w {
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: w-resize;
+  }
 }

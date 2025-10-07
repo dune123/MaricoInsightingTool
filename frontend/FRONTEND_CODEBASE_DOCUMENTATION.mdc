@@ -1,3 +1,20 @@
+### UI Cleanup: Removed Suggested Questions in Chatbot (2025-10-07)
+
+We removed the "Suggested Questions" section from chatbot components to keep the UI focused and premium.
+
+Changes:
+- `frontend/src/dashboard/components/ChartingChatbot.tsx`
+  - Deleted suggested questions array and associated render block
+  - Removed `Lightbulb` icon import
+  - Cleaned up an unnecessary constant condition
+- `frontend/src/dashboard/components/ChartingChatbotWithThinking.tsx`
+  - Deleted suggested questions array and associated render block
+  - Removed `Lightbulb` icon import
+
+Impact:
+- No preset prompts displayed below messages
+- No behavior change to chat, analysis, or charts
+
 # BrandBloom Insights Frontend Codebase Documentation
 
 ## 🆕 New Features (2025-10-07)
