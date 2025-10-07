@@ -16,7 +16,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell
+  Cell,
+  ReferenceLine
 } from 'recharts';
 import { ChartData, AnalysisResult } from '../types/chart';
 import { BarChart3, TrendingUp, PieChart as PieChartIcon, Activity, Target, ArrowUp, ArrowDown, Minus, Lightbulb, Plus } from 'lucide-react';
@@ -89,7 +90,7 @@ const InsightCard: React.FC<{
   if (!content) return null;
   
   return (
-    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 mb-3 max-h-40 overflow-auto`}> {/* ~160px */}
+    <div className={`${bgColor} border border-opacity-20 rounded-lg p-3 mb-3`}>
       <div className="flex items-start space-x-2">
         <div className={`w-5 h-5 ${color} mt-0.5 flex-shrink-0`}>
           <Icon className="w-full h-full" />
@@ -105,6 +106,10 @@ const InsightCard: React.FC<{
 
 export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLoading, onAddChartRequest, isInGrid = false }) => {
   const charts = analysis?.charts || [];
+  
+  // Filter out unsupported chart types to prevent "Unsupported chart type" messages
+  const supportedChartTypes = ['bar', 'line', 'pie', 'area', 'scatter', 'donut', 'kpi'];
+  const filteredCharts = charts.filter(chart => supportedChartTypes.includes(chart.type));
   
   const renderKpiCard = (chart: ChartData) => {
     // Extract KPI values from config or try to parse from description
@@ -222,6 +227,16 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     const safeConfig = chart.config || {} as any;
     const colors = (safeConfig.colors && Array.isArray(safeConfig.colors) ? safeConfig.colors : DEFAULT_COLORS);
     
+    // Log data point count for debugging
+    const dataPointCount = Array.isArray(chart.data) ? chart.data.length : 0;
+    console.log(`🎨 Rendering chart "${chart.title}" (${chart.type}) with ${dataPointCount} data points`);
+    
+    if (dataPointCount === 0) {
+      console.error(`❌ ERROR: Chart "${chart.title}" has NO data points to render!`);
+    } else if (dataPointCount <= 5) {
+      console.warn(`⚠️ WARNING: Chart "${chart.title}" has only ${dataPointCount} data points - this might be incomplete!`);
+    }
+    
     // For grid layout, we need to ensure proper height
     const chartHeight = isInGrid ? "calc(100% - 60px)" : 260;
     
@@ -234,19 +249,42 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     
     switch (chart.type) {
       case 'bar':
+        // Sort data by x-axis values for proper ordering
+        const sortedBarData = [...chart.data].sort((a, b) => {
+          const aVal = a[safeConfig.xKey || 'category'];
+          const bVal = b[safeConfig.xKey || 'category'];
+          // Try numeric sorting first, then alphabetical
+          if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
+            return Number(aVal) - Number(bVal);
+          }
+          return String(aVal).localeCompare(String(bVal));
+        });
+        
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={sortedBarData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={safeConfig.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: safeConfig.xAxisLabel || (safeConfig.xKey || 'Categories'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: safeConfig.yAxisLabel || 'Values', 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 {safeConfig.showTooltip && (
                   <Tooltip 
@@ -281,19 +319,42 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         );
 
       case 'line':
+        // Sort data by x-axis values for proper ordering
+        const sortedLineData = [...chart.data].sort((a, b) => {
+          const aVal = a[chart.config.xKey || 'x'];
+          const bVal = b[chart.config.xKey || 'x'];
+          // Try numeric sorting first, then alphabetical
+          if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
+            return Number(aVal) - Number(bVal);
+          }
+          return String(aVal).localeCompare(String(bVal));
+        });
+        
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <LineChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <LineChart data={sortedLineData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -334,19 +395,42 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         );
 
       case 'area':
+        // Sort data by x-axis values for proper ordering
+        const sortedAreaData = [...chart.data].sort((a, b) => {
+          const aVal = a[chart.config.xKey || 'x'];
+          const bVal = b[chart.config.xKey || 'x'];
+          // Try numeric sorting first, then alphabetical
+          if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
+            return Number(aVal) - Number(bVal);
+          }
+          return String(aVal).localeCompare(String(bVal));
+        });
+        
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <AreaChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <AreaChart data={sortedAreaData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -481,20 +565,39 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
       }
 
       case 'scatter':
+        // Sort data by x-axis values for proper ordering
+        const sortedScatterData = [...chart.data].sort((a, b) => {
+          const aVal = Number(a[safeConfig.xKey || 'x']);
+          const bVal = Number(b[safeConfig.xKey || 'x']);
+          return aVal - bVal;
+        });
+        
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <ScatterChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    position: 'insideBottom', 
+                    offset: -5,
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 <YAxis 
                   dataKey={chart.config.yKey as string}
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  label={{ 
+                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    angle: -90, 
+                    position: 'insideLeft',
+                    style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
+                  }}
                 />
                 {chart.config.showTooltip && (
                   <Tooltip 
@@ -504,9 +607,68 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                       borderRadius: '8px',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        const xValue = data[safeConfig.xKey || 'x'];
+                        const yValue = data[safeConfig.yKey as string];
+                        return (
+                          <div className="p-2">
+                            <p className="text-sm font-medium text-gray-900">
+                              {safeConfig.xAxisLabel || (safeConfig.xKey || 'X')}: {xValue}
+                            </p>
+                            <p className="text-sm font-medium text-gray-900">
+                              {safeConfig.yAxisLabel || (safeConfig.yKey || 'Y')}: {yValue}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                 )}
                 <Scatter fill={colors[0]} />
+                {(chart.config.showTrendLine !== false) && (() => {
+                  // Calculate linear regression for proper trend line
+                  const xValues = sortedScatterData.map(d => Number(d[safeConfig.xKey || 'x']));
+                  const yValues = sortedScatterData.map(d => Number(d[safeConfig.yKey as string]));
+                  
+                  if (xValues.length < 2) return null;
+                  
+                  // Calculate means
+                  const xMean = xValues.reduce((a, b) => a + b, 0) / xValues.length;
+                  const yMean = yValues.reduce((a, b) => a + b, 0) / yValues.length;
+                  
+                  // Calculate slope and intercept using least squares method
+                  let numerator = 0;
+                  let denominator = 0;
+                  
+                  for (let i = 0; i < xValues.length; i++) {
+                    numerator += (xValues[i] - xMean) * (yValues[i] - yMean);
+                    denominator += (xValues[i] - xMean) * (xValues[i] - xMean);
+                  }
+                  
+                  const slope = denominator === 0 ? 0 : numerator / denominator;
+                  const intercept = yMean - slope * xMean;
+                  
+                  // Calculate trend line points
+                  const minX = Math.min(...xValues);
+                  const maxX = Math.max(...xValues);
+                  const trendY1 = slope * minX + intercept;
+                  const trendY2 = slope * maxX + intercept;
+                  
+                  return (
+                    <ReferenceLine 
+                      segment={[
+                        { x: minX, y: trendY1 },
+                        { x: maxX, y: trendY2 }
+                      ]}
+                      stroke="#ef4444"
+                      strokeWidth={3}
+                      strokeDasharray="8 4"
+                    />
+                  );
+                })()}
               </ScatterChart>
             </ResponsiveContainer>
           </ChartWrapper>
@@ -514,8 +676,11 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
 
       default:
         return (
-          <div className="flex items-center justify-center h-64 text-gray-500">
-            <p>Unsupported chart type: {chart.type}</p>
+          <div className="flex items-center justify-center h-64 text-gray-500 bg-red-50 border border-red-200 rounded-lg">
+            <div className="text-center">
+              <p className="text-red-600 font-medium">Unsupported chart type: {chart.type}</p>
+              <p className="text-sm text-red-500 mt-1">This chart type is not supported. Please try a different analysis.</p>
+            </div>
           </div>
         );
     }
@@ -571,8 +736,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
   }
 
   // Separate KPIs and regular charts
-  const kpiCards = charts.filter(chart => chart.type === 'kpi');
-  const regularCharts = charts.filter(chart => chart.type !== 'kpi');
+  const kpiCards = filteredCharts.filter(chart => chart.type === 'kpi');
+  const regularCharts = filteredCharts.filter(chart => chart.type !== 'kpi');
 
   return (
     <div className="space-y-4">
@@ -633,29 +798,38 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                 
                 {/* Main Content - Side by Side Layout */}
                 {!isInGrid && (
-                  <div className="flex gap-6 h-96">
+                  <div className="flex gap-6 items-start">
                     {/* Chart Section - Left 2/3 */}
-                    <div className="flex-1 flex flex-col">
+                    <div className="flex-1">
                       {chart.type === 'kpi' ? (
                         <div className="mb-4">
                           {renderKpiCard(chart)}
                         </div>
                       ) : (
-                        <div className="bg-gray-50 rounded-lg p-3 flex-1">
+                        <div className="bg-gray-50 rounded-lg p-3">
                           {renderChart(chart)}
                         </div>
                       )}
                       
                       {/* Chart Footer */}
                       <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
-                        <span>{chart.data?.length || 0} data points</span>
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-medium ${(chart.data?.length || 0) <= 5 ? 'text-orange-600' : 'text-green-600'}`}>
+                            ✓ {chart.data?.length || 0} data points
+                          </span>
+                          {(chart.data?.length || 0) > 20 && (
+                            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                              Complete Dataset
+                            </span>
+                          )}
+                        </div>
                         <span>Interactive • Responsive</span>
                       </div>
                     </div>
 
                     {/* Insights Section - Right 1/3 */}
-                    <div className="w-1/3 flex flex-col space-y-4">
-                      <div className="flex-1">
+                    <div className="w-1/3 flex flex-col space-y-4 max-h-96 overflow-y-auto">
+                      <div>
                         <InsightCard
                           icon={Lightbulb}
                           title="Key Finding"
@@ -665,7 +839,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                         />
                       </div>
                       
-                      <div className="flex-1">
+                      <div>
                         <InsightCard
                           icon={Target}
                           title="Recommendation"

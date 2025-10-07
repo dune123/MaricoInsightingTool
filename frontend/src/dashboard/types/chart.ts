@@ -13,6 +13,9 @@ export interface ChartData {
     showLegend?: boolean;
     showGrid?: boolean;
     showTooltip?: boolean;
+    xAxisLabel?: string;
+    yAxisLabel?: string;
+    showTrendLine?: boolean;
     // KPI-specific config
     value?: string | number;
     trend?: number;
@@ -21,6 +24,11 @@ export interface ChartData {
     unit?: string;
     target?: number;
   };
+  // File-related properties for image charts
+  file_id?: string;
+  url?: string;
+  loaded?: boolean;
+  error?: string;
   // Layout properties for grid positioning
   layout?: {
     x: number;

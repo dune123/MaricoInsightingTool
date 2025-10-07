@@ -141,9 +141,6 @@ Feel free to ask me anything about your data!`,
             role: 'assistant',
             content: `Hello! I can see you've selected "${selectedDocument.name}"${columnInfo.columns.length > 0 ? ` with ${columnInfo.columns.length} columns` : ''}. I'm ready to help you analyze your data and discover insights.
 
-**Column Names:**
-${columnInfo.columns.length > 0 ? columnInfo.columns.map((col, index) => `${index + 1}. ${col}`).join('\n') : 'No columns detected'}
-
 You can ask me questions about any of these columns or request analysis of your data.`,
             timestamp: new Date()
           }];
@@ -166,9 +163,6 @@ You can ask me questions about any of these columns or request analysis of your 
           return [{
             ...prev[0],
             content: `Hello! I can see you've selected "${selectedDocument.name}" with ${columnInfo.columns.length} columns. I'm ready to help you analyze your data and discover insights.
-
-**Column Names:**
-${columnInfo.columns.map((col, index) => `${index + 1}. ${col}`).join('\n')}
 
 You can ask me questions about any of these columns or request analysis of your data.`,
           }];
