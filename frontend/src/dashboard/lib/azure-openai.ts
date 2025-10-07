@@ -609,72 +609,72 @@ CRITICAL CHART-FIRST APPROACH:
 2. **MINIMAL CHAT TEXT**: Keep your chat response brief - just acknowledge the request and mention how many charts you've generated
 3. **ALL INSIGHTS GO IN CHARTS**: Every insight, recommendation, and analysis must be embedded within the chart descriptions
 
-CRITICAL DATA AGGREGATION REQUIREMENT - THIS IS NON-NEGOTIABLE:
-- **AGGREGATE PROPERLY**: When multiple values exist for the same category/date/metric, you MUST aggregate them (sum, average, count, etc.)
-- **RELEVANT BUSINESS CHARTS**: Create charts that show meaningful business insights, not raw individual data points
-- **EXAMPLE**: If lead time 30 has revenues of 7000 and 3000, aggregate to show total revenue of 10000 for lead time 30
-- **NO RAW DATA DUMPING**: Don't just plot every individual row - create meaningful aggregated visualizations
-- **BUSINESS LOGIC**: Group by relevant dimensions (time periods, categories, segments) and aggregate metrics appropriately
+🚨 **CRITICAL CHART TYPE-SPECIFIC DATA HANDLING** 🚨
 
-🚨 **SCATTER PLOT EXCEPTION - NO AGGREGATION**:
-- **SCATTER PLOTS**: For scatter plots, DO NOT aggregate data - plot ALL individual data points
-- **TREND LINE REQUIRED**: Always include a trend line on scatter plots to show the relationship
-- **ALL DATA POINTS**: Show every single data point in scatter plots for correlation analysis
-- **CRITICAL**: For scatter plots, NEVER use groupby() or aggregation - show every single row
-- **FORBIDDEN FOR SCATTER PLOTS**: 
-  * ❌ df.groupby('leadTime')['revenue'].sum() - NEVER DO THIS
-  * ❌ df.groupby('leadTime')['revenue'].mean() - NEVER DO THIS
-  * ❌ df.groupby('leadTime')['revenue'].count() - NEVER DO THIS
-  * ❌ Any aggregation or grouping for scatter plots
-- **REQUIRED FOR SCATTER PLOTS**:
-  * ✅ Use df directly - df[['leadTime', 'revenue']]
-  * ✅ Show every single row as individual data points
-  * ✅ Include trend line with showTrendLine: true
-- **VALIDATION CHECK**:
-  * ✅ If you see 30 data points instead of 100+, you've aggregated - STOP and fix
-  * ✅ If you used groupby() for scatter plots, you've failed - STOP and fix
-  * ✅ If you see duplicate lead times, you've aggregated - STOP and fix
-- **EXAMPLES**:
-  * Bar charts: Aggregate by categories (sum/average)
-  * Line charts: Aggregate by time periods (sum/average)
-  * Pie charts: Aggregate by categories (sum)
-  * **Scatter plots: NO aggregation - show all individual points with trend line**
+**FOR SCATTER PLOTS (CORRELATION ANALYSIS) - ABSOLUTE PRIORITY**:
+- **🚫 NEVER AGGREGATE SCATTER PLOT DATA**: Scatter plots MUST show EVERY individual data point
+- **📊 ALL DATA POINTS REQUIRED**: If dataset has 100 rows, scatter plot MUST have exactly 100 data points
+- **🔗 CORRELATION ANALYSIS**: Individual points are needed to show relationships and correlations
+- **📈 TREND LINE MANDATORY**: Always include trend line - set "showTrendLine": true in config
+- **✅ VALIDATION REQUIRED**: After generating scatter plot, verify data point count matches total dataset rows
+- **🚫 NO GROUPBY() OR AGGREGATION**: Use df directly with ALL individual data points
+- **📋 EXAMPLE**: For lead time vs revenue correlation, show ALL 100 individual (leadTime, revenue) pairs
 
-🚨 **SCATTER PLOT EXAMPLE - EXACTLY WHAT TO DO**:
-✅ CORRECT - For scatter plots, use df directly: scatter_data = df[['leadTime', 'revenue']].to_dict('records')
-✅ This gives you ALL individual data points
-
-❌ WRONG - Never do this for scatter plots: aggregated_data = df.groupby('leadTime')['revenue'].sum().reset_index()
+**FOR OTHER CHART TYPES (BAR, LINE, PIE, AREA) - AGGREGATION REQUIRED**:
+- **📊 AGGREGATE PROPERLY**: When multiple values exist for the same category/date/metric, aggregate them (sum, average, count)
+- **📈 RELEVANT BUSINESS CHARTS**: Create charts that show meaningful business insights, not raw individual data points
+- **🔄 GROUP BY DIMENSIONS**: Group by relevant business dimensions (time periods, categories, segments)
+- **📋 EXAMPLES**:
+  * Bar charts: Group by categories, sum/average values
+  * Line charts: Group by time periods, sum/average metrics  
+  * Pie charts: Group by categories, sum values
+  * **Scatter plots: NO aggregation - show ALL individual points with trend line**
 
 CRITICAL JSON FORMAT REQUIREMENT:
 - **MANDATORY**: The "data" field MUST contain actual JSON arrays with real data values
 - **FORBIDDEN**: Never use variable names like "product_distribution_data" or "my_data_variable"
 - **REQUIRED FORMAT**: "data": [{"category": "Electronics", "value": 2400}, {"category": "Clothing", "value": 1800}]
 - **NEVER USE**: "data": variable_name_here
+- **🚫 NO COMMENTS**: Never include // comments or /* */ comments in JSON - they are invalid JSON syntax
+- **✅ VALID JSON ONLY**: Ensure all JSON is valid and parseable by JSON.parse()
 
 MANDATORY CHART GENERATION PROCESS:
 1. **Analyze the data structure** using code interpreter - load the COMPLETE dataset
 2. **Identify 3-4 key business questions** the data can answer
-3. **AGGREGATE DATA PROPERLY**: Use pandas groupby() and aggregation functions:
-   - **For scatter plots: NO AGGREGATION - use df directly with ALL individual data points**
-   - For bar charts: Group by categories, sum/average values
-   - For line charts: Group by time periods, sum/average metrics
-   - For pie charts: Group by categories, sum values
-4. **Create meaningful visualizations**: Charts should show business insights, not raw data dumps
-5. **Generate aggregated data arrays**: Each chart should contain properly aggregated data that tells a business story
-6. **VALIDATE AXIS LABELS**: Before finalizing each chart, ensure:
+3. **APPLY CHART TYPE-SPECIFIC DATA HANDLING**:
+   - **🚫 FOR SCATTER PLOTS: NO AGGREGATION** - Use df directly with ALL individual data points for correlation analysis
+   - **📊 FOR BAR CHARTS: Aggregate** - Group by categories, sum/average values
+   - **📈 FOR LINE CHARTS: Aggregate** - Group by time periods, sum/average metrics
+   - **🥧 FOR PIE CHARTS: Aggregate** - Group by categories, sum values
+4. **Create meaningful visualizations**: Charts should show business insights appropriate to their type
+5. **Generate appropriate data arrays**: 
+   - Scatter plots: ALL individual data points for correlation analysis
+   - Other charts: Aggregated data that tells a business story
+6. **VALIDATE DATA COMPLETENESS**: Before finalizing each chart, ensure:
+   - **For scatter plots**: Print len(df) and verify scatter plot data contains ALL rows from the dataset
+   - **For scatter plots**: If dataset has 100 rows, scatter plot MUST have exactly 100 data points
+   - **For scatter plots**: NEVER truncate or limit scatter plot data to just a few points
+   - **For other charts**: Verify aggregated data makes business sense
+7. **VALIDATE AXIS LABELS**: Before finalizing each chart, ensure:
    - xAxisLabel contains descriptive field name (e.g., "Lead Times (Days)")
    - yAxisLabel contains descriptive field name (e.g., "Revenue Generated ($)")
    - NO generic labels like "X-Axis" or "Y-Axis"
    - Labels match the actual data being analyzed
 
-CODE INTERPRETER AGGREGATION AND STATISTICAL ANALYSIS:
-Use pandas groupby() and aggregation functions:
+CODE INTERPRETER DATA HANDLING BY CHART TYPE:
+
+**🚫 FOR SCATTER PLOTS - NO AGGREGATION**:
+- **CRITICAL**: NEVER use groupby() or aggregation for scatter plots
+- **ALL DATA POINTS**: Use df directly with ALL individual data points
+- **TREND LINE**: Add trend line using matplotlib/seaborn regression line
+- **DATA COMPLETENESS**: Use df.to_dict('records') to ensure ALL rows are included
+- **VALIDATION**: Print len(df) before creating scatter plot to confirm total row count matches data points
+- **EXAMPLE**: scatter_data = df[['leadTime', 'revenue']].to_dict('records')  # ALL rows
+
+**📊 FOR OTHER CHART TYPES - AGGREGATION REQUIRED**:
 - For category revenue bar chart: df_aggregated = df.groupby('category')['revenue'].sum().reset_index()  
 - For monthly trends line chart: df_aggregated = df.groupby('month')['revenue'].sum().reset_index()
-- **For scatter plots: NO aggregation - use df directly with ALL individual data points**
-- **For scatter plots: Add trend line using matplotlib/seaborn regression line**
-- **CRITICAL**: For scatter plots, NEVER use groupby() or aggregation - show every single row
+- For pie chart distribution: df_aggregated = df.groupby('category')['value'].sum().reset_index()
 
 🚨 **MANDATORY STATISTICAL ANALYSIS**:
 - **CORRELATION ANALYSIS**: Calculate correlation coefficients for scatter plots
@@ -780,16 +780,25 @@ Your primary task is to create 3-4 insightful charts that tell the complete busi
 3. Generate 3-4 diverse, meaningful charts using CHART_DATA_START/END blocks
 4. Embed ALL insights, recommendations, and analysis within each chart's description field
 
-CRITICAL DATA AGGREGATION REQUIREMENT - THIS IS ABSOLUTELY MANDATORY:
-🚨 **AGGREGATE DATA PROPERLY** - When multiple values exist for the same dimension, aggregate them appropriately (sum, average, count).
-🚨 **RELEVANT BUSINESS CHARTS** - Create charts that show meaningful business insights, not raw individual data points.
-🚨 **GROUP BY DIMENSIONS** - Group by relevant business dimensions (time periods, categories, segments) and aggregate metrics.
-🚨 **NO RAW DATA DUMPING** - Don't just plot every individual row - create meaningful aggregated visualizations.
+🚨 **CRITICAL CHART TYPE-SPECIFIC DATA HANDLING** 🚨
 
-Example: If lead time 30 has revenues of 7000 and 3000, aggregate to show total revenue of 10000 for lead time 30.
+**🚫 FOR SCATTER PLOTS - NO AGGREGATION (ABSOLUTE PRIORITY)**:
+- **NEVER AGGREGATE**: Scatter plots MUST show EVERY individual data point for correlation analysis
+- **ALL DATA POINTS**: If dataset has 100 rows, scatter plot MUST have exactly 100 data points
+- **CORRELATION ANALYSIS**: Individual points are needed to show relationships and correlations
+- **NO GROUPBY() OR AGGREGATION**: Use df directly with ALL individual data points
+- **EXAMPLE**: For lead time vs revenue correlation, show ALL 100 individual (leadTime, revenue) pairs
+
+**📊 FOR OTHER CHART TYPES - AGGREGATION REQUIRED**:
+- **AGGREGATE DATA PROPERLY**: When multiple values exist for the same dimension, aggregate them appropriately (sum, average, count)
+- **RELEVANT BUSINESS CHARTS**: Create charts that show meaningful business insights, not raw individual data points
+- **GROUP BY DIMENSIONS**: Group by relevant business dimensions (time periods, categories, segments) and aggregate metrics
+- **EXAMPLE**: If lead time 30 has revenues of 7000 and 3000, aggregate to show total revenue of 10000 for lead time 30
 
 CRITICAL JSON DATA REQUIREMENT:
 You MUST extract actual data from your analysis and embed it directly in the JSON. DO NOT use variable names or references.
+🚫 **NO COMMENTS**: Never include // comments or /* */ comments in JSON - they are invalid JSON syntax
+✅ **VALID JSON ONLY**: Ensure all JSON is valid and parseable by JSON.parse()
 
 ✅ CORRECT FORMAT (with AGGREGATED data):
 "data": [
@@ -870,6 +879,7 @@ CRITICAL: NEVER use variable names in the data field. ALWAYS use actual JSON arr
 ❌ WRONG: "data": revenue_by_category_data
 
 SCATTER CHART FORMAT EXAMPLE (ALL INDIVIDUAL DATA POINTS + TREND LINE):
+🚨 **CRITICAL**: This example shows 12 data points. If your dataset has 50+ rows, include ALL 50+ data points in your scatter plot!
 CHART_DATA_START
 {
   "id": "lead_time_revenue_correlation",
@@ -1073,7 +1083,7 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
         const chartDataStr = match[1].trim();
         
         // Remove markdown code block delimiters and handle various formats
-        const cleanedJsonStr = chartDataStr
+        let cleanedJsonStr = chartDataStr
           .replace(/^```json\s*/i, '')  // Remove opening ```json
           .replace(/^```\s*/i, '')      // Remove opening ```
           .replace(/\s*```$/, '')       // Remove closing ```
@@ -1086,14 +1096,59 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
         try {
           chartData = JSON.parse(cleanedJsonStr);
         } catch (parseError) {
-          // Try to fix common JSON issues
-          let fixedJson = cleanedJsonStr
-            .replace(/'/g, '"')  // Replace single quotes with double quotes
-            .replace(/,\s*}/g, '}')  // Remove trailing commas
-            .replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
+          console.log('Initial JSON parse failed, attempting to fix common issues...');
           
-          console.log('Attempting to fix JSON...');
-          chartData = JSON.parse(fixedJson);
+          // Enhanced JSON cleaning to fix common issues
+          let fixedJson = cleanedJsonStr
+            // Remove JavaScript-style comments (// and /* */)
+            .replace(/\/\/.*$/gm, '')  // Remove single-line comments
+            .replace(/\/\*[\s\S]*?\*\//g, '')  // Remove multi-line comments
+            // Remove any remaining comment-like patterns
+            .replace(/\/\/[^"\n]*$/gm, '')  // Remove trailing comments
+            .replace(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, '')  // Remove block comments
+            // Fix common JSON syntax issues
+            .replace(/'/g, '"')  // Replace single quotes with double quotes
+            .replace(/,\s*}/g, '}')  // Remove trailing commas before }
+            .replace(/,\s*]/g, ']')  // Remove trailing commas before ]
+            .replace(/,\s*,/g, ',')  // Remove double commas
+            // Remove any remaining invalid characters that might cause issues
+            .replace(/[^\x20-\x7E\s]/g, '')  // Remove non-printable characters except whitespace
+            .replace(/\s+/g, ' ')  // Normalize whitespace
+            .trim();
+          
+          console.log('Attempting to parse cleaned JSON...');
+          console.log('Cleaned JSON preview:', fixedJson.substring(0, 200) + '...');
+          
+          try {
+            chartData = JSON.parse(fixedJson);
+          } catch (secondError) {
+            console.error('❌ Failed to parse chart data after cleaning:', secondError);
+            console.error('Raw data:', chartDataStr.substring(0, 500) + '...');
+            console.error('Cleaned data:', fixedJson.substring(0, 500) + '...');
+            
+            // Try one more aggressive cleaning approach
+            try {
+              console.log('Attempting aggressive JSON cleaning...');
+              let aggressiveFixed = fixedJson
+                // Remove any remaining problematic characters
+                .replace(/[^\x20-\x7E]/g, '')  // Remove all non-ASCII characters
+                .replace(/\s*\/\/.*$/gm, '')  // Remove any remaining comments
+                .replace(/\s*\/\*.*?\*\//gs, '')  // Remove any remaining block comments
+                .replace(/,(\s*[}\]])/g, '$1')  // Remove trailing commas more aggressively
+                .replace(/([{\[])\s*,/g, '$1')  // Remove leading commas
+                .replace(/,\s*,+/g, ',')  // Remove multiple consecutive commas
+                .trim();
+              
+              console.log('Aggressively cleaned JSON preview:', aggressiveFixed.substring(0, 200) + '...');
+              chartData = JSON.parse(aggressiveFixed);
+              console.log('✅ Successfully parsed after aggressive cleaning');
+            } catch (finalError) {
+              console.error('❌ Final attempt failed:', finalError);
+              console.error('This chart data block will be skipped');
+              // Continue processing other charts even if one fails
+              continue;
+            }
+          }
         }
         
         // Validate required fields
@@ -1104,11 +1159,22 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
           const dataPointCount = Array.isArray(chartData.data || chartData.chart_data) ? (chartData.data || chartData.chart_data).length : 0;
           console.log(`📊 Chart "${chartData.title || chartData.chart_title}" contains ${dataPointCount} data points`);
           
-          // Warning if suspiciously low data point count
-          if (dataPointCount > 0 && dataPointCount <= 10) {
-            console.warn(`⚠️ WARNING: Chart "${chartData.title || chartData.chart_title}" has only ${dataPointCount} data points. Verify this is not truncated data.`);
-          } else if (dataPointCount > 10) {
-            console.log(`✅ Good data completeness: ${dataPointCount} data points included`);
+          // Enhanced validation for scatter plots
+          if (chartData.type === 'scatter' || chartData.chart_type === 'scatter') {
+            if (dataPointCount > 0 && dataPointCount <= 10) {
+              console.error(`🚨 CRITICAL ERROR: Scatter plot "${chartData.title || chartData.chart_title}" has only ${dataPointCount} data points. Scatter plots MUST show ALL individual data points - this appears to be truncated data!`);
+            } else if (dataPointCount > 10 && dataPointCount <= 20) {
+              console.warn(`⚠️ WARNING: Scatter plot "${chartData.title || chartData.chart_title}" has ${dataPointCount} data points. If your dataset has more rows, ensure ALL data points are included.`);
+            } else if (dataPointCount > 20) {
+              console.log(`✅ Good scatter plot data completeness: ${dataPointCount} data points included`);
+            }
+          } else {
+            // Standard validation for other chart types
+            if (dataPointCount > 0 && dataPointCount <= 10) {
+              console.warn(`⚠️ WARNING: Chart "${chartData.title || chartData.chart_title}" has only ${dataPointCount} data points. Verify this is not truncated data.`);
+            } else if (dataPointCount > 10) {
+              console.log(`✅ Good data completeness: ${dataPointCount} data points included`);
+            }
           }
           
           // Normalize field names (handle both formats)
@@ -1136,6 +1202,10 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
             showLegend: normalizedChart.config.showLegend !== false,
             showGrid: normalizedChart.config.showGrid !== false,
             showTooltip: normalizedChart.config.showTooltip !== false,
+            // Scatter plot trend line - enable by default for scatter plots
+            showTrendLine: normalizedChart.type === 'scatter' 
+              ? (normalizedChart.config.showTrendLine !== false) // Default to true for scatter plots unless explicitly false
+              : normalizedChart.config.showTrendLine,
             // KPI-specific config
             value: normalizedChart.config.value,
             trend: normalizedChart.config.trend,
@@ -1155,9 +1225,12 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
           });
         } else {
           console.log('Chart data missing required fields:', chartData);
+          console.log('Available fields:', Object.keys(chartData || {}));
         }
       } catch (error) {
-        console.error('Failed to parse chart data:', error, 'Raw data:', match[1].substring(0, 200) + '...');
+        console.error('❌ Failed to parse chart data:', error);
+        console.error('Raw data preview:', match[1].substring(0, 200) + '...');
+        console.error('Error details:', error.message);
         // Continue processing other charts even if one fails
       }
     }
@@ -1167,10 +1240,16 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
     console.log(`📊 CHART EXTRACTION SUMMARY: ${charts.length} charts extracted`);
     charts.forEach((chart, index) => {
       const dataCount = Array.isArray(chart.data) ? chart.data.length : 0;
-      console.log(`  ${index + 1}. "${chart.title}" (${chart.type}): ${dataCount} data points`);
+      const scatterWarning = chart.type === 'scatter' && dataCount <= 10 ? ' 🚨 LOW DATA COUNT' : '';
+      console.log(`  ${index + 1}. "${chart.title}" (${chart.type}): ${dataCount} data points${scatterWarning}`);
     });
     const totalDataPoints = charts.reduce((sum, chart) => sum + (Array.isArray(chart.data) ? chart.data.length : 0), 0);
+    const scatterCharts = charts.filter(chart => chart.type === 'scatter');
+    const lowDataScatterCharts = scatterCharts.filter(chart => Array.isArray(chart.data) && chart.data.length <= 10);
     console.log(`  Total data points across all charts: ${totalDataPoints}`);
+    if (lowDataScatterCharts.length > 0) {
+      console.log(`🚨 CRITICAL: ${lowDataScatterCharts.length} scatter plot(s) have ≤10 data points - this may indicate data truncation!`);
+    }
     console.log('═══════════════════════════════════════════════════');
     
     return charts;
@@ -1349,36 +1428,27 @@ Please respond primarily with CHART_DATA_START/END blocks containing insightful 
   * "P-value of 0.02 indicates statistical significance"
 - **NO HARDCODING**: All numbers must come from your actual data analysis
 
-🚨 CRITICAL DATA AGGREGATION REQUIREMENT 🚨
-- AGGREGATE DATA PROPERLY - Group by relevant dimensions and sum/average metrics
-- CREATE RELEVANT BUSINESS CHARTS - Show meaningful insights, not raw data dumps
-- GROUP BY DIMENSIONS - Time periods, categories, segments, etc.
-- NO RAW DATA DUMPING - Don't just plot every individual row
-- EXAMPLE: If lead time 30 has revenues 7000+3000, show total 10000 for lead time 30
+🚨 **CRITICAL CHART TYPE-SPECIFIC DATA HANDLING** 🚨
 
-🚨 **SCATTER PLOT EXCEPTION - NO AGGREGATION**:
-- **SCATTER PLOTS**: For scatter plots, DO NOT aggregate data - plot ALL individual data points
-- **TREND LINE REQUIRED**: Always include a trend line on scatter plots to show the relationship
-- **ALL DATA POINTS**: Show every single data point in scatter plots for correlation analysis
+**🚫 FOR SCATTER PLOTS - NO AGGREGATION (ABSOLUTE PRIORITY)**:
+- **NEVER AGGREGATE**: Scatter plots MUST show EVERY individual data point for correlation analysis
+- **ALL DATA POINTS**: If dataset has 100 rows, scatter plot MUST have exactly 100 data points
+- **TREND LINE REQUIRED**: Always include a trend line on scatter plots - set "showTrendLine": true in config
+- **CORRELATION ANALYSIS**: Individual points are needed to show relationships and correlations
 - **CRITICAL**: For scatter plots, NEVER use groupby() or aggregation - show every single row
-- **FORBIDDEN FOR SCATTER PLOTS**: 
-  * ❌ df.groupby('leadTime')['revenue'].sum() - NEVER DO THIS
-  * ❌ df.groupby('leadTime')['revenue'].mean() - NEVER DO THIS
-  * ❌ df.groupby('leadTime')['revenue'].count() - NEVER DO THIS
-  * ❌ Any aggregation or grouping for scatter plots
-- **REQUIRED FOR SCATTER PLOTS**:
-  * ✅ Use df directly - df[['leadTime', 'revenue']]
-  * ✅ Show every single row as individual data points
-  * ✅ Include trend line with showTrendLine: true
-- **VALIDATION CHECK**:
-  * ✅ If you see 30 data points instead of 100+, you've aggregated - STOP and fix
-  * ✅ If you used groupby() for scatter plots, you've failed - STOP and fix
-  * ✅ If you see duplicate lead times, you've aggregated - STOP and fix
+- **DATA COMPLETENESS MANDATORY**: If your dataset has 100 rows, scatter plot MUST show all 100 data points
+- **NO DATA TRUNCATION**: Never limit scatter plot data to just a few points - include EVERY row from the dataset
+- **VALIDATION REQUIRED**: After generating scatter plot, verify data point count matches total dataset rows
+
+**📊 FOR OTHER CHART TYPES - AGGREGATION REQUIRED**:
+- **AGGREGATE DATA PROPERLY**: Group by relevant dimensions and sum/average metrics
+- **CREATE RELEVANT BUSINESS CHARTS**: Show meaningful insights, not raw data dumps
+- **GROUP BY DIMENSIONS**: Time periods, categories, segments, etc.
 - **EXAMPLES**:
   * Bar charts: Aggregate by categories (sum/average)
   * Line charts: Aggregate by time periods (sum/average)
   * Pie charts: Aggregate by categories (sum)
-  * **Scatter plots: NO aggregation - show all individual points with trend line**
+  * **Scatter plots: NO aggregation - show ALL individual points with trend line**
 
 🚨 CRITICAL AXIS LABEL REQUIREMENT 🚨
 - **MANDATORY**: ALWAYS use descriptive axis labels from your data analysis

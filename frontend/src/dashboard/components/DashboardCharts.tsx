@@ -572,6 +572,88 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           return aVal - bVal;
         });
         
+        // Calculate proper trend line using linear regression
+        const calculateTrendLine = (data: any[]) => {
+          const n = data.length;
+          console.log(`📈 TREND LINE CALCULATION START`);
+          console.log(`📊 Dataset size: ${n} data points`);
+          console.log(`🔑 X-axis key: ${safeConfig.xKey || 'x'}`);
+          console.log(`🔑 Y-axis key: ${safeConfig.yKey as string}`);
+          
+          if (n < 2) {
+            console.warn(`⚠️ WARNING: Not enough data points for trend line (${n} points). Need at least 2.`);
+            return [];
+          }
+          
+          const xValues = data.map(d => Number(d[safeConfig.xKey || 'x']));
+          const yValues = data.map(d => Number(d[safeConfig.yKey as string]));
+          
+          // Log first few data points for verification
+          console.log(`📋 Sample data points (first 5):`);
+          for (let i = 0; i < Math.min(5, n); i++) {
+            console.log(`  Point ${i + 1}: x=${xValues[i]}, y=${yValues[i]}`);
+          }
+          
+          // Calculate means
+          const xMean = xValues.reduce((sum, x) => sum + x, 0) / n;
+          const yMean = yValues.reduce((sum, y) => sum + y, 0) / n;
+          console.log(`📊 Statistical Summary:`);
+          console.log(`  X-axis mean: ${xMean.toFixed(2)}`);
+          console.log(`  Y-axis mean: ${yMean.toFixed(2)}`);
+          console.log(`  X-axis range: ${Math.min(...xValues)} to ${Math.max(...xValues)}`);
+          console.log(`  Y-axis range: ${Math.min(...yValues)} to ${Math.max(...yValues)}`);
+          
+          // Calculate slope and intercept
+          let numerator = 0;
+          let denominator = 0;
+          
+          for (let i = 0; i < n; i++) {
+            const xDiff = xValues[i] - xMean;
+            const yDiff = yValues[i] - yMean;
+            numerator += xDiff * yDiff;
+            denominator += xDiff * xDiff;
+          }
+          
+          const slope = denominator === 0 ? 0 : numerator / denominator;
+          const intercept = yMean - slope * xMean;
+          
+          console.log(`📐 Linear Regression Results:`);
+          console.log(`  Slope (m): ${slope.toFixed(4)}`);
+          console.log(`  Intercept (b): ${intercept.toFixed(4)}`);
+          console.log(`  Equation: y = ${slope.toFixed(4)}x + ${intercept.toFixed(4)}`);
+          
+          // Calculate correlation coefficient for additional insight
+          const correlation = numerator / Math.sqrt(denominator * (yValues.reduce((sum, y) => sum + (y - yMean) * (y - yMean), 0)));
+          console.log(`📈 Correlation coefficient: ${correlation.toFixed(4)}`);
+          
+          // Generate trend line points that extend across the full data range
+          const minX = Math.min(...xValues);
+          const maxX = Math.max(...xValues);
+          
+          // Add some padding to ensure the trend line extends fully across the plot
+          const xPadding = (maxX - minX) * 0.02; // 2% padding on each side
+          const extendedMinX = minX - xPadding;
+          const extendedMaxX = maxX + xPadding;
+          
+          const yMin = slope * extendedMinX + intercept;
+          const yMax = slope * extendedMaxX + intercept;
+          
+          const trendLineData = [
+            { x: extendedMinX, y: yMin },
+            { x: extendedMaxX, y: yMax }
+          ];
+          
+          console.log(`📏 Trend Line Endpoints:`);
+          console.log(`  Start: (${extendedMinX.toFixed(2)}, ${yMin.toFixed(2)})`);
+          console.log(`  End: (${extendedMaxX.toFixed(2)}, ${yMax.toFixed(2)})`);
+          console.log(`  Extended range: ${extendedMinX.toFixed(2)} to ${extendedMaxX.toFixed(2)} (with 2% padding)`);
+          console.log(`✅ TREND LINE CALCULATION COMPLETE`);
+          
+          return trendLineData;
+        };
+        
+        const trendLineData = calculateTrendLine(sortedScatterData);
+        
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
@@ -628,47 +710,48 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   />
                 )}
                 <Scatter fill={colors[0]} />
-                {(chart.config.showTrendLine !== false) && (() => {
-                  // Calculate linear regression for proper trend line
-                  const xValues = sortedScatterData.map(d => Number(d[safeConfig.xKey || 'x']));
-                  const yValues = sortedScatterData.map(d => Number(d[safeConfig.yKey as string]));
-                  
-                  if (xValues.length < 2) return null;
-                  
-                  // Calculate means
-                  const xMean = xValues.reduce((a, b) => a + b, 0) / xValues.length;
-                  const yMean = yValues.reduce((a, b) => a + b, 0) / yValues.length;
-                  
-                  // Calculate slope and intercept using least squares method
-                  let numerator = 0;
-                  let denominator = 0;
-                  
-                  for (let i = 0; i < xValues.length; i++) {
-                    numerator += (xValues[i] - xMean) * (yValues[i] - yMean);
-                    denominator += (xValues[i] - xMean) * (xValues[i] - xMean);
-                  }
-                  
-                  const slope = denominator === 0 ? 0 : numerator / denominator;
-                  const intercept = yMean - slope * xMean;
-                  
-                  // Calculate trend line points
-                  const minX = Math.min(...xValues);
-                  const maxX = Math.max(...xValues);
-                  const trendY1 = slope * minX + intercept;
-                  const trendY2 = slope * maxX + intercept;
-                  
-                  return (
+                {(chart.config.showTrendLine !== false) && trendLineData.length === 2 && (
+                  <>
+                    {(() => {
+                      console.log(`🎨 RENDERING TREND LINE:`);
+                      console.log(`  Config showTrendLine: ${chart.config.showTrendLine}`);
+                      console.log(`  Trend line data length: ${trendLineData.length}`);
+                      console.log(`  Start point: (${trendLineData[0].x}, ${trendLineData[0].y})`);
+                      console.log(`  End point: (${trendLineData[1].x}, ${trendLineData[1].y})`);
+                      console.log(`  Line style: Red dashed, 2px width`);
+                      console.log(`✅ TREND LINE RENDERED SUCCESSFULLY`);
+                      return null;
+                    })()}
                     <ReferenceLine 
                       segment={[
-                        { x: minX, y: trendY1 },
-                        { x: maxX, y: trendY2 }
+                        { x: trendLineData[0].x, y: trendLineData[0].y },
+                        { x: trendLineData[1].x, y: trendLineData[1].y }
                       ]}
                       stroke="#ef4444"
-                      strokeWidth={3}
-                      strokeDasharray="8 4"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
                     />
-                  );
-                })()}
+                  </>
+                )}
+                {(chart.config.showTrendLine !== false) && trendLineData.length !== 2 && (
+                  <>
+                    {(() => {
+                      console.warn(`⚠️ TREND LINE NOT RENDERED:`);
+                      console.warn(`  Config showTrendLine: ${chart.config.showTrendLine}`);
+                      console.warn(`  Trend line data length: ${trendLineData.length} (expected 2)`);
+                      console.warn(`  Reason: Insufficient data for trend line calculation`);
+                      return null;
+                    })()}
+                  </>
+                )}
+                {chart.config.showTrendLine === false && (
+                  <>
+                    {(() => {
+                      console.log(`ℹ️ TREND LINE DISABLED: showTrendLine is ${chart.config.showTrendLine}`);
+                      return null;
+                    })()}
+                  </>
+                )}
               </ScatterChart>
             </ResponsiveContainer>
           </ChartWrapper>
