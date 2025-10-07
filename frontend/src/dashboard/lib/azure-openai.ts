@@ -1401,6 +1401,13 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
         role: 'user',
         content: `${messageContent}
 
+🚨 **CRITICAL FIRST PRIORITY - ALL DATA POINTS REQUIRED** 🚨
+- **MANDATORY**: For scatter plots, you MUST include EVERY SINGLE ROW from the dataset
+- **NO SAMPLING**: Never use .head(), .sample(), or any data reduction methods
+- **COMPLETE DATASET**: If the dataset has 1000 rows, the scatter plot must show 1000 points
+- **VERIFICATION**: Always print the total dataset size and verify scatter plot has same number of points
+- **FAILURE CONDITION**: If scatter plot shows fewer points than total dataset rows, you have failed
+
 CHART GENERATION FOCUS:
 Please respond primarily with CHART_DATA_START/END blocks containing insightful visualizations. Each chart should have a comprehensive description with:
 - Key business finding with STATISTICAL VALUES (correlation coefficients, R-squared, p-values)
@@ -1445,6 +1452,9 @@ Please respond primarily with CHART_DATA_START/END blocks containing insightful 
 - **DATA COMPLETENESS MANDATORY**: If your dataset has 100 rows, scatter plot MUST show all 100 data points
 - **NO DATA TRUNCATION**: Never limit scatter plot data to just a few points - include EVERY row from the dataset
 - **VALIDATION REQUIRED**: After generating scatter plot, verify data point count matches total dataset rows
+- **NO SAMPLE DATA**: Never use .head(), .sample(), or any data reduction methods for scatter plots
+- **COMPLETE DATASET**: Always use the FULL dataset for scatter plot analysis - every single row must be included
+- **VERIFICATION**: Count your data points - if you have 1000 rows in your dataset, your scatter plot MUST have 1000 points
 
 🚨 **MANDATORY SCATTER PLOT TREND LINE REQUIREMENTS**:
 - **ALWAYS INCLUDE TREND LINE**: Every scatter plot MUST have a linear regression trend line
@@ -1485,11 +1495,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
+# CRITICAL: Use ALL data points - never sample or reduce data
+# df is your complete dataset - use ALL rows
+x_data = df['x_column'].values  # ALL x values
+y_data = df['y_column'].values  # ALL y values
+
+print(f"Total data points: {len(x_data)}")  # Verify you have all points
+
 # Create scatter plot with trend line
 plt.figure(figsize=(10, 6))
 plt.scatter(x_data, y_data, alpha=0.6, color='blue', s=50)
 
-# Calculate linear regression
+# Calculate linear regression using ALL data points
 slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
 line = slope * x_data + intercept
 
@@ -1504,6 +1521,37 @@ plt.grid(True, alpha=0.3)
 plt.legend()
 plt.show()
 \`\`\`
+
+🚨 **CRITICAL DATA USAGE RULES**:
+- **NEVER use df.head() or df.sample()** for scatter plots
+- **ALWAYS use the complete dataset** - every single row
+- **Verify data count**: Print len(df) to confirm you're using all data
+- **No data filtering** unless specifically requested by user
+- **Complete dataset analysis** is mandatory for accurate correlation analysis
+
+🚨 **MANDATORY SCATTER PLOT DATA VERIFICATION**:
+- **STEP 1**: Print total dataset size: print(f"Total dataset rows: {len(df)}")
+- **STEP 2**: Use ALL rows for scatter plot: df_complete = df.copy()  # Use complete dataset
+- **STEP 3**: Verify scatter plot data: print(f"Scatter plot data points: {len(scatter_data)}")
+- **STEP 4**: Ensure scatter plot data points = total dataset rows
+- **CRITICAL**: If scatter plot shows fewer points than total dataset, you have failed
+- **NO EXCEPTIONS**: Every single row from the original dataset must appear in the scatter plot
+- **VALIDATION**: Count your data points - if dataset has 1000 rows, scatter plot MUST have 1000 points
+
+🚨 **EXAMPLE - CORRECT APPROACH**:
+```python
+# CORRECT: Use ALL data points
+print(f"Total dataset size: {len(df)}")  # Should show actual dataset size
+scatter_data = df[['x_column', 'y_column']].dropna()  # Use ALL rows, just remove nulls
+print(f"Scatter plot points: {len(scatter_data)}")  # Should match dataset size
+```
+
+🚨 **EXAMPLE - WRONG APPROACH**:
+```python
+# WRONG: Never do this for scatter plots
+scatter_data = df.head(100)  # ❌ WRONG - only uses first 100 rows
+scatter_data = df.sample(50)  # ❌ WRONG - only uses 50 random rows
+```
 
 Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
       });
