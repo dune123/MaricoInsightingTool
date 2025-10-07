@@ -1,4 +1,4 @@
-import React from 'react';
+ import React from 'react';
 import {
   BarChart,
   Bar,
@@ -593,65 +593,65 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
             console.log(`  Point ${i + 1}: x=${xValues[i]}, y=${yValues[i]}`);
           }
           
-          // Calculate means
-          const xMean = xValues.reduce((sum, x) => sum + x, 0) / n;
-          const yMean = yValues.reduce((sum, y) => sum + y, 0) / n;
-          console.log(`📊 Statistical Summary:`);
-          console.log(`  X-axis mean: ${xMean.toFixed(2)}`);
-          console.log(`  Y-axis mean: ${yMean.toFixed(2)}`);
-          console.log(`  X-axis range: ${Math.min(...xValues)} to ${Math.max(...xValues)}`);
-          console.log(`  Y-axis range: ${Math.min(...yValues)} to ${Math.max(...yValues)}`);
+          // Manual calculation using the specified formulas
+          const sumX = xValues.reduce((sum, x) => sum + x, 0);
+          const sumY = yValues.reduce((sum, y) => sum + y, 0);
+          const sumXY = xValues.reduce((sum, x, i) => sum + x * yValues[i], 0);
+          const sumXX = xValues.reduce((sum, x) => sum + x * x, 0);
           
-          // Calculate slope and intercept
-          let numerator = 0;
-          let denominator = 0;
+          console.log(`📊 Manual Calculation Summary:`);
+          console.log(`  Σx: ${sumX.toFixed(2)}`);
+          console.log(`  Σy: ${sumY.toFixed(2)}`);
+          console.log(`  Σxy: ${sumXY.toFixed(2)}`);
+          console.log(`  Σx²: ${sumXX.toFixed(2)}`);
+          console.log(`  n: ${n}`);
           
-          for (let i = 0; i < n; i++) {
-            const xDiff = xValues[i] - xMean;
-            const yDiff = yValues[i] - yMean;
-            numerator += xDiff * yDiff;
-            denominator += xDiff * xDiff;
-          }
+          // Calculate slope using the specified formula: m = (n(Σxy) - (Σx)(Σy)) / (n(Σx²) - (Σx)²)
+          const denominator = n * sumXX - sumX * sumX;
+          const slope = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
           
-          const slope = denominator === 0 ? 0 : numerator / denominator;
-          const intercept = yMean - slope * xMean;
+          // Calculate intercept using the specified formula: b = (Σy - m(Σx)) / n
+          const intercept = (sumY - slope * sumX) / n;
           
           console.log(`📐 Linear Regression Results:`);
           console.log(`  Slope (m): ${slope.toFixed(4)}`);
           console.log(`  Intercept (b): ${intercept.toFixed(4)}`);
           console.log(`  Equation: y = ${slope.toFixed(4)}x + ${intercept.toFixed(4)}`);
           
-          // Calculate correlation coefficient for additional insight
-          const correlation = numerator / Math.sqrt(denominator * (yValues.reduce((sum, y) => sum + (y - yMean) * (y - yMean), 0)));
+          // Calculate correlation coefficient
+          const sumYY = yValues.reduce((sum, y) => sum + y * y, 0);
+          const correlation = denominator === 0 ? 0 : 
+            (n * sumXY - sumX * sumY) / Math.sqrt(denominator * (n * sumYY - sumY * sumY));
           console.log(`📈 Correlation coefficient: ${correlation.toFixed(4)}`);
           
-          // Generate trend line points that extend across the full data range
+          // Generate 50 evenly spaced points across the full data range
           const minX = Math.min(...xValues);
           const maxX = Math.max(...xValues);
+          const pointCount = 50;
+          const step = (maxX - minX) / (pointCount - 1);
           
-          // Add some padding to ensure the trend line extends fully across the plot
-          const xPadding = (maxX - minX) * 0.02; // 2% padding on each side
-          const extendedMinX = minX - xPadding;
-          const extendedMaxX = maxX + xPadding;
+          const trendLineData = [];
+          for (let i = 0; i < pointCount; i++) {
+            const x = minX + i * step;
+            const y = slope * x + intercept;
+            trendLineData.push({ x, y });
+          }
           
-          const yMin = slope * extendedMinX + intercept;
-          const yMax = slope * extendedMaxX + intercept;
-          
-          const trendLineData = [
-            { x: extendedMinX, y: yMin },
-            { x: extendedMaxX, y: yMax }
-          ];
-          
-          console.log(`📏 Trend Line Endpoints:`);
-          console.log(`  Start: (${extendedMinX.toFixed(2)}, ${yMin.toFixed(2)})`);
-          console.log(`  End: (${extendedMaxX.toFixed(2)}, ${yMax.toFixed(2)})`);
-          console.log(`  Extended range: ${extendedMinX.toFixed(2)} to ${extendedMaxX.toFixed(2)} (with 2% padding)`);
+          console.log(`📏 Trend Line Points:`);
+          console.log(`  Generated ${pointCount} points from x=${minX.toFixed(2)} to x=${maxX.toFixed(2)}`);
+          console.log(`  First point: (${trendLineData[0].x.toFixed(2)}, ${trendLineData[0].y.toFixed(2)})`);
+          console.log(`  Last point: (${trendLineData[pointCount-1].x.toFixed(2)}, ${trendLineData[pointCount-1].y.toFixed(2)})`);
           console.log(`✅ TREND LINE CALCULATION COMPLETE`);
           
           return trendLineData;
         };
         
         const trendLineData = calculateTrendLine(sortedScatterData);
+        
+        console.log(`🔍 TREND LINE DEBUG:`);
+        console.log(`  Trend line data:`, trendLineData);
+        console.log(`  Data length: ${trendLineData.length}`);
+        console.log(`  Show trend line: ${chart.config.showTrendLine ?? true}`);
         
         return (
           <ChartWrapper>
@@ -709,7 +709,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   />
                 )}
                 <Scatter fill={colors[0]} />
-                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length === 2 && (
+                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
                   <>
                     {(() => {
                       console.log(`🎨 RENDERING TREND LINE:`);
@@ -721,23 +721,27 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                       console.log(`✅ TREND LINE RENDERED SUCCESSFULLY`);
                       return null;
                     })()}
-                    <ReferenceLine 
-                      segment={[
-                        { x: trendLineData[0].x, y: trendLineData[0].y },
-                        { x: trendLineData[1].x, y: trendLineData[1].y }
-                      ]}
+                    <Line 
+                      data={trendLineData}
+                      dataKey="y"
                       stroke="#ef4444"
                       strokeWidth={2}
                       strokeDasharray="5 5"
+                      dot={false}
+                      activeDot={false}
+                      connectNulls={false}
+                      type="linear"
+                      xAxisId="trendLineX"
+                      yAxisId="trendLineY"
                     />
                   </>
                 )}
-                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length !== 2 && (
+                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length === 0 && (
                   <>
                     {(() => {
                       console.warn(`⚠️ TREND LINE NOT RENDERED:`);
                       console.warn(`  Config showTrendLine: ${chart.config.showTrendLine}`);
-                      console.warn(`  Trend line data length: ${trendLineData.length} (expected 2)`);
+                      console.warn(`  Trend line data length: ${trendLineData.length} (expected > 0)`);
                       console.warn(`  Reason: Insufficient data for trend line calculation`);
                       return null;
                     })()}
