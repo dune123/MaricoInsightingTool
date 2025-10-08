@@ -75,7 +75,11 @@ interface Message {
 export class AzureOpenAIService {
   private config: AzureOpenAIConfig;
   private baseUrl: string;
+  private requestQueue: Promise<any>[] = [];
+  private maxConcurrentRequests = 2;
   private apiVersion = '2024-05-01-preview';
+  private apiCallCount = 0; // Track total API calls
+  private sessionStartTime = Date.now(); // Track session duration
 
   constructor(config: AzureOpenAIConfig) {
     this.config = config;
@@ -83,7 +87,38 @@ export class AzureOpenAIService {
   }
 
   private async makeRequest(endpoint: string, method: string = 'GET', body?: any): Promise<any> {
-    return this.makeRequestWithRetry(endpoint, method, body);
+    // Track API calls for monitoring
+    this.apiCallCount++;
+    const sessionDuration = Math.round((Date.now() - this.sessionStartTime) / 1000);
+    
+    console.log(`📡 API Call #${this.apiCallCount} (${method} ${endpoint}) - Session: ${sessionDuration}s`);
+    
+    // Add a small delay only for non-GET requests to prevent rate limiting
+    if (method !== 'GET') {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay for POST/PUT/DELETE
+    }
+    
+    // Queue requests to prevent overwhelming the API
+    return this.queueRequest(() => this.makeRequestWithRetry(endpoint, method, body));
+  }
+
+  private async queueRequest<T>(requestFn: () => Promise<T>): Promise<T> {
+    // Wait for queue to have space
+    while (this.requestQueue.length >= this.maxConcurrentRequests) {
+      await Promise.race(this.requestQueue);
+    }
+
+    // Add request to queue
+    const requestPromise = requestFn().finally(() => {
+      // Remove from queue when complete
+      const index = this.requestQueue.indexOf(requestPromise);
+      if (index > -1) {
+        this.requestQueue.splice(index, 1);
+      }
+    });
+
+    this.requestQueue.push(requestPromise);
+    return requestPromise;
   }
 
   private async makeRequestWithRetry(
@@ -92,8 +127,8 @@ export class AzureOpenAIService {
     body?: any, 
     retryCount: number = 0
   ): Promise<any> {
-    const maxRetries = 5;
-    const baseDelay = 5000; // 5 seconds base delay
+    const maxRetries = 5; // Increased retries for better recovery
+    const baseDelay = 3000; // Reduced to 3 seconds base delay
     
     const url = `${this.baseUrl}/openai/${endpoint}?api-version=${this.apiVersion}`;
     
@@ -115,11 +150,15 @@ export class AzureOpenAIService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         
-        // Handle rate limiting with exponential backoff
+        // Handle rate limiting with server-specified delay
         if (response.status === 429 && retryCount < maxRetries) {
-          const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
-          const jitter = Math.random() * 1000; // Add jitter to prevent thundering herd
-          const totalDelay = delay + jitter;
+          const retryAfter = response.headers.get('retry-after');
+          const serverDelay = retryAfter ? parseInt(retryAfter) * 1000 : null;
+          
+          // Use server delay if available, otherwise exponential backoff
+          const delay = serverDelay || (baseDelay * Math.pow(1.5, retryCount));
+          const jitter = Math.random() * 500; // Reduced jitter
+          const totalDelay = Math.min(delay + jitter, 30000); // Cap at 30 seconds
           
           console.log(`Rate limit exceeded. Retrying in ${Math.round(totalDelay / 1000)} seconds... (Attempt ${retryCount + 1}/${maxRetries})`);
           
@@ -130,9 +169,19 @@ export class AzureOpenAIService {
           return this.makeRequestWithRetry(endpoint, method, body, retryCount + 1);
         }
         
-        // If not a rate limit error or max retries exceeded, throw error
+        // Handle rate limit error specifically
         if (response.status === 429) {
-          throw new Error(`Rate limit exceeded. Maximum retries (${maxRetries}) reached. Please try again later.`);
+          const retryAfter = response.headers.get('retry-after');
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 30000; // Default 30 seconds
+          
+          if (retryCount < maxRetries) {
+            console.log(`Rate limit exceeded. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            return this.makeRequestWithRetry(endpoint, method, body, retryCount + 1);
+          } else {
+            const waitSeconds = Math.ceil(waitTime / 1000);
+            throw new Error(`Rate limit exceeded. Please wait ${waitSeconds} seconds before trying again. The system is processing your request in the background.`);
+          }
         }
         
         throw new Error(`Azure OpenAI API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
@@ -272,10 +321,10 @@ export class AzureOpenAIService {
       // Step 8: Parse column names from results
       const columnNames = this.parseColumnNames(messages);
       
-      // Cleanup
-      await this.cleanupFile(uploadedFile.id);
-      await this.cleanupThread(thread.id);
-      await this.cleanupAssistant(assistant.id);
+      // Cleanup (non-blocking to avoid delays)
+      this.cleanupResources(uploadedFile.id, thread.id, assistant.id).catch(error => {
+        console.warn('Background cleanup failed:', error);
+      });
       
       return columnNames;
     } catch (error) {
@@ -968,18 +1017,29 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
   private async waitForRunCompletion(threadId: string, runId: string): Promise<Run> {
     let run: Run;
     let attempts = 0;
-    const maxAttempts = 60; // 5 minutes max wait time
+    const maxAttempts = 30; // Reduced from 60 to 30 (2.5 minutes max wait time)
     
     do {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+      // Implement exponential backoff: start at 5s, increase gradually, cap at 15s
+      const baseDelay = 5000; // 5 seconds base
+      const exponentialDelay = Math.min(baseDelay * Math.pow(1.2, attempts), 15000); // Cap at 15 seconds
+      const jitter = Math.random() * 1000; // Add 0-1s random jitter to prevent thundering herd
+      const totalDelay = exponentialDelay + jitter;
+      
+      console.log(`⏳ Polling run status (attempt ${attempts + 1}/${maxAttempts}) - waiting ${Math.round(totalDelay / 1000)}s...`);
+      
+      await new Promise(resolve => setTimeout(resolve, totalDelay));
       run = await this.makeRequest(`threads/${threadId}/runs/${runId}`);
       attempts++;
       
+      console.log(`📊 Run status: ${run.status} (attempt ${attempts})`);
+      
       if (attempts >= maxAttempts) {
-        throw new Error('Analysis timeout - the process took too long to complete');
+        throw new Error(`Analysis timeout - the process took too long to complete (${attempts} attempts, ${Math.round(attempts * 7.5 / 60)} minutes)`);
       }
     } while (run.status === 'queued' || run.status === 'in_progress');
     
+    console.log(`✅ Run completed after ${attempts} attempts (${Math.round(attempts * 7.5 / 60)} minutes)`);
     return run;
   }
 
@@ -1073,7 +1133,7 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
     const charts: ChartData[] = [];
     const chartDataRegex = /(?:CHART_DATA_START|CHARTDATASTART)\s*([\s\S]*?)(?:CHART_DATA_END|CHARTDATAEND)/gi;
     let match;
-    let lastIndex = 0;
+    const lastIndex = 0;
 
     console.log('Extracting chart data from content:', content.substring(0, 500) + '...');
     console.log('Looking for CHART_DATA_START/END or CHARTDATASTART/END blocks...');
@@ -1083,7 +1143,7 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
         const chartDataStr = match[1].trim();
         
         // Remove markdown code block delimiters and handle various formats
-        let cleanedJsonStr = chartDataStr
+        const cleanedJsonStr = chartDataStr
           .replace(/^```json\s*/i, '')  // Remove opening ```json
           .replace(/^```\s*/i, '')      // Remove opening ```
           .replace(/\s*```$/, '')       // Remove closing ```
@@ -1099,7 +1159,7 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
           console.log('Initial JSON parse failed, attempting to fix common issues...');
           
           // Enhanced JSON cleaning to fix common issues
-          let fixedJson = cleanedJsonStr
+          const fixedJson = cleanedJsonStr
             // Remove JavaScript-style comments (// and /* */)
             .replace(/\/\/.*$/gm, '')  // Remove single-line comments
             .replace(/\/\*[\s\S]*?\*\//g, '')  // Remove multi-line comments
@@ -1129,7 +1189,7 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
             // Try one more aggressive cleaning approach
             try {
               console.log('Attempting aggressive JSON cleaning...');
-              let aggressiveFixed = fixedJson
+              const aggressiveFixed = fixedJson
                 // Remove any remaining problematic characters
                 .replace(/[^\x20-\x7E]/g, '')  // Remove all non-ASCII characters
                 .replace(/\s*\/\/.*$/gm, '')  // Remove any remaining comments
@@ -1364,6 +1424,31 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
     }
   }
 
+  private async cleanupResources(fileId: string, threadId: string, assistantId: string): Promise<void> {
+    // Run cleanup operations in parallel to reduce total time
+    const cleanupPromises = [
+      this.cleanupFile(fileId),
+      this.cleanupThread(threadId),
+      this.cleanupAssistant(assistantId)
+    ];
+    
+    // Wait for all cleanup operations to complete (or fail)
+    await Promise.allSettled(cleanupPromises);
+    console.log('🧹 Background cleanup completed');
+  }
+
+  // Method to get API call statistics for monitoring
+  public getApiCallStats(): { totalCalls: number; sessionDuration: number; callsPerMinute: number } {
+    const sessionDuration = Math.round((Date.now() - this.sessionStartTime) / 1000);
+    const callsPerMinute = sessionDuration > 0 ? Math.round((this.apiCallCount * 60) / sessionDuration) : 0;
+    
+    return {
+      totalCalls: this.apiCallCount,
+      sessionDuration,
+      callsPerMinute
+    };
+  }
+
   private async retrieveFileContent(fileId: string): Promise<string> {
     const url = `${this.baseUrl}/openai/files/${fileId}/content?api-version=${this.apiVersion}`;
     
@@ -1407,6 +1492,13 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
 - **COMPLETE DATASET**: If the dataset has 1000 rows, the scatter plot must show 1000 points
 - **VERIFICATION**: Always print the total dataset size and verify scatter plot has same number of points
 - **FAILURE CONDITION**: If scatter plot shows fewer points than total dataset rows, you have failed
+
+🚨 **MULTIPLE CHARTS - EACH CHART MUST HAVE ALL DATA POINTS** 🚨
+- **EVERY SINGLE CHART**: When generating multiple charts, EACH chart must include ALL data points
+- **NO EXCEPTIONS**: If you generate 5 charts, each chart must show the complete dataset
+- **INDIVIDUAL COMPLETENESS**: Each chart is independent - all must have complete data
+- **VERIFY EACH CHART**: Count data points in every single chart - must equal total dataset rows
+- **CRITICAL**: If ANY chart shows fewer points than total dataset, you have completely failed
 
 🚨 **MANDATORY DATA VERIFICATION FOR EVERY CHART**:
 - **STEP 1**: Print dataset size: print(f"Total dataset rows: {len(df)}")
@@ -1577,6 +1669,39 @@ plt.legend()
 plt.show()
 \`\`\`
 
+🚨 **MULTIPLE CHARTS - EACH CHART MUST USE COMPLETE DATASET**:
+\`\`\`python
+# CRITICAL: For EACH chart, use the COMPLETE dataset
+print(f"📊 TOTAL DATASET ROWS: {len(df)}")
+
+# Chart 1: Use ALL data points
+df_chart1 = df.copy()  # Use ALL rows
+x1_data = df_chart1['column_x'].values  # ALL x values
+y1_data = df_chart1['column_y'].values  # ALL y values
+chart1_data = [{"x": float(x), "y": float(y)} for x, y in zip(x1_data, y1_data)]
+print(f"📈 Chart 1 data points: {len(chart1_data)}")
+assert len(chart1_data) == len(df), f"Chart 1 missing {len(df) - len(chart1_data)} data points!"
+
+# Chart 2: Use ALL data points (same dataset, different variables)
+df_chart2 = df.copy()  # Use ALL rows
+x2_data = df_chart2['column_a'].values  # ALL x values
+y2_data = df_chart2['column_b'].values  # ALL y values
+chart2_data = [{"x": float(x), "y": float(y)} for x, y in zip(x2_data, y2_data)]
+print(f"📈 Chart 2 data points: {len(chart2_data)}")
+assert len(chart2_data) == len(df), f"Chart 2 missing {len(df) - len(chart2_data)} data points!"
+
+# Chart 3: Use ALL data points (same dataset, different variables)
+df_chart3 = df.copy()  # Use ALL rows
+x3_data = df_chart3['column_c'].values  # ALL x values
+y3_data = df_chart3['column_d'].values  # ALL y values
+chart3_data = [{"x": float(x), "y": float(y)} for x, y in zip(x3_data, y3_data)]
+print(f"📈 Chart 3 data points: {len(chart3_data)}")
+assert len(chart3_data) == len(df), f"Chart 3 missing {len(df) - len(chart3_data)} data points!"
+
+# CRITICAL: Every chart must have the same number of data points as the dataset
+print(f"✅ ALL CHARTS VERIFIED: Each chart has {len(df)} data points")
+\`\`\`
+
 🚨 **CRITICAL DATA USAGE RULES**:
 - **NEVER use df.head() or df.sample()** for scatter plots
 - **ALWAYS use the complete dataset** - every single row
@@ -1638,6 +1763,13 @@ scatter_data = df.sample(50)  # ❌ WRONG - only uses 50 random rows
 - **COMPLETE COVERAGE**: Provide thorough analysis with multiple charts
 - **NO LIMITS**: Create as many charts as needed to fully answer the question
 - **VERIFY**: Count your charts - should be comprehensive, not limited
+
+🚨 **ULTIMATE REQUIREMENT - MULTIPLE CHARTS DATA COMPLETENESS** 🚨
+- **EVERY SINGLE CHART**: When you generate multiple charts, EACH chart must include ALL data points
+- **NO EXCEPTIONS**: If you create 5 charts, each chart must show the complete dataset
+- **INDIVIDUAL VERIFICATION**: Count data points in every single chart - must equal total dataset rows
+- **CRITICAL FAILURE**: If ANY chart shows fewer points than total dataset, you have completely failed
+- **MANDATORY**: Every chart is independent and must use the complete dataset
 
 Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
       });

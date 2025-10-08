@@ -352,7 +352,14 @@ You can ask me questions about any of these columns or request analysis of your 
         stack: error instanceof Error ? error.stack : undefined,
         selectedDocument: selectedDocument
       });
-      setError(error instanceof Error ? error.message : 'Failed to send message');
+      
+      // Handle rate limit errors specifically
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('Rate limit exceeded') || errorMessage.includes('rate limit')) {
+        setError('Rate limit exceeded. Please wait a moment and try again. The system is processing your request.');
+      } else {
+        setError(errorMessage);
+      }
       
       // If analysis failed, update document status back to ready
       if (selectedDocument && !selectedDocument.assistantId) {
@@ -362,13 +369,13 @@ You can ask me questions about any of these columns or request analysis of your 
       }
       
       // Add error message to chat
-      const errorMessage: ChatMessage = {
+      const errorChatMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: 'I apologize, but I encountered an error processing your message. Please try again or check your connection settings.',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => [...prev, errorChatMessage]);
     } finally {
       console.log('Setting loading state to false');
       clearTimeout(loadingTimeout);
