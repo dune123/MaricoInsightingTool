@@ -222,6 +222,52 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     );
   };
   
+  // Helper function to generate smart axis labels from chart title
+  const getSmartAxisLabel = (title: string, axis: 'x' | 'y'): string => {
+    const titleLower = title.toLowerCase();
+    
+    if (axis === 'x') {
+      // Extract the first variable from the title
+      if (titleLower.includes('availability')) return 'Availability (%)';
+      if (titleLower.includes('price')) return 'Price ($)';
+      if (titleLower.includes('cost')) return 'Cost ($)';
+      if (titleLower.includes('defect')) return 'Defect Rate (%)';
+      if (titleLower.includes('lead time')) return 'Lead Time (days)';
+      if (titleLower.includes('volume')) return 'Volume';
+      if (titleLower.includes('quality')) return 'Quality Score';
+      if (titleLower.includes('efficiency')) return 'Efficiency (%)';
+      if (titleLower.includes('capacity')) return 'Capacity (%)';
+      if (titleLower.includes('utilization')) return 'Utilization (%)';
+      
+      // Try to extract variable name from "Impact of X on Y" pattern
+      const impactMatch = title.match(/impact of (.*?) on/i);
+      if (impactMatch) {
+        const variable = impactMatch[1].trim();
+        return variable.charAt(0).toUpperCase() + variable.slice(1);
+      }
+      
+      return 'Variable';
+    } else {
+      // Extract the target variable (usually after "on")
+      if (titleLower.includes('revenue')) return 'Revenue Generated ($)';
+      if (titleLower.includes('sales')) return 'Sales ($)';
+      if (titleLower.includes('profit')) return 'Profit ($)';
+      if (titleLower.includes('cost')) return 'Cost ($)';
+      if (titleLower.includes('efficiency')) return 'Efficiency (%)';
+      if (titleLower.includes('quality')) return 'Quality Score';
+      if (titleLower.includes('performance')) return 'Performance Score';
+      
+      // Try to extract target from "Impact of X on Y" pattern
+      const onMatch = title.match(/on (.*?)$/i);
+      if (onMatch) {
+        const target = onMatch[1].trim();
+        return target.charAt(0).toUpperCase() + target.slice(1);
+      }
+      
+      return 'Value';
+    }
+  };
+
   const renderChart = (chart: ChartData) => {
     const safeConfig = chart.config || {} as any;
     const colors = (safeConfig.colors && Array.isArray(safeConfig.colors) ? safeConfig.colors : DEFAULT_COLORS);
@@ -716,7 +762,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    value: chart.config.xAxisLabel || getSmartAxisLabel(chart.title, 'x') || 'Variable', 
                     position: 'insideBottom', 
                     offset: -5,
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -727,7 +773,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    value: chart.config.yAxisLabel || getSmartAxisLabel(chart.title, 'y') || 'Value', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }

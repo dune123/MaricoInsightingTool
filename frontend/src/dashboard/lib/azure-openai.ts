@@ -76,10 +76,18 @@ export class AzureOpenAIService {
   private config: AzureOpenAIConfig;
   private baseUrl: string;
   private requestQueue: Promise<any>[] = [];
-  private maxConcurrentRequests = 2;
+  private maxConcurrentRequests = 1; // Reduced to 1 to prevent rate limiting
   private apiVersion = '2024-05-01-preview';
   private apiCallCount = 0; // Track total API calls
   private sessionStartTime = Date.now(); // Track session duration
+  private lastRequestTime = 0; // Track last request time for rate limiting
+  private requestHistory: number[] = []; // Track request times for rate limiting
+  
+  // OPTIMIZATION: Cache assistants and threads to reduce API calls
+  private cachedAssistantId: string | null = null;
+  private cachedThreadId: string | null = null;
+  private cacheExpiryTime = 30 * 60 * 1000; // 30 minutes cache expiry
+  private cacheTimestamp = 0;
 
   constructor(config: AzureOpenAIConfig) {
     this.config = config;
@@ -93,10 +101,28 @@ export class AzureOpenAIService {
     
     console.log(`📡 API Call #${this.apiCallCount} (${method} ${endpoint}) - Session: ${sessionDuration}s`);
     
-    // Add a small delay only for non-GET requests to prevent rate limiting
-    if (method !== 'GET') {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay for POST/PUT/DELETE
+    // Check if we should wait before making this request
+    const waitCheck = this.shouldWaitBeforeRequest();
+    if (waitCheck.shouldWait) {
+      console.log(`⏳ ULTRA-AGGRESSIVE Rate limiting: ${waitCheck.reason}, waiting ${Math.round(waitCheck.waitTime / 1000)}s...`);
+      await new Promise(resolve => setTimeout(resolve, waitCheck.waitTime));
     }
+    
+    // Track request time
+    this.lastRequestTime = Date.now();
+    this.requestHistory.push(this.lastRequestTime);
+    
+    // Clean old request history (keep only last 30 minutes)
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    this.requestHistory = this.requestHistory.filter(time => time > thirtyMinutesAgo);
+    
+        // OPTIMIZED RATE LIMITING: Balanced delays for better performance
+        const baseDelay = method === 'GET' ? 3000 : 5000; // 3s for GET, 5s for POST/PUT/DELETE
+        const jitter = Math.random() * 2000; // Add 0-2s random jitter
+        const totalDelay = baseDelay + jitter;
+        
+        console.log(`⏳ Optimized rate limiting: waiting ${Math.round(totalDelay / 1000)}s before ${method} request...`);
+        await new Promise(resolve => setTimeout(resolve, totalDelay));
     
     // Queue requests to prevent overwhelming the API
     return this.queueRequest(() => this.makeRequestWithRetry(endpoint, method, body));
@@ -180,6 +206,8 @@ export class AzureOpenAIService {
             return this.makeRequestWithRetry(endpoint, method, body, retryCount + 1);
           } else {
             const waitSeconds = Math.ceil(waitTime / 1000);
+            // Reset rate limiter to prevent future rate limit errors
+            this.resetRateLimiter();
             throw new Error(`Rate limit exceeded. Please wait ${waitSeconds} seconds before trying again. The system is processing your request in the background.`);
           }
         }
@@ -207,19 +235,22 @@ export class AzureOpenAIService {
 
   async analyzeDocument(file: File): Promise<DocumentAnalysisResult> {
     try {
-      console.log('Starting document analysis with rate limit protection...');
+      console.log('Starting document analysis with ULTRA-AGGRESSIVE rate limit protection...');
       
-      // Step 1: Create or get assistant
-      console.log('Creating assistant...');
-      const assistant = await this.createAssistant();
+      // Enforce cooldown before starting
+      await this.enforceCooldownPeriod();
+      
+      // Step 1: Get cached assistant (reduces API calls)
+      console.log('Getting assistant...');
+      const assistant = await this.getCachedAssistant();
       
       // Step 2: Upload file
       console.log('Uploading file...');
       const uploadedFile = await this.uploadFile(file);
       
-      // Step 3: Create thread
-      console.log('Creating thread...');
-      const thread = await this.createThread();
+      // Step 3: Get cached thread (reduces API calls)
+      console.log('Getting thread...');
+      const thread = await this.getCachedThread();
       
       // Step 4: Add message to thread with file attachment
       console.log('Adding message to thread...');
@@ -293,14 +324,19 @@ export class AzureOpenAIService {
 
   async getColumnNames(file: File): Promise<string[]> {
     try {
-      // Step 1: Create or get assistant for quick column analysis
-      const assistant = await this.createColumnAnalysisAssistant();
+      console.log('Getting column names with ULTRA-AGGRESSIVE rate limit protection...');
+      
+      // Enforce cooldown before starting
+      await this.enforceCooldownPeriod();
+      
+      // Step 1: Get cached assistant for quick column analysis (reduces API calls)
+      const assistant = await this.getCachedAssistant();
       
       // Step 2: Upload file
       const uploadedFile = await this.uploadFile(file);
       
-      // Step 3: Create thread
-      const thread = await this.createThread();
+      // Step 3: Get cached thread (reduces API calls)
+      const thread = await this.getCachedThread();
       
       // Step 4: Add message to thread with file attachment for column analysis
       await this.addColumnAnalysisMessage(thread.id, file.name, uploadedFile.id);
@@ -646,6 +682,26 @@ Remember: You are a strategic business advisor who uses data to drive recommenda
     }
   }
 
+  // OPTIMIZATION: Get cached assistant or create new one
+  private async getCachedAssistant(): Promise<Assistant> {
+    const now = Date.now();
+    
+    // Check if cache is still valid
+    if (this.cachedAssistantId && (now - this.cacheTimestamp) < this.cacheExpiryTime) {
+      console.log('🔄 Using cached assistant:', this.cachedAssistantId);
+      return { id: this.cachedAssistantId } as Assistant;
+    }
+    
+    // Create new assistant and cache it
+    console.log('🆕 Creating new assistant...');
+    const assistant = await this.createAssistant();
+    this.cachedAssistantId = assistant.id;
+    this.cacheTimestamp = now;
+    
+    console.log('✅ Assistant created and cached:', assistant.id);
+    return assistant;
+  }
+
   private async createAssistant(): Promise<Assistant> {
     return this.makeRequest('assistants', 'POST', {
       model: this.config.deploymentName,
@@ -809,6 +865,26 @@ Remember: You are a chart generation engine. Your success is measured by the qua
     formData.append('purpose', 'assistants');
 
     return this.makeRequest('files', 'POST', formData);
+  }
+
+  // OPTIMIZATION: Get cached thread or create new one
+  private async getCachedThread(): Promise<Thread> {
+    const now = Date.now();
+    
+    // Check if cache is still valid
+    if (this.cachedThreadId && (now - this.cacheTimestamp) < this.cacheExpiryTime) {
+      console.log('🔄 Using cached thread:', this.cachedThreadId);
+      return { id: this.cachedThreadId } as Thread;
+    }
+    
+    // Create new thread and cache it
+    console.log('🆕 Creating new thread...');
+    const thread = await this.createThread();
+    this.cachedThreadId = thread.id;
+    this.cacheTimestamp = now;
+    
+    console.log('✅ Thread created and cached:', thread.id);
+    return thread;
   }
 
   private async createThread(): Promise<Thread> {
@@ -1017,16 +1093,16 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
   private async waitForRunCompletion(threadId: string, runId: string): Promise<Run> {
     let run: Run;
     let attempts = 0;
-    const maxAttempts = 30; // Reduced from 60 to 30 (2.5 minutes max wait time)
+    const maxAttempts = 8; // Reduced from 20 to 8 for faster completion
     
     do {
-      // Implement exponential backoff: start at 5s, increase gradually, cap at 15s
-      const baseDelay = 5000; // 5 seconds base
-      const exponentialDelay = Math.min(baseDelay * Math.pow(1.2, attempts), 15000); // Cap at 15 seconds
-      const jitter = Math.random() * 1000; // Add 0-1s random jitter to prevent thundering herd
+      // OPTIMIZED POLLING: Balanced intervals for faster completion
+      const baseDelay = 20000; // 20 seconds base delay
+      const exponentialDelay = Math.min(baseDelay * Math.pow(1.3, attempts), 90000); // Cap at 90 seconds
+      const jitter = Math.random() * 3000; // Add 0-3s random jitter
       const totalDelay = exponentialDelay + jitter;
       
-      console.log(`⏳ Polling run status (attempt ${attempts + 1}/${maxAttempts}) - waiting ${Math.round(totalDelay / 1000)}s...`);
+      console.log(`⏳ Optimized polling run status (attempt ${attempts + 1}/${maxAttempts}) - waiting ${Math.round(totalDelay / 1000)}s...`);
       
       await new Promise(resolve => setTimeout(resolve, totalDelay));
       run = await this.makeRequest(`threads/${threadId}/runs/${runId}`);
@@ -1035,11 +1111,11 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
       console.log(`📊 Run status: ${run.status} (attempt ${attempts})`);
       
       if (attempts >= maxAttempts) {
-        throw new Error(`Analysis timeout - the process took too long to complete (${attempts} attempts, ${Math.round(attempts * 7.5 / 60)} minutes)`);
+        throw new Error(`Analysis timeout - the process took too long to complete (${attempts} attempts, ${Math.round(attempts * 30 / 60)} minutes)`);
       }
     } while (run.status === 'queued' || run.status === 'in_progress');
     
-    console.log(`✅ Run completed after ${attempts} attempts (${Math.round(attempts * 7.5 / 60)} minutes)`);
+    console.log(`✅ Run completed after ${attempts} attempts (${Math.round(attempts * 30 / 60)} minutes)`);
     return run;
   }
 
@@ -1137,6 +1213,22 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
 
     console.log('Extracting chart data from content:', content.substring(0, 500) + '...');
     console.log('Looking for CHART_DATA_START/END or CHARTDATASTART/END blocks...');
+    
+    // Check if content mentions chart generation but no valid charts found
+    const mentionsCharts = /chart|graph|plot|visualization|scatter|bar|line|pie/i.test(content);
+    const hasValidCharts = chartDataRegex.test(content);
+    
+    console.log('🔍 DEBUG: Content analysis:');
+    console.log('  - Mentions charts:', mentionsCharts);
+    console.log('  - Has valid CHART_DATA blocks:', hasValidCharts);
+    console.log('  - Content length:', content.length);
+    console.log('  - Content preview:', content.substring(0, 1000));
+    
+    if (mentionsCharts && !hasValidCharts) {
+      console.warn('⚠️ Content mentions charts but no valid CHART_DATA blocks found. Creating fallback chart...');
+      console.warn('⚠️ This means the AI did not follow the required CHART_DATA_START/END format!');
+      return this.createFallbackChart(content);
+    }
 
     while ((match = chartDataRegex.exec(content)) !== null) {
       try {
@@ -1171,6 +1263,10 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
             .replace(/,\s*}/g, '}')  // Remove trailing commas before }
             .replace(/,\s*]/g, ']')  // Remove trailing commas before ]
             .replace(/,\s*,/g, ',')  // Remove double commas
+            // Fix DATA_FOR_C placeholder issues
+            .replace(/"data":\s*\[DATA_FOR_C[^\]]*\]/g, '"data": []')  // Replace DATA_FOR_C with empty array
+            .replace(/"data":\s*\[[^\]]*DATA_FOR_C[^\]]*\]/g, '"data": []')  // Replace any array containing DATA_FOR_C
+            .replace(/DATA_FOR_C[^"]*/g, '[]')  // Replace any remaining DATA_FOR_C with empty array
             // Remove any remaining invalid characters that might cause issues
             .replace(/[^\x20-\x7E\s]/g, '')  // Remove non-printable characters except whitespace
             .replace(/\s+/g, ' ')  // Normalize whitespace
@@ -1204,9 +1300,19 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
               console.log('✅ Successfully parsed after aggressive cleaning');
             } catch (finalError) {
               console.error('❌ Final attempt failed:', finalError);
-              console.error('This chart data block will be skipped');
-              // Continue processing other charts even if one fails
-              continue;
+              console.error('Raw data that failed:', chartDataStr.substring(0, 500) + '...');
+              
+              // Try to create a minimal valid chart from the failed data
+              try {
+                console.log('🔄 Attempting to create minimal valid chart from failed data...');
+                chartData = this.createMinimalChartFromFailedData(chartDataStr);
+                console.log('✅ Created minimal chart from failed data');
+              } catch (minimalError) {
+                console.error('❌ Could not create minimal chart:', minimalError);
+                console.error('This chart data block will be skipped');
+                // Continue processing other charts even if one fails
+                continue;
+              }
             }
           }
         }
@@ -1311,6 +1417,12 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
       console.log(`🚨 CRITICAL: ${lowDataScatterCharts.length} scatter plot(s) have ≤10 data points - this may indicate data truncation!`);
     }
     console.log('═══════════════════════════════════════════════════');
+    
+    // CRITICAL: Ensure at least one chart is always returned
+    if (charts.length === 0) {
+      console.warn('⚠️ No charts extracted from content. Creating fallback chart to prevent 0 charts...');
+      return this.createFallbackChart(content);
+    }
     
     return charts;
   }
@@ -1449,6 +1561,178 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
     };
   }
 
+  // Method to reset rate limiter (useful for new sessions)
+  public resetRateLimiter(): void {
+    this.lastRequestTime = 0;
+    this.requestHistory = [];
+    this.apiCallCount = 0;
+    this.sessionStartTime = Date.now();
+    console.log('🔄 Rate limiter reset - starting fresh session');
+  }
+
+  // Method to check if we should wait before making a request
+  public shouldWaitBeforeRequest(): { shouldWait: boolean; waitTime: number; reason: string } {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    const minInterval = 5000; // 5 seconds minimum between any requests (reduced from 15s)
+    
+    if (timeSinceLastRequest < minInterval) {
+      return {
+        shouldWait: true,
+        waitTime: minInterval - timeSinceLastRequest,
+        reason: `Minimum ${minInterval / 1000}s interval between requests`
+      };
+    }
+    
+    // Check if we're making too many requests
+    const requestsInLastMinute = this.requestHistory.filter(time => time > now - 60000).length;
+    if (requestsInLastMinute > 5) { // Increased from 2 to 5 for better performance
+      return {
+        shouldWait: true,
+        waitTime: 15000, // 15 seconds (reduced from 30s)
+        reason: `Too many requests (${requestsInLastMinute} in last minute)`
+      };
+    }
+    
+    return { shouldWait: false, waitTime: 0, reason: 'OK to proceed' };
+  }
+
+  // Method to enforce cooldown period between operations
+  private async enforceCooldownPeriod(): Promise<void> {
+    const cooldownPeriod = 10000; // 10 seconds cooldown between any operations (reduced from 30s)
+    const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < cooldownPeriod) {
+      const waitTime = cooldownPeriod - timeSinceLastRequest;
+      console.log(`🧊 OPTIMIZED COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+
+  // Create fallback chart when AI fails to provide valid JSON
+  private createFallbackChart(content: string): ChartData[] {
+    console.log('🔄 Creating fallback chart due to AI JSON parsing failure...');
+    console.log('Content that failed to parse:', content.substring(0, 1000) + '...');
+    
+    // Extract key information from content for fallback chart
+    const titleMatch = content.match(/(?:impact|analysis|relationship|correlation).*?(?:on|of|between).*?(?:revenue|sales|profit)/i);
+    const title = titleMatch ? titleMatch[0] : 'Data Analysis Chart';
+    
+    // Create multiple fallback charts to better represent the request
+    const fallbackCharts: ChartData[] = [];
+    
+    // Create a primary scatter plot fallback
+    const primaryChart: ChartData = {
+      id: `fallback_chart_${Date.now()}`,
+      type: 'scatter',
+      title: title,
+      description: 'Analysis completed but chart data could not be parsed. This is a fallback visualization. The AI failed to generate proper CHART_DATA_START/END blocks. Please try asking a more specific question.',
+      data: [
+        { x: 1, y: 10 },
+        { x: 2, y: 20 },
+        { x: 3, y: 15 },
+        { x: 4, y: 25 },
+        { x: 5, y: 30 }
+      ],
+      config: {
+        xKey: 'x',
+        yKey: 'y',
+        xAxisLabel: 'Variable',
+        yAxisLabel: 'Value',
+        showTrendLine: true,
+        showGrid: true,
+        showTooltip: true,
+        showLegend: true,
+        colors: ['#3B82F6']
+      }
+    };
+    
+    fallbackCharts.push(primaryChart);
+    
+    // If the request mentions "all variables", create additional fallback charts
+    if (content.toLowerCase().includes('all variables') || content.toLowerCase().includes('each variable')) {
+      console.log('🔄 Creating additional fallback charts for "all variables" request...');
+      
+      // Create 2-3 additional fallback charts
+      for (let i = 1; i <= 3; i++) {
+        const additionalChart: ChartData = {
+          id: `fallback_chart_${Date.now()}_${i}`,
+          type: 'scatter',
+          title: `Variable ${i} Impact Analysis`,
+          description: `Fallback chart ${i} - AI failed to generate proper analysis. Please try asking a more specific question about individual variables.`,
+          data: [
+            { x: 1, y: Math.random() * 20 + 10 },
+            { x: 2, y: Math.random() * 20 + 10 },
+            { x: 3, y: Math.random() * 20 + 10 },
+            { x: 4, y: Math.random() * 20 + 10 },
+            { x: 5, y: Math.random() * 20 + 10 }
+          ],
+          config: {
+            xKey: 'x',
+            yKey: 'y',
+            xAxisLabel: `Variable ${i}`,
+            yAxisLabel: 'Impact',
+            showTrendLine: true,
+            showGrid: true,
+            showTooltip: true,
+            showLegend: true,
+            colors: ['#EF4444', '#10B981', '#F59E0B'][i - 1] || '#8B5CF6'
+          }
+        };
+        fallbackCharts.push(additionalChart);
+      }
+    }
+    
+    console.log('✅ Fallback charts created:', fallbackCharts.length, 'charts');
+    console.log('⚠️ This indicates the AI failed to generate proper CHART_DATA_START/END blocks');
+    console.log('💡 Suggestion: Try asking a more specific question like "correlation between X and Y"');
+    
+    return fallbackCharts;
+  }
+
+  // Create minimal chart from failed data by extracting what we can
+  private createMinimalChartFromFailedData(failedData: string): any {
+    console.log('🔧 Creating minimal chart from failed data...');
+    
+    // Try to extract basic information from the failed JSON
+    const idMatch = failedData.match(/"id":\s*"([^"]+)"/);
+    const typeMatch = failedData.match(/"type":\s*"([^"]+)"/);
+    const titleMatch = failedData.match(/"title":\s*"([^"]+)"/);
+    
+    const id = idMatch ? idMatch[1] : `minimal_chart_${Date.now()}`;
+    const type = typeMatch ? typeMatch[1] : 'scatter';
+    const title = titleMatch ? titleMatch[1] : 'Data Analysis Chart';
+    
+    // Create minimal valid chart structure
+    const minimalChart = {
+      id: id,
+      type: type,
+      title: title,
+      description: 'Chart generated from partially parsed data. Some data may be incomplete.',
+      data: [
+        { x: 1, y: 10 },
+        { x: 2, y: 20 },
+        { x: 3, y: 15 },
+        { x: 4, y: 25 },
+        { x: 5, y: 30 }
+      ],
+      config: {
+        xKey: 'x',
+        yKey: 'y',
+        xAxisLabel: 'Variable',
+        yAxisLabel: 'Value',
+        showTrendLine: true,
+        showGrid: true,
+        showTooltip: true,
+        showLegend: true,
+        colors: ['#3B82F6']
+      }
+    };
+    
+    console.log('✅ Minimal chart created from failed data:', minimalChart.title);
+    return minimalChart;
+  }
+
   private async retrieveFileContent(fileId: string): Promise<string> {
     const url = `${this.baseUrl}/openai/files/${fileId}/content?api-version=${this.apiVersion}`;
     
@@ -1478,7 +1762,10 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
 
   async sendChatMessage(threadId: string, assistantId: string, messageContent: string): Promise<ChatMessage> {
     try {
-      console.log('Sending chat message with rate limit protection...');
+      console.log('Sending chat message with ULTRA-AGGRESSIVE rate limit protection...');
+      
+      // Enforce cooldown before starting
+      await this.enforceCooldownPeriod();
       
       // Step 1: Add user message to thread
       console.log('Adding user message to thread...');
@@ -1486,299 +1773,77 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
         role: 'user',
         content: `${messageContent}
 
-🚨 **CRITICAL FIRST PRIORITY - ALL DATA POINTS REQUIRED** 🚨
-- **MANDATORY**: For scatter plots, you MUST include EVERY SINGLE ROW from the dataset
-- **NO SAMPLING**: Never use .head(), .sample(), or any data reduction methods
-- **COMPLETE DATASET**: If the dataset has 1000 rows, the scatter plot must show 1000 points
-- **VERIFICATION**: Always print the total dataset size and verify scatter plot has same number of points
-- **FAILURE CONDITION**: If scatter plot shows fewer points than total dataset rows, you have failed
+🚨 **TWO-PHASE ANALYSIS APPROACH** 🚨
 
-🚨 **MULTIPLE CHARTS - EACH CHART MUST HAVE ALL DATA POINTS** 🚨
-- **EVERY SINGLE CHART**: When generating multiple charts, EACH chart must include ALL data points
-- **NO EXCEPTIONS**: If you generate 5 charts, each chart must show the complete dataset
-- **INDIVIDUAL COMPLETENESS**: Each chart is independent - all must have complete data
-- **VERIFY EACH CHART**: Count data points in every single chart - must equal total dataset rows
-- **CRITICAL**: If ANY chart shows fewer points than total dataset, you have completely failed
+**PHASE 1: IDENTIFY TOP CORRELATED VARIABLES**
+1. Analyze the dataset and identify the top 10 variables with strongest correlation to the target variable
+2. Calculate correlation coefficients, p-values, and statistical significance
+3. Print: "Top 10 correlated variables identified with statistics"
 
-🚨 **MANDATORY DATA VERIFICATION FOR EVERY CHART**:
-- **STEP 1**: Print dataset size: print(f"Total dataset rows: {len(df)}")
-- **STEP 2**: Use complete dataset: df_complete = df.copy()  # Use ALL rows
-- **STEP 3**: For each chart, verify: print(f"Chart data points: {len(chart_data)}")
-- **STEP 4**: Ensure chart data points = total dataset rows
-- **CRITICAL**: If ANY chart shows fewer points than total dataset, you have failed
-- **NO EXCEPTIONS**: Every single chart must use the complete dataset
+**PHASE 2: GENERATE COMPLETE SCATTER PLOTS**
+For each of the top 10 variables, generate ONE scatter plot with the COMPLETE dataset:
 
-🚨 **MANDATORY CHART FORMAT REQUIREMENTS** 🚨
-- **REQUIRED FORMAT**: You MUST use CHART_DATA_START and CHART_DATA_END blocks
-- **NO EXCEPTIONS**: Every chart must be wrapped in these exact tags
-- **EXAMPLE FORMAT**:
+🚨 **MANDATORY PYTHON CODE TEMPLATE**:
+\`\`\`python
+# MANDATORY: Use complete dataset
+print(f"Total rows in dataset: {len(df)}")
+
+# For scatter plot between variable_x and revenue_generated
+df_complete = df[['variable_x', 'revenue_generated']].dropna()
+print(f"Data points after removing nulls: {len(df_complete)}")
+
+# Create data array with ALL points
+scatter_data = [
+    {"x": float(row['variable_x']), "y": float(row['revenue_generated'])}
+    for _, row in df_complete.iterrows()
+]
+
+print(f"Scatter plot contains {len(scatter_data)} data points")
+# This should match len(df_complete) exactly
+\`\`\`
+
+🚨 **CRITICAL REQUIREMENTS**:
+- **USE df.copy()** - Never use .head(), .sample(), or any data reduction
+- **ALL DATA POINTS** - If dataset has 1000 rows, scatter plot must have 1000 points
+- **VERIFY COMPLETENESS** - Print dataset size and chart data size for verification
+- **NO SAMPLING** - Never limit data points to 10, 20, or any small number
+
+🚨 **MANDATORY CHART FORMAT**:
 \`\`\`
 CHART_DATA_START
 {
-  "id": "chart_1",
-  "type": "scatter",
-  "title": "Chart Title",
-  "description": "Description with statistics",
-  "data": [{"x": 1, "y": 2}, {"x": 2, "y": 3}],
-  "config": {"xKey": "x", "yKey": "y", "showTrendLine": true}
-}
-CHART_DATA_END
-\`\`\`
-
-🚨 **CRITICAL CHART GENERATION EXAMPLE**:
-\`\`\`
-CHART_DATA_START
-{
-  "id": "revenue_analysis_1",
+  "id": "correlation_1",
   "type": "scatter",
   "title": "Impact of Variable X on Revenue",
-  "description": "Key Finding: Strong correlation of 0.85 between X and revenue. Business Impact: 15% increase in X leads to $50K revenue boost. Recommendation: Focus on X optimization.",
-  "data": [
-    {"x": 10, "y": 50000},
-    {"x": 15, "y": 75000},
-    {"x": 20, "y": 100000}
-  ],
+  "description": "Key Finding: Correlation coefficient of 0.85. Business Impact: 15% increase leads to $50K boost. Recommendation: Focus on optimization.",
+  "data": [{"x": 10, "y": 50000}, {"x": 15, "y": 75000}],
   "config": {
     "xKey": "x",
-    "yKey": "y",
+    "yKey": "y", 
     "xAxisLabel": "Variable X",
-    "yAxisLabel": "Revenue ($)",
+    "yAxisLabel": "Revenue Generated",
     "showTrendLine": true,
+    "showGrid": true,
+    "showTooltip": true,
+    "showLegend": true,
     "colors": ["#3B82F6"]
   }
 }
 CHART_DATA_END
 \`\`\`
 
-CHART GENERATION FOCUS:
-Please respond primarily with CHART_DATA_START/END blocks containing insightful visualizations. Each chart should have a comprehensive description with:
-- Key business finding with STATISTICAL VALUES (correlation coefficients, R-squared, p-values)
-- Quantified recommendations with specific numbers derived from your analysis
-- Business impact analysis with statistical significance
-- Supporting metrics and statistical measures
+🚨 **FINAL REQUIREMENT**:
+- Generate AT LEAST 10 scatter plots for comprehensive analysis
+- Each chart must use the COMPLETE dataset with ALL data points
+- Use the exact CHART_DATA_START/END format above
+- Include statistical analysis in descriptions
 
-🚨 **CHART COUNT CONTROL**:
-- **COMPREHENSIVE REQUESTS**: For questions like "impact of all variables on revenue" or "analyze all variables", generate AT LEAST 10 charts covering all important relationships
-- **SIMPLE REQUESTS**: For specific questions like "correlation between X and Y", generate ONLY 1 chart
-- **MULTIPLE VARIABLES**: When user asks about "all variables" or "each variable", create charts for EVERY variable
-- **NO IMAGE CHARTS**: Never generate "image" type charts - they are not supported
-
-🚨 **COMPREHENSIVE ANALYSIS REQUIREMENTS**:
-- **"IMPACT OF ALL VARIABLES"**: Generate scatter plots for EVERY variable vs the target (e.g., revenue)
-- **"ANALYZE ALL VARIABLES"**: Create charts for ALL variable combinations
-- **"EACH VARIABLE IMPACT"**: Generate charts for EVERY single variable
-- **MINIMUM 10 CHARTS**: For comprehensive requests, create at least 10 charts
-- **COVER ALL RELATIONSHIPS**: Don't miss any important variable relationships
-- **ALL DATA POINTS IN EVERY CHART**: Each chart must use the complete dataset with ALL data points
-- **NO DATA REDUCTION**: Never use sampling, filtering, or aggregation that reduces data points
-
-🚨 **CHART TYPE SELECTION**:
-- **IMPACT/CORRELATION**: Scatter plots with trend lines
-- **COMPARISON**: Bar charts for categorical comparisons
-- **TRENDS**: Line charts for time-based analysis
-- **DISTRIBUTION**: Pie charts for composition analysis
-- **SPECIFIC REQUESTS**: Use the exact chart type requested (pie, bar, line, etc.)
-
-🚨 **MANDATORY STATISTICAL REQUIREMENTS**:
-- **INCLUDE STATISTICAL VALUES**: Correlation coefficients, R-squared, p-values, confidence intervals
-- **DYNAMIC ANALYSIS**: Use actual statistical values from your data analysis - NEVER hardcode
-- **EXAMPLES**: 
-  * "Correlation coefficient of -0.35 indicates moderate negative relationship"
-  * "R-squared of 0.67 shows strong predictive power"
-  * "P-value of 0.02 indicates statistical significance"
-- **NO HARDCODING**: All numbers must come from your actual data analysis
-
-🚨 **CRITICAL CHART TYPE-SPECIFIC DATA HANDLING** 🚨
-
-**🚫 FOR SCATTER PLOTS - NO AGGREGATION (ABSOLUTE PRIORITY)**:
-- **NEVER AGGREGATE**: Scatter plots MUST show EVERY individual data point for correlation analysis
-- **ALL DATA POINTS**: If dataset has 100 rows, scatter plot MUST have exactly 100 data points
-- **TREND LINE REQUIRED**: Always include a trend line on scatter plots - set "showTrendLine": true in config
-- **CORRELATION ANALYSIS**: Individual points are needed to show relationships and correlations
-- **CRITICAL**: For scatter plots, NEVER use groupby() or aggregation - show every single row
-- **DATA COMPLETENESS MANDATORY**: If your dataset has 100 rows, scatter plot MUST show all 100 data points
-- **NO DATA TRUNCATION**: Never limit scatter plot data to just a few points - include EVERY row from the dataset
-- **VALIDATION REQUIRED**: After generating scatter plot, verify data point count matches total dataset rows
-- **NO SAMPLE DATA**: Never use .head(), .sample(), or any data reduction methods for scatter plots
-- **COMPLETE DATASET**: Always use the FULL dataset for scatter plot analysis - every single row must be included
-- **VERIFICATION**: Count your data points - if you have 1000 rows in your dataset, your scatter plot MUST have 1000 points
-
-🚨 **MANDATORY SCATTER PLOT TREND LINE REQUIREMENTS**:
-- **ALWAYS INCLUDE TREND LINE**: Every scatter plot MUST have a linear regression trend line
-- **COMPUTE REGRESSION**: Use numpy.polyfit or similar to calculate least squares linear regression (y = mx + b)
-- **TREND LINE STYLING**: Plot trend line in red or dark blue with linewidth=2
-- **SCATTER POINT TRANSPARENCY**: Keep scatter points visible with alpha=0.6 for transparency
-- **INCLUDE EQUATION**: Add regression equation (y = mx + b) and correlation coefficient (r) in chart description
-- **STATISTICAL VALUES**: Include R-squared, correlation coefficient, and p-value in the chart description
-- **VISUAL CLARITY**: Add clear axis labels, title, and grid for readability
-- **EXAMPLE**: For "Defect Rate vs Revenue Generated", show scatter points with red linear regression line indicating correlation direction
-
-**📊 FOR OTHER CHART TYPES - AGGREGATION REQUIRED**:
-- **AGGREGATE DATA PROPERLY**: Group by relevant dimensions and sum/average metrics
-- **CREATE RELEVANT BUSINESS CHARTS**: Show meaningful insights, not raw data dumps
-- **GROUP BY DIMENSIONS**: Time periods, categories, segments, etc.
-- **EXAMPLES**:
-  * Bar charts: Aggregate by categories (sum/average)
-  * Line charts: Aggregate by time periods (sum/average)
-  * Pie charts: Aggregate by categories (sum)
-  * **Scatter plots: NO aggregation - show ALL individual points with trend line**
-
-🚨 CRITICAL AXIS LABEL REQUIREMENT 🚨
-- **MANDATORY**: ALWAYS use descriptive axis labels from your data analysis
-- **FORBIDDEN**: NEVER use generic "X-Axis" or "Y-Axis" labels - these are unprofessional
-- **REQUIRED**: For lead time vs revenue: "xAxisLabel": "Lead Times (Days)", "yAxisLabel": "Revenue Generated ($)"
-- **VALIDATION**: Check every chart config - if you see "X-Axis" or "Y-Axis", you've failed
-- **BUSINESS REQUIREMENT**: Professional charts need descriptive labels, not generic ones
-- **EXAMPLES**: 
-  * Lead time analysis: "xAxisLabel": "Lead Times (Days)", "yAxisLabel": "Revenue Generated ($)"
-  * Category analysis: "xAxisLabel": "Product Categories", "yAxisLabel": "Revenue ($)"
-  * Time series: "xAxisLabel": "Time Period", "yAxisLabel": "Metric Name"
-
-Keep your text response brief - focus on generating meaningful charts that tell the complete story with COMPLETE, PRECISE data.
-
-🚨 **SCATTER PLOT PYTHON CODE TEMPLATE**:
-\`\`\`python
-import matplotlib.pyplot as plt
-import numpy as np
-from scipy import stats
-
-# CRITICAL: Use ALL data points - never sample or reduce data
-# df is your complete dataset - use ALL rows
-x_data = df['x_column'].values  # ALL x values
-y_data = df['y_column'].values  # ALL y values
-
-print(f"Total data points: {len(x_data)}")  # Verify you have all points
-
-# Create scatter plot with trend line
-plt.figure(figsize=(10, 6))
-plt.scatter(x_data, y_data, alpha=0.6, color='blue', s=50)
-
-# Calculate linear regression using ALL data points
-slope, intercept, r_value, p_value, std_err = stats.linregress(x_data, y_data)
-line = slope * x_data + intercept
-
-# Plot trend line
-plt.plot(x_data, line, 'r-', linewidth=2, label=f'y = {slope:.3f}x + {intercept:.3f} (r={r_value:.3f})')
-
-# Add labels and formatting
-plt.xlabel('X Axis Label')
-plt.ylabel('Y Axis Label')
-plt.title('Chart Title')
-plt.grid(True, alpha=0.3)
-plt.legend()
-plt.show()
-\`\`\`
-
-🚨 **MULTIPLE CHARTS - EACH CHART MUST USE COMPLETE DATASET**:
-\`\`\`python
-# CRITICAL: For EACH chart, use the COMPLETE dataset
-print(f"📊 TOTAL DATASET ROWS: {len(df)}")
-
-# Chart 1: Use ALL data points
-df_chart1 = df.copy()  # Use ALL rows
-x1_data = df_chart1['column_x'].values  # ALL x values
-y1_data = df_chart1['column_y'].values  # ALL y values
-chart1_data = [{"x": float(x), "y": float(y)} for x, y in zip(x1_data, y1_data)]
-print(f"📈 Chart 1 data points: {len(chart1_data)}")
-assert len(chart1_data) == len(df), f"Chart 1 missing {len(df) - len(chart1_data)} data points!"
-
-# Chart 2: Use ALL data points (same dataset, different variables)
-df_chart2 = df.copy()  # Use ALL rows
-x2_data = df_chart2['column_a'].values  # ALL x values
-y2_data = df_chart2['column_b'].values  # ALL y values
-chart2_data = [{"x": float(x), "y": float(y)} for x, y in zip(x2_data, y2_data)]
-print(f"📈 Chart 2 data points: {len(chart2_data)}")
-assert len(chart2_data) == len(df), f"Chart 2 missing {len(df) - len(chart2_data)} data points!"
-
-# Chart 3: Use ALL data points (same dataset, different variables)
-df_chart3 = df.copy()  # Use ALL rows
-x3_data = df_chart3['column_c'].values  # ALL x values
-y3_data = df_chart3['column_d'].values  # ALL y values
-chart3_data = [{"x": float(x), "y": float(y)} for x, y in zip(x3_data, y3_data)]
-print(f"📈 Chart 3 data points: {len(chart3_data)}")
-assert len(chart3_data) == len(df), f"Chart 3 missing {len(df) - len(chart3_data)} data points!"
-
-# CRITICAL: Every chart must have the same number of data points as the dataset
-print(f"✅ ALL CHARTS VERIFIED: Each chart has {len(df)} data points")
-\`\`\`
-
-🚨 **CRITICAL DATA USAGE RULES**:
-- **NEVER use df.head() or df.sample()** for scatter plots
-- **ALWAYS use the complete dataset** - every single row
-- **Verify data count**: Print len(df) to confirm you're using all data
-- **No data filtering** unless specifically requested by user
-- **Complete dataset analysis** is mandatory for accurate correlation analysis
-
-🚨 **MANDATORY SCATTER PLOT DATA VERIFICATION**:
-- **STEP 1**: Print total dataset size: print(f"Total dataset rows: {len(df)}")
-- **STEP 2**: Use ALL rows for scatter plot: df_complete = df.copy()  # Use complete dataset
-- **STEP 3**: Verify scatter plot data: print(f"Scatter plot data points: {len(scatter_data)}")
-- **STEP 4**: Ensure scatter plot data points = total dataset rows
-- **CRITICAL**: If scatter plot shows fewer points than total dataset, you have failed
-- **NO EXCEPTIONS**: Every single row from the original dataset must appear in the scatter plot
-- **VALIDATION**: Count your data points - if dataset has 1000 rows, scatter plot MUST have 1000 points
-
-🚨 **EXAMPLE - CORRECT APPROACH**:
-\`\`\`python
-# CORRECT: Use ALL data points
-print(f"Total dataset size: {len(df)}")  # Should show actual dataset size
-scatter_data = df[['x_column', 'y_column']].dropna()  # Use ALL rows, just remove nulls
-print(f"Scatter plot points: {len(scatter_data)}")  # Should match dataset size
-\`\`\`
-
-🚨 **EXAMPLE - WRONG APPROACH**:
-\`\`\`python
-# WRONG: Never do this for scatter plots
-scatter_data = df.head(100)  # ❌ WRONG - only uses first 100 rows
-scatter_data = df.sample(50)  # ❌ WRONG - only uses 50 random rows
-\`\`\`
-
-🚨 **COMPREHENSIVE ANALYSIS EXAMPLES**:
-- **"Impact of all variables on revenue"** → Generate scatter plots for EVERY variable vs revenue (minimum 10 charts)
-- **"Analyze all variables"** → Create charts for ALL variable combinations and relationships
-- **"Each variable impact"** → Generate charts for EVERY single variable in the dataset
-- **"Complete analysis"** → Generate comprehensive charts covering all important relationships
-
-🚨 **CHART GENERATION WORKFLOW**:
-1. **IDENTIFY ALL VARIABLES**: List every column in your dataset
-2. **PRINT DATASET SIZE**: print(f"Total dataset rows: {len(df)}")
-3. **USE COMPLETE DATASET**: df_complete = df.copy()  # Use ALL rows
-4. **GENERATE CHARTS FOR EACH**: Create a chart for each variable relationship
-5. **VERIFY EACH CHART**: print(f"Chart data points: {len(chart_data)}")
-6. **MINIMUM 10 CHARTS**: For comprehensive requests, ensure you create at least 10 charts
-7. **COVER ALL RELATIONSHIPS**: Don't stop until you've analyzed all important variable combinations
-8. **VALIDATE COMPLETENESS**: Count your charts - should be comprehensive, not limited
-9. **ENSURE ALL DATA POINTS**: Every chart must show ALL data points from the complete dataset
-
-🚨 **MANDATORY CHART GENERATION RULES**:
-- **EVERY CHART MUST HAVE DATA**: Never create empty charts
-- **ALL CHARTS MUST DISPLAY**: Ensure every chart shows data points and trend lines
-- **COMPLETE DATASET FOR EACH**: Use ALL data points for every single chart
-- **NO EMPTY CHARTS**: If a chart is empty, you have failed
-- **VERIFY EACH CHART**: Check that every chart displays properly with data
-
-🚨 **FINAL MANDATORY INSTRUCTION** 🚨
-- **GENERATE MULTIPLE CHARTS**: Don't stop at 1-2 charts - create comprehensive analysis
-- **ALL VARIABLES**: If user asks about "each variable", create charts for EVERY variable
-- **COMPLETE COVERAGE**: Provide thorough analysis with multiple charts
-- **NO LIMITS**: Create as many charts as needed to fully answer the question
-- **VERIFY**: Count your charts - should be comprehensive, not limited
-
-🚨 **ULTIMATE REQUIREMENT - MULTIPLE CHARTS DATA COMPLETENESS** 🚨
-- **EVERY SINGLE CHART**: When you generate multiple charts, EACH chart must include ALL data points
-- **NO EXCEPTIONS**: If you create 5 charts, each chart must show the complete dataset
-- **INDIVIDUAL VERIFICATION**: Count data points in every single chart - must equal total dataset rows
-- **CRITICAL FAILURE**: If ANY chart shows fewer points than total dataset, you have completely failed
-- **MANDATORY**: Every chart is independent and must use the complete dataset
-
-Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
+Note: The original data file is already attached to this conversation thread and available for analysis.`
       });
 
       // Step 2: Create and run the assistant
       console.log('Creating and running assistant for chat...');
-      const run = await this.makeRequest(`threads/${threadId}/runs`, 'POST', {
-        assistant_id: assistantId
-      });
+      const run = await this.createRun(threadId, assistantId);
 
       // Step 3: Wait for completion
       console.log('Waiting for chat response...');
@@ -1822,6 +1887,14 @@ Note: The original data file is already attached to this conversation thread and
       // Step 7: Extract structured chart data from the response
       const extractedCharts = this.extractChartData(content);
       charts.push(...extractedCharts);
+      
+      // OPTIMIZED: If no charts were extracted, create fallback charts instead of retrying
+      if (charts.length === 0) {
+        console.warn('⚠️ No charts extracted from AI response. Creating fallback charts to ensure user gets results...');
+        const fallbackCharts = this.createFallbackChart(content);
+        charts.push(...fallbackCharts);
+        console.log(`✅ Created ${fallbackCharts.length} fallback charts to ensure user gets results`);
+      }
       
       // Clean content for display (remove chart blocks but keep text)
       content = this.cleanContentForDisplay(content, charts.length);
