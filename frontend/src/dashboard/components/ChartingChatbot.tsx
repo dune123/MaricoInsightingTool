@@ -53,6 +53,7 @@ export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingCharts, setIsGeneratingCharts] = useState(false);
   
   // Debug loading state changes
   useEffect(() => {
@@ -247,12 +248,14 @@ You can ask me questions about any of these columns or request analysis of your 
     
     console.log('Setting loading state to true');
     setIsLoading(true);
+    setIsGeneratingCharts(true);
     setError(null);
 
     // Add a timeout to ensure loading state is reset even if something goes wrong
     const loadingTimeout = setTimeout(() => {
       console.log('Loading timeout reached, forcing loading state to false');
       setIsLoading(false);
+      setIsGeneratingCharts(false);
     }, 30000); // 30 second timeout
 
     try {
@@ -370,6 +373,7 @@ You can ask me questions about any of these columns or request analysis of your 
       console.log('Setting loading state to false');
       clearTimeout(loadingTimeout);
       setIsLoading(false);
+      setIsGeneratingCharts(false);
     }
   };
 
@@ -481,7 +485,9 @@ You can ask me questions about any of these columns or request analysis of your 
                       <div className="w-2 h-2 bg-gray-600 rounded-full animate-bounce" style={{ animationDelay: '300ms', animationDuration: '1s' }}></div>
                     </div>
                     <span className="text-gray-700 text-sm font-medium">
-                      {isAnalyzing ? 'Analyzing your data...' : 'Generating insights...'}
+                      {isAnalyzing ? 'Analyzing your data...' : 
+                       isGeneratingCharts ? 'Analyzing data and generating charts with all data points...' : 
+                       'Processing your request...'}
                     </span>
                   </div>
                 </div>

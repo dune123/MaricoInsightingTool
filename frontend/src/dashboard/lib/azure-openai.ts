@@ -1416,6 +1416,48 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
 - **CRITICAL**: If ANY chart shows fewer points than total dataset, you have failed
 - **NO EXCEPTIONS**: Every single chart must use the complete dataset
 
+🚨 **MANDATORY CHART FORMAT REQUIREMENTS** 🚨
+- **REQUIRED FORMAT**: You MUST use CHART_DATA_START and CHART_DATA_END blocks
+- **NO EXCEPTIONS**: Every chart must be wrapped in these exact tags
+- **EXAMPLE FORMAT**:
+\`\`\`
+CHART_DATA_START
+{
+  "id": "chart_1",
+  "type": "scatter",
+  "title": "Chart Title",
+  "description": "Description with statistics",
+  "data": [{"x": 1, "y": 2}, {"x": 2, "y": 3}],
+  "config": {"xKey": "x", "yKey": "y", "showTrendLine": true}
+}
+CHART_DATA_END
+\`\`\`
+
+🚨 **CRITICAL CHART GENERATION EXAMPLE**:
+\`\`\`
+CHART_DATA_START
+{
+  "id": "revenue_analysis_1",
+  "type": "scatter",
+  "title": "Impact of Variable X on Revenue",
+  "description": "Key Finding: Strong correlation of 0.85 between X and revenue. Business Impact: 15% increase in X leads to $50K revenue boost. Recommendation: Focus on X optimization.",
+  "data": [
+    {"x": 10, "y": 50000},
+    {"x": 15, "y": 75000},
+    {"x": 20, "y": 100000}
+  ],
+  "config": {
+    "xKey": "x",
+    "yKey": "y",
+    "xAxisLabel": "Variable X",
+    "yAxisLabel": "Revenue ($)",
+    "showTrendLine": true,
+    "colors": ["#3B82F6"]
+  }
+}
+CHART_DATA_END
+\`\`\`
+
 CHART GENERATION FOCUS:
 Please respond primarily with CHART_DATA_START/END blocks containing insightful visualizations. Each chart should have a comprehensive description with:
 - Key business finding with STATISTICAL VALUES (correlation coefficients, R-squared, p-values)
@@ -1582,6 +1624,20 @@ scatter_data = df.sample(50)  # ❌ WRONG - only uses 50 random rows
 7. **COVER ALL RELATIONSHIPS**: Don't stop until you've analyzed all important variable combinations
 8. **VALIDATE COMPLETENESS**: Count your charts - should be comprehensive, not limited
 9. **ENSURE ALL DATA POINTS**: Every chart must show ALL data points from the complete dataset
+
+🚨 **MANDATORY CHART GENERATION RULES**:
+- **EVERY CHART MUST HAVE DATA**: Never create empty charts
+- **ALL CHARTS MUST DISPLAY**: Ensure every chart shows data points and trend lines
+- **COMPLETE DATASET FOR EACH**: Use ALL data points for every single chart
+- **NO EMPTY CHARTS**: If a chart is empty, you have failed
+- **VERIFY EACH CHART**: Check that every chart displays properly with data
+
+🚨 **FINAL MANDATORY INSTRUCTION** 🚨
+- **GENERATE MULTIPLE CHARTS**: Don't stop at 1-2 charts - create comprehensive analysis
+- **ALL VARIABLES**: If user asks about "each variable", create charts for EVERY variable
+- **COMPLETE COVERAGE**: Provide thorough analysis with multiple charts
+- **NO LIMITS**: Create as many charts as needed to fully answer the question
+- **VERIFY**: Count your charts - should be comprehensive, not limited
 
 Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
       });
