@@ -1408,6 +1408,14 @@ If any chart shows "X-Axis" or "Y-Axis", you MUST fix it before submitting.`,
 - **VERIFICATION**: Always print the total dataset size and verify scatter plot has same number of points
 - **FAILURE CONDITION**: If scatter plot shows fewer points than total dataset rows, you have failed
 
+🚨 **MANDATORY DATA VERIFICATION FOR EVERY CHART**:
+- **STEP 1**: Print dataset size: print(f"Total dataset rows: {len(df)}")
+- **STEP 2**: Use complete dataset: df_complete = df.copy()  # Use ALL rows
+- **STEP 3**: For each chart, verify: print(f"Chart data points: {len(chart_data)}")
+- **STEP 4**: Ensure chart data points = total dataset rows
+- **CRITICAL**: If ANY chart shows fewer points than total dataset, you have failed
+- **NO EXCEPTIONS**: Every single chart must use the complete dataset
+
 CHART GENERATION FOCUS:
 Please respond primarily with CHART_DATA_START/END blocks containing insightful visualizations. Each chart should have a comprehensive description with:
 - Key business finding with STATISTICAL VALUES (correlation coefficients, R-squared, p-values)
@@ -1416,21 +1424,26 @@ Please respond primarily with CHART_DATA_START/END blocks containing insightful 
 - Supporting metrics and statistical measures
 
 🚨 **CHART COUNT CONTROL**:
+- **COMPREHENSIVE REQUESTS**: For questions like "impact of all variables on revenue" or "analyze all variables", generate AT LEAST 10 charts covering all important relationships
 - **SIMPLE REQUESTS**: For specific questions like "correlation between X and Y", generate ONLY 1 chart
-- **FOCUSED ANALYSIS**: Answer the specific question with the most relevant chart type
-- **NO MULTIPLE CHARTS**: Don't generate multiple charts for simple, specific requests
+- **MULTIPLE VARIABLES**: When user asks about "all variables" or "each variable", create charts for EVERY variable
 - **NO IMAGE CHARTS**: Never generate "image" type charts - they are not supported
 
-🚨 **CRITICAL CHART TYPE CONSISTENCY REQUIREMENT**:
-- **IMPACT ANALYSIS**: When user asks about "impact of X on Y", ALWAYS create a scatter plot showing correlation between X and Y
-- **CORRELATION ANALYSIS**: When user asks about "correlation between X and Y", ALWAYS create a scatter plot showing correlation between X and Y
-- **SAME CHART TYPE**: Both "impact" and "correlation" requests should generate IDENTICAL scatter plot charts
-- **NO DIFFERENTIATION**: Don't treat "impact" and "correlation" as different analysis types - they are the same
-- **EXAMPLES**:
-  * "Impact of lead times on revenue" → Scatter plot (lead time vs revenue)
-  * "Correlation between lead times and revenue" → Scatter plot (lead time vs revenue)
-  * "Impact of price on sales" → Scatter plot (price vs sales)
-  * "Correlation between price and sales" → Scatter plot (price vs sales)
+🚨 **COMPREHENSIVE ANALYSIS REQUIREMENTS**:
+- **"IMPACT OF ALL VARIABLES"**: Generate scatter plots for EVERY variable vs the target (e.g., revenue)
+- **"ANALYZE ALL VARIABLES"**: Create charts for ALL variable combinations
+- **"EACH VARIABLE IMPACT"**: Generate charts for EVERY single variable
+- **MINIMUM 10 CHARTS**: For comprehensive requests, create at least 10 charts
+- **COVER ALL RELATIONSHIPS**: Don't miss any important variable relationships
+- **ALL DATA POINTS IN EVERY CHART**: Each chart must use the complete dataset with ALL data points
+- **NO DATA REDUCTION**: Never use sampling, filtering, or aggregation that reduces data points
+
+🚨 **CHART TYPE SELECTION**:
+- **IMPACT/CORRELATION**: Scatter plots with trend lines
+- **COMPARISON**: Bar charts for categorical comparisons
+- **TRENDS**: Line charts for time-based analysis
+- **DISTRIBUTION**: Pie charts for composition analysis
+- **SPECIFIC REQUESTS**: Use the exact chart type requested (pie, bar, line, etc.)
 
 🚨 **MANDATORY STATISTICAL REQUIREMENTS**:
 - **INCLUDE STATISTICAL VALUES**: Correlation coefficients, R-squared, p-values, confidence intervals
@@ -1539,19 +1552,36 @@ plt.show()
 - **VALIDATION**: Count your data points - if dataset has 1000 rows, scatter plot MUST have 1000 points
 
 🚨 **EXAMPLE - CORRECT APPROACH**:
-```python
+\`\`\`python
 # CORRECT: Use ALL data points
 print(f"Total dataset size: {len(df)}")  # Should show actual dataset size
 scatter_data = df[['x_column', 'y_column']].dropna()  # Use ALL rows, just remove nulls
 print(f"Scatter plot points: {len(scatter_data)}")  # Should match dataset size
-```
+\`\`\`
 
 🚨 **EXAMPLE - WRONG APPROACH**:
-```python
+\`\`\`python
 # WRONG: Never do this for scatter plots
 scatter_data = df.head(100)  # ❌ WRONG - only uses first 100 rows
 scatter_data = df.sample(50)  # ❌ WRONG - only uses 50 random rows
-```
+\`\`\`
+
+🚨 **COMPREHENSIVE ANALYSIS EXAMPLES**:
+- **"Impact of all variables on revenue"** → Generate scatter plots for EVERY variable vs revenue (minimum 10 charts)
+- **"Analyze all variables"** → Create charts for ALL variable combinations and relationships
+- **"Each variable impact"** → Generate charts for EVERY single variable in the dataset
+- **"Complete analysis"** → Generate comprehensive charts covering all important relationships
+
+🚨 **CHART GENERATION WORKFLOW**:
+1. **IDENTIFY ALL VARIABLES**: List every column in your dataset
+2. **PRINT DATASET SIZE**: print(f"Total dataset rows: {len(df)}")
+3. **USE COMPLETE DATASET**: df_complete = df.copy()  # Use ALL rows
+4. **GENERATE CHARTS FOR EACH**: Create a chart for each variable relationship
+5. **VERIFY EACH CHART**: print(f"Chart data points: {len(chart_data)}")
+6. **MINIMUM 10 CHARTS**: For comprehensive requests, ensure you create at least 10 charts
+7. **COVER ALL RELATIONSHIPS**: Don't stop until you've analyzed all important variable combinations
+8. **VALIDATE COMPLETENESS**: Count your charts - should be comprehensive, not limited
+9. **ENSURE ALL DATA POINTS**: Every chart must show ALL data points from the complete dataset
 
 Note: The original data file is already attached to this conversation thread and available for analysis. Please use the existing file data to answer this question and include ALL relevant data points in your charts.`
       });
