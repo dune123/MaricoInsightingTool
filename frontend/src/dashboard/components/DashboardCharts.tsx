@@ -564,12 +564,65 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
       }
 
       case 'scatter':
+        // Debug: Log the raw chart data
+        console.log(`🔍 SCATTER PLOT DEBUG for "${chart.title}":`);
+        console.log(`  Raw chart.data:`, chart.data);
+        console.log(`  Data type:`, typeof chart.data);
+        console.log(`  Is array:`, Array.isArray(chart.data));
+        console.log(`  Data length:`, Array.isArray(chart.data) ? chart.data.length : 'N/A');
+        console.log(`  Config:`, safeConfig);
+        console.log(`  X key:`, safeConfig.xKey || 'x');
+        console.log(`  Y key:`, safeConfig.yKey);
+        
+        if (Array.isArray(chart.data) && chart.data.length > 0) {
+          console.log(`  First data point:`, chart.data[0]);
+          console.log(`  Sample data points (first 3):`, chart.data.slice(0, 3));
+        } else {
+          console.error(`❌ ERROR: No data points found in chart.data!`);
+        }
+        
+        // Handle different data structures and ensure we have valid data
+        let scatterData = chart.data;
+        
+        // If data is not an array, try to extract it from other possible locations
+        if (!Array.isArray(scatterData)) {
+          console.warn(`⚠️ Chart data is not an array, attempting to find data in other locations...`);
+          if (Array.isArray((chart as any).chart_data)) {
+            scatterData = (chart as any).chart_data;
+            console.log(`✅ Found data in chart.chart_data:`, scatterData.length, 'points');
+          } else if (Array.isArray((chart as any).data_points)) {
+            scatterData = (chart as any).data_points;
+            console.log(`✅ Found data in chart.data_points:`, scatterData.length, 'points');
+          } else {
+            console.error(`❌ No valid data array found in chart object!`);
+            scatterData = [];
+          }
+        }
+        
+        // Ensure we have data before proceeding
+        if (!Array.isArray(scatterData) || scatterData.length === 0) {
+          console.error(`❌ No valid scatter plot data found for "${chart.title}"`);
+          return (
+            <ChartWrapper>
+              <div className="flex items-center justify-center h-full text-red-500">
+                <div className="text-center">
+                  <div className="text-lg font-semibold mb-2">No Data Available</div>
+                  <div className="text-sm">This chart has no data points to display</div>
+                </div>
+              </div>
+            </ChartWrapper>
+          );
+        }
+        
         // Sort data by x-axis values for proper ordering
-        const sortedScatterData = [...chart.data].sort((a, b) => {
+        const sortedScatterData = [...scatterData].sort((a, b) => {
           const aVal = Number(a[safeConfig.xKey || 'x']);
           const bVal = Number(b[safeConfig.xKey || 'x']);
           return aVal - bVal;
         });
+        
+        console.log(`  Sorted data length:`, sortedScatterData.length);
+        console.log(`  First sorted point:`, sortedScatterData[0]);
         
         // Calculate proper trend line using linear regression
         const calculateTrendLine = (data: any[]) => {
@@ -708,7 +761,12 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     }}
                   />
                 )}
-                <Scatter fill={colors[0]} />
+                <Scatter 
+                  data={sortedScatterData}
+                  fill={colors[0]} 
+                  dataKey={safeConfig.yKey as string}
+                  name="Data Points"
+                />
                 {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
                   <>
                     {(() => {
