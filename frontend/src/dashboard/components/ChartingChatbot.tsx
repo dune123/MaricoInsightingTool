@@ -55,10 +55,7 @@ export const ChartingChatbot: React.FC<ChartingChatbotProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingCharts, setIsGeneratingCharts] = useState(false);
   
-  // Debug loading state changes
-  useEffect(() => {
-    console.log('Loading state changed:', isLoading);
-  }, [isLoading]);
+  // Debug loading state changes - REMOVED for cleaner logs
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [columnInfo, setColumnInfo] = useState<{
@@ -212,24 +209,13 @@ You can ask me questions about any of these columns or request analysis of your 
   }, [selectedDocument, columnInfo.columns.length]);
 
   const handleSendMessage = async () => {
-    console.log('handleSendMessage called with:', { 
-      inputMessage: inputMessage.trim(), 
-      selectedDocument: selectedDocument?.id,
-      isLoading,
-      isAnalyzing
-    });
-    
     if (!inputMessage.trim() || !selectedDocument) {
-      console.log('Message validation failed:', { inputMessage: inputMessage.trim(), selectedDocument });
       return;
     }
 
     if (isLoading) {
-      console.log('Already loading, ignoring message');
       return;
     }
-
-    console.log('Sending message:', inputMessage.trim());
     const userMessageContent = inputMessage.trim();
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -246,19 +232,19 @@ You can ask me questions about any of these columns or request analysis of your 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     
-    console.log('Setting loading state to true');
     setIsLoading(true);
     setIsGeneratingCharts(true);
     setError(null);
 
     // Add a timeout to ensure loading state is reset even if something goes wrong
     const loadingTimeout = setTimeout(() => {
-      console.log('Loading timeout reached, forcing loading state to false');
       setIsLoading(false);
       setIsGeneratingCharts(false);
     }, 30000); // 30 second timeout
 
     try {
+      // Check if we need to create new assistant or reuse existing one
+      
       if (!selectedDocument?.assistantId || !selectedDocument?.threadId) {
         // If document hasn't been analyzed yet, analyze it first
         setIsAnalyzing(true);
@@ -269,25 +255,31 @@ You can ask me questions about any of these columns or request analysis of your 
         
         const azureService = new AzureOpenAIService(azureConfig);
         
-        const { analysis, assistantId, threadId } = await azureService.analyzeDocument(selectedDocument!.file!);
+        // Create assistant and thread first
+        const assistant = await azureService.createAssistant();
+        const thread = await azureService.createThread();
         
-        // Update the document with analysis results
+        // Upload file and get file ID
+        const file = await azureService.uploadFile(selectedDocument!.file!);
+        
+        // Send chat message with file attachment in ONE call (no generic analysis)
+        const assistantResponse = await azureService.sendChatMessageWithFile(
+          thread.id,
+          assistant.id,
+          userMessageContent,
+          file.id
+        );
+        
+        // Update the document with assistant info
         const completedDoc = {
           ...selectedDocument!,
-          assistantId,
-          threadId,
-          analysis,
+          assistantId: assistant.id,
+          threadId: thread.id,
+          fileId: file.id,
           status: 'completed' as const
         };
         onDocumentUpdate(completedDoc);
         setIsAnalyzing(false);
-        
-        // Now send the chat message with the newly created assistant
-        const assistantResponse = await azureService.sendChatMessage(
-          threadId,
-          assistantId,
-          userMessageContent
-        );
         
         // Add final assistant response (no analyzing placeholder message)
         setMessages(prev => [...prev, assistantResponse]);
@@ -308,24 +300,13 @@ You can ask me questions about any of these columns or request analysis of your 
         }
       } else {
         // Document already analyzed, send message directly
-        console.log('Sending chat message to existing assistant:', {
-          threadId: selectedDocument!.threadId,
-          assistantId: selectedDocument!.assistantId,
-          message: userMessageContent
-        });
-        
         const azureService = new AzureOpenAIService(azureConfig);
-        console.log('Azure service created, calling sendChatMessage...');
         
         const assistantResponse = await azureService.sendChatMessage(
           selectedDocument!.threadId,
           selectedDocument!.assistantId,
           userMessageContent
         );
-
-        console.log('Received assistant response:', assistantResponse);
-        console.log('Response content length:', assistantResponse.content?.length || 0);
-        console.log('Response charts count:', assistantResponse.charts?.length || 0);
         
         // Add final assistant response (no analyzing placeholder message)
         setMessages(prev => [...prev, assistantResponse]);
@@ -347,11 +328,6 @@ You can ask me questions about any of these columns or request analysis of your 
       }
     } catch (error) {
       console.error('Chat error:', error);
-      console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-        selectedDocument: selectedDocument
-      });
       
       // Handle rate limit errors specifically
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -377,7 +353,6 @@ You can ask me questions about any of these columns or request analysis of your 
       };
       setMessages(prev => [...prev, errorChatMessage]);
     } finally {
-      console.log('Setting loading state to false');
       clearTimeout(loadingTimeout);
       setIsLoading(false);
       setIsGeneratingCharts(false);
@@ -385,10 +360,8 @@ You can ask me questions about any of these columns or request analysis of your 
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    console.log('Key pressed:', e.key, 'isLoading:', isLoading, 'selectedDocument:', !!selectedDocument);
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      console.log('Enter key pressed, calling handleSendMessage');
       handleSendMessage();
     }
   };
@@ -559,12 +532,6 @@ You can ask me questions about any of these columns or request analysis of your 
             </div>
             <button
               onClick={() => {
-                console.log('Send button clicked', { 
-                  inputMessage: inputMessage.trim(), 
-                  isLoading, 
-                  selectedDocument: !!selectedDocument,
-                  disabled: !inputMessage.trim() || isLoading || !selectedDocument
-                });
                 handleSendMessage();
               }}
               disabled={!inputMessage.trim() || isLoading || !selectedDocument}

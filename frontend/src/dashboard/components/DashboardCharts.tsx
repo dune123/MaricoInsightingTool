@@ -222,6 +222,52 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     );
   };
   
+  // Helper function to generate smart axis labels from chart title
+  const getSmartAxisLabel = (title: string, axis: 'x' | 'y'): string => {
+    const titleLower = title.toLowerCase();
+    
+    if (axis === 'x') {
+      // Extract the first variable from the title
+      if (titleLower.includes('availability')) return 'Availability (%)';
+      if (titleLower.includes('price')) return 'Price ($)';
+      if (titleLower.includes('cost')) return 'Cost ($)';
+      if (titleLower.includes('defect')) return 'Defect Rate (%)';
+      if (titleLower.includes('lead time')) return 'Lead Time (days)';
+      if (titleLower.includes('volume')) return 'Volume';
+      if (titleLower.includes('quality')) return 'Quality Score';
+      if (titleLower.includes('efficiency')) return 'Efficiency (%)';
+      if (titleLower.includes('capacity')) return 'Capacity (%)';
+      if (titleLower.includes('utilization')) return 'Utilization (%)';
+      
+      // Try to extract variable name from "Impact of X on Y" pattern
+      const impactMatch = title.match(/impact of (.*?) on/i);
+      if (impactMatch) {
+        const variable = impactMatch[1].trim();
+        return variable.charAt(0).toUpperCase() + variable.slice(1);
+      }
+      
+      return 'Variable';
+    } else {
+      // Extract the target variable (usually after "on")
+      if (titleLower.includes('revenue')) return 'Revenue Generated ($)';
+      if (titleLower.includes('sales')) return 'Sales ($)';
+      if (titleLower.includes('profit')) return 'Profit ($)';
+      if (titleLower.includes('cost')) return 'Cost ($)';
+      if (titleLower.includes('efficiency')) return 'Efficiency (%)';
+      if (titleLower.includes('quality')) return 'Quality Score';
+      if (titleLower.includes('performance')) return 'Performance Score';
+      
+      // Try to extract target from "Impact of X on Y" pattern
+      const onMatch = title.match(/on (.*?)$/i);
+      if (onMatch) {
+        const target = onMatch[1].trim();
+        return target.charAt(0).toUpperCase() + target.slice(1);
+      }
+      
+      return 'Value';
+    }
+  };
+
   const renderChart = (chart: ChartData) => {
     const safeConfig = chart.config || {} as any;
     const colors = (safeConfig.colors && Array.isArray(safeConfig.colors) ? safeConfig.colors : DEFAULT_COLORS);
@@ -232,8 +278,30 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     
     if (dataPointCount === 0) {
       console.error(`❌ ERROR: Chart "${chart.title}" has NO data points to render!`);
-    } else if (dataPointCount <= 5) {
-      console.warn(`⚠️ WARNING: Chart "${chart.title}" has only ${dataPointCount} data points - this might be incomplete!`);
+    } else {
+      // Chart-type-aware validation
+      if (chart.type === 'scatter') {
+        // Scatter plots should have more individual data points
+        if (dataPointCount < 10) {
+          console.warn(`⚠️ WARNING: Scatter plot "${chart.title}" has only ${dataPointCount} data points - this might be incomplete!`);
+        } else {
+          console.log(`✅ Good scatter plot data: ${dataPointCount} data points included`);
+        }
+      } else if (chart.type === 'bar' || chart.type === 'pie') {
+        // Bar and pie charts can have few categories (aggregation is acceptable)
+        if (dataPointCount < 2) {
+          console.warn(`⚠️ WARNING: ${chart.type} chart "${chart.title}" has only ${dataPointCount} data points - this might be too few categories!`);
+        } else {
+          console.log(`✅ Good ${chart.type} chart data: ${dataPointCount} data points included`);
+        }
+      } else {
+        // Default validation for other chart types
+        if (dataPointCount <= 5) {
+          console.warn(`⚠️ WARNING: Chart "${chart.title}" has only ${dataPointCount} data points - this might be incomplete!`);
+        } else {
+          console.log(`✅ Good chart data: ${dataPointCount} data points included`);
+        }
+      }
     }
     
     // For grid layout, we need to ensure proper height
@@ -248,10 +316,17 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     
     switch (chart.type) {
       case 'bar':
+        // Determine the correct keys for bar chart data
+        const xKey = safeConfig.xKey || safeConfig.nameKey || 'name';
+        const yKey = safeConfig.yKey || safeConfig.valueKey || 'value';
+        
+        console.log(`🔧 Bar chart keys - xKey: ${xKey}, yKey: ${yKey}, data sample:`, chart.data[0]);
+        console.log(`🔧 Bar chart config - xAxisLabel: "${safeConfig.xAxisLabel}", yAxisLabel: "${safeConfig.yAxisLabel}"`);
+        
         // Sort data by x-axis values for proper ordering
         const sortedBarData = [...chart.data].sort((a, b) => {
-          const aVal = a[safeConfig.xKey || 'category'];
-          const bVal = b[safeConfig.xKey || 'category'];
+          const aVal = a[xKey];
+          const bVal = b[xKey];
           // Try numeric sorting first, then alphabetical
           if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
             return Number(aVal) - Number(bVal);
@@ -265,21 +340,21 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
               <BarChart data={sortedBarData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
-                  dataKey={safeConfig.xKey} 
-                  tick={{ fontSize: 12 }}
+                  dataKey={xKey} 
+                  tick={{ fontSize: 12, fill: 'transparent' }}
                   stroke="#6b7280"
                   label={{ 
-                    value: safeConfig.xAxisLabel || (safeConfig.xKey || 'Categories'), 
+                    value: safeConfig.xAxisLabel || 'Product Category', 
                     position: 'insideBottom', 
                     offset: -5,
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
                   }}
                 />
                 <YAxis 
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: 'transparent' }}
                   stroke="#6b7280"
                   label={{ 
-                    value: safeConfig.yAxisLabel || 'Values', 
+                    value: safeConfig.yAxisLabel || 'Revenue Generated ($)', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -295,9 +370,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     }}
                   />
                 )}
-                {safeConfig.showLegend && <Legend />}
-                {Array.isArray(safeConfig.yKey) ? (
-                  safeConfig.yKey.map((key: string, index: number) => (
+                {/* Hide legend for single-series bar charts to avoid confusion */}
+                {safeConfig.showLegend && Array.isArray(yKey) && yKey.length > 1 && <Legend />}
+                {Array.isArray(yKey) ? (
+                  yKey.map((key: string, index: number) => (
                     <Bar 
                       key={key} 
                       dataKey={key} 
@@ -307,7 +383,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   ))
                 ) : (
                   <Bar 
-                    dataKey={safeConfig.yKey} 
+                    dataKey={yKey} 
                     fill={colors[0]}
                     radius={[4, 4, 0, 0]}
                   />
@@ -318,10 +394,16 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         );
 
       case 'line':
+        // Determine the correct keys for line chart data
+        const lineXKey = safeConfig.xKey || 'x';
+        const lineYKey = safeConfig.yKey || 'y';
+        
+        console.log(`🔧 Line chart keys - xKey: ${lineXKey}, yKey: ${lineYKey}, data sample:`, chart.data[0]);
+        
         // Sort data by x-axis values for proper ordering
         const sortedLineData = [...chart.data].sort((a, b) => {
-          const aVal = a[chart.config.xKey || 'x'];
-          const bVal = b[chart.config.xKey || 'x'];
+          const aVal = a[lineXKey];
+          const bVal = b[lineXKey];
           // Try numeric sorting first, then alphabetical
           if (!isNaN(Number(aVal)) && !isNaN(Number(bVal))) {
             return Number(aVal) - Number(bVal);
@@ -335,11 +417,11 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
               <LineChart data={sortedLineData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
-                  dataKey={chart.config.xKey} 
+                  dataKey={lineXKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    value: safeConfig.xAxisLabel || 'Lead Time (days)', 
                     position: 'insideBottom', 
                     offset: -5,
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -349,7 +431,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    value: safeConfig.yAxisLabel || 'Stock Levels', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -366,8 +448,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   />
                 )}
                 {chart.config.showLegend && <Legend />}
-                {Array.isArray(chart.config.yKey) ? (
-                  chart.config.yKey.map((key, index) => (
+                {Array.isArray(lineYKey) ? (
+                  lineYKey.map((key, index) => (
                     <Line 
                       key={key} 
                       type="monotone" 
@@ -381,7 +463,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                 ) : (
                   <Line 
                     type="monotone" 
-                    dataKey={chart.config.yKey} 
+                    dataKey={lineYKey} 
                     stroke={colors[0]}
                     strokeWidth={3}
                     dot={{ fill: colors[0], strokeWidth: 2, r: 4 }}
@@ -490,19 +572,64 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           );
         }
         
-        // Check if data has required fields
-        const hasValidData = formattedData.every((item: Record<string, unknown>) => 
-          (item[chart.config.valueKey || 'value'] !== undefined) && 
-          (item[chart.config.nameKey || 'name'] !== undefined)
-        );
+        // ROBUST PIE CHART VALIDATION: Handle missing config keys gracefully
+        const valueKey = chart.config.valueKey || 'value';
+        const nameKey = chart.config.nameKey || 'name';
+        
+        // Check if data has required fields, with intelligent fallbacks
+        const hasValidData = formattedData.every((item: Record<string, unknown>) => {
+          const hasValue = item[valueKey] !== undefined;
+          const hasName = item[nameKey] !== undefined;
+          
+          // If config keys are missing, try common alternatives
+          if (!hasValue || !hasName) {
+            const altValueKey = Object.keys(item).find(key => 
+              typeof item[key] === 'number' && key.toLowerCase().includes('value')
+            );
+            const altNameKey = Object.keys(item).find(key => 
+              typeof item[key] === 'string' && key.toLowerCase().includes('name')
+            );
+            
+            return (hasValue || altValueKey) && (hasName || altNameKey);
+          }
+          
+          return hasValue && hasName;
+        });
         
         if (!hasValidData) {
-          console.error('Invalid data structure for pie chart:', formattedData);
-          return (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              Invalid data structure for pie chart
-            </div>
-          );
+          console.error('❌ Invalid data structure for pie chart:', formattedData);
+          console.error('🔍 Config keys:', { valueKey, nameKey });
+          console.error('🔍 Available keys:', formattedData[0] ? Object.keys(formattedData[0]) : 'No data');
+          
+          // Try to auto-fix the data structure
+          const autoFixedData = formattedData.map((item, index) => {
+            const keys = Object.keys(item);
+            const valueKeyFound = keys.find(key => typeof item[key] === 'number');
+            const nameKeyFound = keys.find(key => typeof item[key] === 'string');
+            
+            return {
+              ...item,
+              [valueKey]: item[valueKeyFound || valueKey] || (item as any).value || index,
+              [nameKey]: item[nameKeyFound || nameKey] || (item as any).name || `Item ${index + 1}`
+            };
+          });
+          
+          console.log('🔧 Auto-fixed data:', autoFixedData);
+          
+          // Use auto-fixed data if it looks valid
+          if (autoFixedData.every(item => 
+            typeof item[valueKey] === 'number' && 
+            typeof item[nameKey] === 'string'
+          )) {
+            console.log('✅ Using auto-fixed data for pie chart');
+            formattedData.splice(0, formattedData.length, ...autoFixedData);
+          } else {
+            return (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                Invalid data structure for pie chart
+              </div>
+            );
+          }
         }
 
         return (
@@ -564,12 +691,65 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
       }
 
       case 'scatter':
+        // Debug: Log the raw chart data
+        console.log(`🔍 SCATTER PLOT DEBUG for "${chart.title}":`);
+        console.log(`  Raw chart.data:`, chart.data);
+        console.log(`  Data type:`, typeof chart.data);
+        console.log(`  Is array:`, Array.isArray(chart.data));
+        console.log(`  Data length:`, Array.isArray(chart.data) ? chart.data.length : 'N/A');
+        console.log(`  Config:`, safeConfig);
+        console.log(`  X key:`, safeConfig.xKey || 'x');
+        console.log(`  Y key:`, safeConfig.yKey);
+        
+        if (Array.isArray(chart.data) && chart.data.length > 0) {
+          console.log(`  First data point:`, chart.data[0]);
+          console.log(`  Sample data points (first 3):`, chart.data.slice(0, 3));
+        } else {
+          console.error(`❌ ERROR: No data points found in chart.data!`);
+        }
+        
+        // Handle different data structures and ensure we have valid data
+        let scatterData = chart.data;
+        
+        // If data is not an array, try to extract it from other possible locations
+        if (!Array.isArray(scatterData)) {
+          console.warn(`⚠️ Chart data is not an array, attempting to find data in other locations...`);
+          if (Array.isArray((chart as any).chart_data)) {
+            scatterData = (chart as any).chart_data;
+            console.log(`✅ Found data in chart.chart_data:`, scatterData.length, 'points');
+          } else if (Array.isArray((chart as any).data_points)) {
+            scatterData = (chart as any).data_points;
+            console.log(`✅ Found data in chart.data_points:`, scatterData.length, 'points');
+          } else {
+            console.error(`❌ No valid data array found in chart object!`);
+            scatterData = [];
+          }
+        }
+        
+        // Ensure we have data before proceeding
+        if (!Array.isArray(scatterData) || scatterData.length === 0) {
+          console.error(`❌ No valid scatter plot data found for "${chart.title}"`);
+          return (
+            <ChartWrapper>
+              <div className="flex items-center justify-center h-full text-red-500">
+                <div className="text-center">
+                  <div className="text-lg font-semibold mb-2">No Data Available</div>
+                  <div className="text-sm">This chart has no data points to display</div>
+                </div>
+              </div>
+            </ChartWrapper>
+          );
+        }
+        
         // Sort data by x-axis values for proper ordering
-        const sortedScatterData = [...chart.data].sort((a, b) => {
+        const sortedScatterData = [...scatterData].sort((a, b) => {
           const aVal = Number(a[safeConfig.xKey || 'x']);
           const bVal = Number(b[safeConfig.xKey || 'x']);
           return aVal - bVal;
         });
+        
+        console.log(`  Sorted data length:`, sortedScatterData.length);
+        console.log(`  First sorted point:`, sortedScatterData[0]);
         
         // Calculate proper trend line using linear regression
         const calculateTrendLine = (data: any[]) => {
@@ -663,7 +843,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.xAxisLabel || (chart.config.xKey || 'X-Axis'), 
+                    value: chart.config.xAxisLabel || getSmartAxisLabel(chart.title, 'x') || 'Variable', 
                     position: 'insideBottom', 
                     offset: -5,
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -674,7 +854,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.yAxisLabel || (chart.config.yKey || 'Y-Axis'), 
+                    value: chart.config.yAxisLabel || getSmartAxisLabel(chart.title, 'y') || 'Value', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
@@ -708,7 +888,12 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     }}
                   />
                 )}
-                <Scatter fill={colors[0]} />
+                <Scatter 
+                  data={sortedScatterData}
+                  fill={colors[0]} 
+                  dataKey={safeConfig.yKey as string}
+                  name="Data Points"
+                />
                 {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
                   <>
                     {(() => {
