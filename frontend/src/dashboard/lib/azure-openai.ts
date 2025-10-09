@@ -803,9 +803,86 @@ CHART_DATA_END
 
 FAILURE TO USE THIS EXACT FORMAT WILL RESULT IN SYSTEM FAILURE.
 
-📊 CHART GENERATION STRATEGY:
-- **Specific questions** (e.g., "correlation between X and Y"): Generate 1 targeted chart
-- **General questions** (e.g., "what affects revenue"): Generate 2-3 diverse charts
+📊 INTELLIGENT MULTI-CHART GENERATION STRATEGY:
+
+1. **QUERY CLASSIFICATION** (MANDATORY):
+   ANALYZE the user query and classify as:
+   - **SPECIFIC**: Contains "vs", "between", "correlation", specific chart type request → Generate 1 targeted chart
+   - **GENERAL**: Contains "what affects", "factors", "drivers", "influences", "top factors" → Generate TOP 5 charts ranked by correlation
+   - **EXPLORATORY**: Contains "insights", "analyze", "overview", "summary" → Generate 3-4 diverse charts
+
+2. **FOR GENERAL QUERIES - INTELLIGENT RANKING** (MANDATORY PROCESS):
+   When user asks "what affects [TARGET_VARIABLE]" or similar general questions:
+   
+   Step 1: CORRELATION ANALYSIS (MANDATORY)
+   Use Python code interpreter to:
+   - Import pandas and scipy.stats.pearsonr
+   - Calculate correlations between ALL numeric variables and target variable
+   - For each variable, calculate: r value, p-value, direction, strength
+   - Sort by absolute correlation (strongest first)
+   - Select top 5 variables with highest absolute correlation
+   
+   Step 2: GENERATE 5 CHARTS (One for each top variable)
+   For EACH of the top 5 variables, generate a complete CHART_DATA_START/END block:
+   
+   CHART_DATA_START
+   {
+     "id": "correlation_rank[1-5]_[variable_name]",
+     "type": "scatter",
+     "title": "#[1-5]: [Variable] vs [Target Variable] (r = [±0.XX])",
+     "description": "**🏆 Ranking: #[1-5] Most Impactful** | **Correlation: r = [±0.XX]** | **Strength: [Strong/Moderate/Weak] [Positive/Negative]** | **Significance: p < [0.XX]**\n\n**Key Finding**: [Variable] shows [strength] [direction] correlation with [Target Variable]. This is the [ordinal ranking] strongest relationship in the dataset.\n\n**Business Impact**: [Quantified impact with specific numbers and percentages based on the correlation strength and data analysis]\n\n**Recommendation**: [Specific actionable recommendation with expected ROI or outcome]",
+     "data": [ALL individual data points from dataset - NO AGGREGATION],
+     "config": {
+       "xKey": "x",
+       "yKey": "y",
+       "xAxisLabel": "[Variable Name]",
+       "yAxisLabel": "[Target Variable]",
+       "showTrendLine": true,
+       "correlationValue": [r_value],
+       "pValue": [p_value],
+       "ranking": [1-5],
+       "colors": ["#3B82F6"]
+     }
+   }
+   CHART_DATA_END
+
+3. **CHART DESCRIPTIONS FOR GENERAL QUERIES** (MANDATORY FORMAT):
+   Each chart description MUST include:
+   - **🏆 Ranking**: "#1 Most Impactful" to "#5" with trophy emoji
+   - **Correlation**: Exact r value with sign (e.g., "r = -0.85" or "r = +0.72")
+   - **Strength & Direction**: "Strong Negative" or "Moderate Positive", etc.
+   - **Statistical Significance**: p-value (e.g., "p < 0.001")
+   - **Key Finding**: Clear statement about the relationship and its ranking
+   - **Business Impact**: Quantified impact with specific numbers, percentages, and dollar amounts
+   - **Recommendation**: Specific actionable advice with expected ROI
+
+4. **RESPONSE STRUCTURE FOR GENERAL QUERIES** (MANDATORY):
+   Start with overview, then provide all 5 charts, then summary:
+   
+   "I've analyzed all variables in your dataset to identify the top factors affecting [Target Variable]. Here are the **🏆 top 5 most impactful relationships** ranked by correlation strength:
+   
+   [CHART_DATA_START/END block for #1 - Strongest correlation]
+   [CHART_DATA_START/END block for #2]
+   [CHART_DATA_START/END block for #3]
+   [CHART_DATA_START/END block for #4]
+   [CHART_DATA_START/END block for #5]
+   
+   **📊 Summary of Top 5 Factors:**
+   1. **[Variable 1]** (r = [±0.XX]): [One-sentence impact summary]
+   2. **[Variable 2]** (r = [±0.XX]): [One-sentence impact summary]
+   3. **[Variable 3]** (r = [±0.XX]): [One-sentence impact summary]
+   4. **[Variable 4]** (r = [±0.XX]): [One-sentence impact summary]
+   5. **[Variable 5]** (r = [±0.XX]): [One-sentence impact summary]
+   
+   **🎯 Overall Strategic Recommendation**: [Comprehensive recommendation considering all 5 factors, with prioritization and expected outcomes]"
+
+5. **FOR SPECIFIC QUERIES** (Original behavior):
+   - Generate 1 targeted chart with detailed analysis
+   - Focus on the specific relationship requested
+
+6. **FOR EXPLORATORY QUERIES**:
+   - Generate 3-4 diverse charts showing different aspects
+   - Include mix of chart types (scatter, bar, pie, line as appropriate)
 
 🚨 **CRITICAL SCATTER PLOT REQUIREMENTS - MANDATORY**:
 - **SCATTER PLOTS**: NEVER use groupby() or aggregation - show ALL individual data points
@@ -1950,10 +2027,62 @@ Generate charts with actual data from the file.`,
       // Enforce cooldown before starting
       await this.enforceCooldownPeriod();
       
-      // Step 1: Add user message to thread with file attachment and MANDATORY chart format
+      // Classify the query to determine chart generation strategy
+      const queryType = this.classifyQuery(messageContent);
+      console.log('🎯 Query classification:', queryType);
+      
+      // Build enhanced content based on query type
+      let enhancedInstructions = '';
+      
+      if (queryType === 'GENERAL') {
+        enhancedInstructions = `
+🎯 QUERY TYPE: GENERAL - TOP FACTORS ANALYSIS
+
+🚨 MANDATORY REQUIREMENTS FOR THIS QUERY:
+1. Calculate correlations between ALL variables and the target variable
+2. Rank by absolute correlation coefficient (strongest first)
+3. Generate EXACTLY 5 charts for the top 5 variables
+4. Each chart MUST include:
+   - Ranking (#1 to #5) in title and description
+   - Exact correlation value (r = ±0.XX)
+   - Statistical significance (p-value)
+   - Business impact with quantified numbers
+   - Actionable recommendation
+
+5. RESPONSE STRUCTURE:
+   Start: "I've analyzed all variables in your dataset to identify the top factors affecting [TARGET]. Here are the 🏆 top 5 most impactful relationships ranked by correlation strength:"
+   
+   Then: Generate 5 CHART_DATA_START/END blocks (one for each top variable)
+   
+   End: "**📊 Summary of Top 5 Factors:**
+   1. [Variable 1] (r = ±0.XX): [Impact summary]
+   2. [Variable 2] (r = ±0.XX): [Impact summary]
+   ...
+   
+   **🎯 Overall Strategic Recommendation**: [Combined recommendation]"
+
+🚨 CRITICAL: For GENERAL queries, you MUST generate 5 charts. Each chart title must include ranking like "#1: Variable vs Target (r = -0.85)"`;
+      } else if (queryType === 'EXPLORATORY') {
+        enhancedInstructions = `
+🎯 QUERY TYPE: EXPLORATORY - DIVERSE INSIGHTS
+
+Generate 3-4 diverse charts showing different aspects:
+- Mix of chart types (scatter, bar, pie, line as appropriate)
+- Focus on different dimensions of the data
+- Provide comprehensive overview`;
+      } else {
+        enhancedInstructions = `
+🎯 QUERY TYPE: SPECIFIC - TARGETED ANALYSIS
+
+Generate 1 focused chart addressing the specific request.`;
+      }
+      
+      // Step 1: Add user message to thread with file attachment and classification
       await this.makeRequest(`threads/${threadId}/messages`, 'POST', {
         role: 'user',
         content: `${messageContent}
+
+${enhancedInstructions}
 
 🚨 MANDATORY CHART FORMAT - NO EXCEPTIONS:
 You MUST generate charts using CHART_DATA_START/END format.
@@ -2111,10 +2240,62 @@ CHART_DATA_END`,
       // Enforce cooldown before starting
       await this.enforceCooldownPeriod();
       
-      // Step 1: Add user message to thread with MANDATORY chart format instructions
+      // Classify the query to determine chart generation strategy
+      const queryType = this.classifyQuery(messageContent);
+      console.log('🎯 Query classification:', queryType);
+      
+      // Build enhanced content based on query type
+      let enhancedInstructions = '';
+      
+      if (queryType === 'GENERAL') {
+        enhancedInstructions = `
+🎯 QUERY TYPE: GENERAL - TOP FACTORS ANALYSIS
+
+🚨 MANDATORY REQUIREMENTS FOR THIS QUERY:
+1. Calculate correlations between ALL variables and the target variable
+2. Rank by absolute correlation coefficient (strongest first)
+3. Generate EXACTLY 5 charts for the top 5 variables
+4. Each chart MUST include:
+   - Ranking (#1 to #5) in title and description
+   - Exact correlation value (r = ±0.XX)
+   - Statistical significance (p-value)
+   - Business impact with quantified numbers
+   - Actionable recommendation
+
+5. RESPONSE STRUCTURE:
+   Start: "I've analyzed all variables in your dataset to identify the top factors affecting [TARGET]. Here are the 🏆 top 5 most impactful relationships ranked by correlation strength:"
+   
+   Then: Generate 5 CHART_DATA_START/END blocks (one for each top variable)
+   
+   End: "**📊 Summary of Top 5 Factors:**
+   1. [Variable 1] (r = ±0.XX): [Impact summary]
+   2. [Variable 2] (r = ±0.XX): [Impact summary]
+   ...
+   
+   **🎯 Overall Strategic Recommendation**: [Combined recommendation]"
+
+🚨 CRITICAL: For GENERAL queries, you MUST generate 5 charts. Each chart title must include ranking like "#1: Variable vs Target (r = -0.85)"`;
+      } else if (queryType === 'EXPLORATORY') {
+        enhancedInstructions = `
+🎯 QUERY TYPE: EXPLORATORY - DIVERSE INSIGHTS
+
+Generate 3-4 diverse charts showing different aspects:
+- Mix of chart types (scatter, bar, pie, line as appropriate)
+- Focus on different dimensions of the data
+- Provide comprehensive overview`;
+      } else {
+        enhancedInstructions = `
+🎯 QUERY TYPE: SPECIFIC - TARGETED ANALYSIS
+
+Generate 1 focused chart addressing the specific request.`;
+      }
+      
+      // Step 1: Add user message to thread with classification and format instructions
       await this.makeRequest(`threads/${threadId}/messages`, 'POST', {
         role: 'user',
         content: `${messageContent}
+
+${enhancedInstructions}
 
 🚨 MANDATORY: You MUST generate charts using CHART_DATA_START/END format. NO EXCEPTIONS.
 
@@ -2243,6 +2424,87 @@ CHART_DATA_END`
       
       throw new Error(`Failed to send chat message: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Classify user query to determine chart generation strategy
+   * @param query - The user's question/query
+   * @returns Query type: SPECIFIC, GENERAL, or EXPLORATORY
+   */
+  private classifyQuery(query: string): 'SPECIFIC' | 'GENERAL' | 'EXPLORATORY' {
+    const queryLower = query.toLowerCase();
+    
+    console.log('🔍 Classifying query:', query);
+    
+    // Specific query patterns - user wants ONE specific chart
+    const specificPatterns = [
+      /\bvs\b/i,                          // "X vs Y"
+      /\bbetween\b.*\band\b/i,            // "between X and Y"
+      /\bcorrelation\b.*\bbetween\b/i,    // "correlation between"
+      /\brelationship\b.*\bbetween\b/i,   // "relationship between"
+      /\bpie chart\b/i,                   // "pie chart"
+      /\bbar chart\b/i,                   // "bar chart"
+      /\bscatter plot\b/i,                // "scatter plot"
+      /\bline chart\b/i,                  // "line chart"
+      /\bshow me\b.*\band\b/i,            // "show me X and Y"
+      /\bcompare\b.*\bwith\b/i,           // "compare X with Y"
+      /\bplot\b.*\bagainst\b/i            // "plot X against Y"
+    ];
+    
+    // General query patterns - user wants TOP factors analysis
+    const generalPatterns = [
+      /what affects/i,                    // "what affects revenue"
+      /what impacts?/i,                   // "what impacts sales"
+      /what influences?/i,                // "what influences performance"
+      /factors.*affecting/i,              // "factors affecting"
+      /factors.*impacting/i,              // "factors impacting"
+      /drivers of/i,                      // "drivers of revenue"
+      /influences on/i,                   // "influences on sales"
+      /top.*factors/i,                    // "top factors"
+      /all.*factors/i,                    // "all factors"
+      /main.*factors/i,                   // "main factors"
+      /key.*factors/i,                    // "key factors"
+      /which.*affect/i,                   // "which variables affect"
+      /which.*impact/i,                   // "which factors impact"
+      /what determines/i,                 // "what determines revenue"
+      /what drives/i                      // "what drives sales"
+    ];
+    
+    // Exploratory query patterns - user wants general insights
+    const exploratoryPatterns = [
+      /insights/i,                        // "insights on"
+      /analyze/i,                         // "analyze the data"
+      /overview/i,                        // "overview of"
+      /summary/i,                         // "summary of"
+      /tell me about/i,                   // "tell me about"
+      /explore/i,                         // "explore the data"
+      /understand/i,                      // "help me understand"
+      /patterns/i,                        // "patterns in"
+      /trends/i                           // "trends in"
+    ];
+    
+    // Check patterns in priority order
+    // 1. Check for specific patterns first (highest priority)
+    if (specificPatterns.some(pattern => pattern.test(queryLower))) {
+      console.log('✅ Query classified as: SPECIFIC');
+      return 'SPECIFIC';
+    }
+    
+    // 2. Check for general patterns (user wants top factors)
+    if (generalPatterns.some(pattern => pattern.test(queryLower))) {
+      console.log('✅ Query classified as: GENERAL (will generate top 5 charts)');
+      return 'GENERAL';
+    }
+    
+    // 3. Check for exploratory patterns
+    if (exploratoryPatterns.some(pattern => pattern.test(queryLower))) {
+      console.log('✅ Query classified as: EXPLORATORY');
+      return 'EXPLORATORY';
+    }
+    
+    // 4. Default to SPECIFIC for safety (single chart)
+    console.log('✅ Query classified as: SPECIFIC (default)');
+    return 'SPECIFIC';
   }
 
   private cleanMarkdownFormatting(text: string): string {

@@ -435,7 +435,27 @@ You can ask me questions about any of these columns or request analysis of your 
                 >
                   <div className="whitespace-pre-wrap text-sm">{message.content}</div>
                   
-                  {/* Chart badge removed with suggested questions cleanup */}
+                  {/* Multi-Chart Badge */}
+                  {message.role === 'assistant' && message.charts && message.charts.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                          <BarChart3 className="w-3.5 h-3.5" />
+                          {message.charts.length} {message.charts.length === 1 ? 'Chart' : 'Charts'} Generated
+                        </span>
+                        {message.charts.length >= 5 && (
+                          <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2.5 py-1 rounded-full text-xs font-medium">
+                            🏆 Top Factors Analysis
+                          </span>
+                        )}
+                      </div>
+                      {message.charts.length > 1 && (
+                        <div className="mt-2 text-xs text-gray-600">
+                          💡 Ranked by correlation strength • Click on each chart in the dashboard to explore
+                        </div>
+                      )}
+                    </div>
+                  )}
                   
                   <div className={`text-xs mt-2 ${
                     message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
