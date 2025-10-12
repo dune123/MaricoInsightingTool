@@ -151,7 +151,7 @@ export function AddRPIsStep() {
         console.log('🔍 Checking RPI completion status...');
         
         // Look for any concatenated file in the brand's concatenated directory
-        const concatFilesResponse = await fetch(`http://localhost:8000/api/files/list-concatenated?brand=${encodeURIComponent(selectedBrand)}`);
+        const concatFilesResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/files/list-concatenated?brand=${encodeURIComponent(selectedBrand)}`);
         
         if (!concatFilesResponse.ok) {
           console.log('⚠️ Could not fetch concatenated files list');

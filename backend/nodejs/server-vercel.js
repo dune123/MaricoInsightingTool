@@ -3,19 +3,19 @@
  * VERCEL-COMPATIBLE SERVER APPLICATION
  * ========================================
  * 
- * Purpose: Express server for Vercel serverless deployment
+ * Purpose: Express server for Vercel serverless deployment with CORS fix
  * 
  * Description:
  * This is a Vercel-compatible version of the BrandBloom Insights backend server.
- * It removes file system operations and server startup code to work with Vercel's
- * serverless environment. File operations are disabled and will return appropriate
- * error messages.
+ * It includes proper CORS configuration for production deployment and exports
+ * the Express app instead of starting a server.
  * 
  * Key Changes for Vercel:
  * - No directory initialization (not allowed in Vercel)
  * - No server startup (Vercel handles this)
  * - File operations disabled (use external storage)
  * - Exports Express app instead of starting server
+ * - Production CORS configuration for frontend domains
  * 
  * Last Updated: 2025-01-31
  * Author: BrandBloom Backend Team
@@ -34,8 +34,24 @@ import nonmmmRoutes from './routes/nonmmmRoutes-vercel.js';
 
 const app = express();
 
+// CORS configuration for production
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173', 
+    'https://marico-insighting-tool.vercel.app',
+    'https://frontend-4lj9zgiar-sameers-projects-c785670d.vercel.app',
+    'https://frontend-q5yz1zc5s-sameers-projects-c785670d.vercel.app',
+    'https://frontend-28mk4syu3-sameers-projects-c785670d.vercel.app',
+    'https://frontend-wn4aIZcW-sameers-projects-c785670d.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -68,6 +84,7 @@ app.get('/health', (req, res) => {
     version: '1.0.0',
     environment: 'vercel-serverless',
     platform: 'vercel',
+    cors: 'configured',
     note: 'File operations disabled in serverless environment'
   });
 });
@@ -78,6 +95,7 @@ app.get(`${API_CONFIG.API_PREFIX}`, (req, res) => {
     message: 'BrandBloom Insights Backend API (Vercel Serverless)',
     version: '1.0.0',
     platform: 'vercel',
+    cors: 'configured',
     note: 'File operations require external storage (AWS S3, etc.)',
     endpoints: {
       files: {

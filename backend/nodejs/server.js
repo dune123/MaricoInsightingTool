@@ -67,8 +67,24 @@ import nonmmmRoutes from './routes/nonmmmRoutes.js';
 
 const app = express();
 
+// CORS configuration for production
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5173', 
+    'https://marico-insighting-tool.vercel.app',
+    'https://frontend-4lj9zgiar-sameers-projects-c785670d.vercel.app',
+    'https://frontend-q5yz1zc5s-sameers-projects-c785670d.vercel.app',
+    'https://frontend-28mk4syu3-sameers-projects-c785670d.vercel.app',
+    'https://frontend-wn4aIZcW-sameers-projects-c785670d.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 

@@ -54,4 +54,24 @@ router.post('/suggestions', (req, res) => {
   vercelFileError(req, res);
 });
 
+// GET /analyses - List analyses (disabled in Vercel)
+router.get('/analyses', (req, res) => {
+  vercelFileError(req, res);
+});
+
+// POST /analyses - Create analysis (disabled in Vercel)
+router.post('/analyses', (req, res) => {
+  vercelFileError(req, res);
+});
+
+// GET /analyses/:id - Get analysis (disabled in Vercel)
+router.get('/analyses/:id', (req, res) => {
+  vercelFileError(req, res);
+});
+
+// DELETE /analyses/:id - Delete analysis (disabled in Vercel)
+router.delete('/analyses/:id', (req, res) => {
+  vercelFileError(req, res);
+});
+
 export default router;
