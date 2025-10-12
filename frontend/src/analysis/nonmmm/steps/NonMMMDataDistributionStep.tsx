@@ -87,7 +87,7 @@ export function NonMMMDataDistributionStep() {
 
     try {
       // Get histogram data from Python backend
-      const response = await fetch(`http://localhost:8000/api/nonmmm/histograms/${encodeURIComponent(state.analysisData.filename)}?brand=${encodeURIComponent(state.analysisData.brandName)}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/nonmmm/histograms/${encodeURIComponent(state.analysisData.filename)}?brand=${encodeURIComponent(state.analysisData.brandName)}`);
       
       if (!response.ok) {
         throw new Error(`Failed to generate histograms: ${response.statusText}`);

@@ -188,7 +188,7 @@ export function NonMMMModelBuildingStep() {
     try {
       // Add timestamp to force fresh data (bypass any potential caching)
       const timestamp = Date.now();
-      const response = await fetch(`http://localhost:8000/api/nonmmm/data-summary/${encodeURIComponent(filename)}?brand=${encodeURIComponent(brand)}&_t=${timestamp}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/nonmmm/data-summary/${encodeURIComponent(filename)}?brand=${encodeURIComponent(brand)}&_t=${timestamp}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch data summary: ${response.statusText}`);

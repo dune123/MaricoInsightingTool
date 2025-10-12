@@ -318,8 +318,9 @@ export class MetadataService {
    */
   private async isNodejsBackendAvailable(): Promise<boolean> {
     try {
-      console.log('🔍 Checking Node.js backend availability at http://localhost:3001/api/metadata/health');
-      const response = await fetch(`http://localhost:3001/api/metadata/health`, {
+      const nodeUrl = import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001';
+      console.log('🔍 Checking Node.js backend availability at', `${nodeUrl}/api/metadata/health`);
+      const response = await fetch(`${nodeUrl}/api/metadata/health`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
         signal: AbortSignal.timeout(5000) // 5 second timeout

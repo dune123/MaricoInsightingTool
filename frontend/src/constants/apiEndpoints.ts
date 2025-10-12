@@ -17,8 +17,8 @@
  * Base API configuration
  */
 export const API_BASE = {
-  PYTHON_BACKEND: 'http://localhost:8000/api',
-  NODE_BACKEND: 'http://localhost:3001/api'
+  PYTHON_BACKEND: (import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api',
+  NODE_BACKEND: (import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001') + '/api'
 } as const;
 
 /**

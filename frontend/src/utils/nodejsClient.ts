@@ -20,7 +20,7 @@ import { logger } from './logger';
  * Node.js backend configuration
  */
 export const NODEJS_CONFIG = {
-  BASE_URL: (import.meta.env.VITE_NODEJS_API_URL || 'http://localhost:3001') + '/api',
+  BASE_URL: (import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001') + '/api',
   TIMEOUT: 30000, // 30 seconds
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000 // 1 second

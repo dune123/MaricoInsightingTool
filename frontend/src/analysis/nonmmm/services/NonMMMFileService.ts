@@ -58,7 +58,7 @@ export class NonMMMFileService {
     }
     
     // Use fetch directly for file upload as httpClient is designed for JSON
-    const response = await fetch('http://localhost:8000/api/files/upload', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/files/upload`, {
       method: 'POST',
       body: formData
     });

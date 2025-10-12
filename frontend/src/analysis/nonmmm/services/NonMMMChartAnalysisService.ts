@@ -170,8 +170,8 @@ export interface NonMMMNewChartRequest {
 }
 
 export class NonMMMChartAnalysisService {
-  private static readonly NODEJS_BASE_URL = 'http://localhost:3001/api/nonmmm';
-  private static readonly PYTHON_BASE_URL = 'http://localhost:8000';
+  private static readonly NODEJS_BASE_URL = (import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001') + '/api/nonmmm';
+  private static readonly PYTHON_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   private static readonly TRENDLINE_TYPES: NonMMMTrendlineType[] = [
     {
       type: 'linear',
@@ -207,7 +207,7 @@ export class NonMMMChartAnalysisService {
       console.log('🔄 Chart Analysis Service - Starting chart generation');
       console.log('📤 Request:', request);
       
-             const apiUrl = `${import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000'}/api/nonmmm/chart-data/${request.filename}?brand=${encodeURIComponent(request.brand)}&target_variable=${encodeURIComponent(request.targetVariable)}&trendline_type=linear`;
+             const apiUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/nonmmm/chart-data/${request.filename}?brand=${encodeURIComponent(request.brand)}&target_variable=${encodeURIComponent(request.targetVariable)}&trendline_type=linear`;
       console.log('🌐 API URL:', apiUrl);
       
       // Call Python backend for chart data

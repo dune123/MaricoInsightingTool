@@ -543,7 +543,7 @@ export function NonMMMChartAnalysisStep() {
       if (filename && brand && analysisId && analysisId !== 'undefined') {
         console.log('🔄 Auto-creating standardized data with min-max scaling...');
         
-        const response = await fetch('http://localhost:8000/api/nonmmm/create-standardized-data', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/nonmmm/create-standardized-data`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

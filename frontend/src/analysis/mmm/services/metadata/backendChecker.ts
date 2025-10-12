@@ -39,7 +39,7 @@
 import { BackendHealthStatus, MetadataResponse } from './types';
 
 export class MetadataBackendChecker {
-  private static readonly BASE_URL = 'http://localhost:3001/api/metadata';
+  private static readonly BASE_URL = (import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001') + '/api/metadata';
   private static readonly DEFAULT_TIMEOUT = 2000; // 2 seconds
   private static readonly CACHE_DURATION = 30000; // 30 seconds
   
