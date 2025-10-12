@@ -228,7 +228,7 @@ export function DataConcatenationStep() {
       console.log('📄 Found concatenated file:', concatenatedFileName);
       
       // Load actual data from concatenated file
-      const dataResponse = await fetch(`http://localhost:8000/api/data/filtered?brand=${encodeURIComponent(selectedBrand)}`, {
+      const dataResponse = await fetch(`${import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000'}/api/data/filtered?brand=${encodeURIComponent(selectedBrand)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -346,7 +346,7 @@ export function DataConcatenationStep() {
       console.log('📄 Found concatenated file:', concatenatedFileName);
       
       // Step 3: Load actual data from concatenated file
-      const dataResponse = await fetch(`http://localhost:8000/api/data/filtered?brand=${encodeURIComponent(selectedBrand)}`, {
+      const dataResponse = await fetch(`${import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000'}/api/data/filtered?brand=${encodeURIComponent(selectedBrand)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
