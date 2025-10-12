@@ -53,12 +53,12 @@ interface BackendConfig {
 const BACKEND_OPTIONS: BackendConfig[] = [
   {
     name: 'Python FastAPI',
-    baseUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+    baseUrl: import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000',
     healthEndpoint: '/health'
   },
   {
     name: 'Node.js Express',
-    baseUrl: import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001',
+    baseUrl: import.meta.env.VITE_NODEJS_API_URL || 'http://localhost:3001',
     healthEndpoint: '/health'
   }
 ];
@@ -198,14 +198,14 @@ export async function getExcelApiUrl(): Promise<string> {
  * Get Node.js backend URL for state operations
  */
 export function getStateApiUrl(): string {
-  return 'http://localhost:3001/api';
+  return `${import.meta.env.VITE_NODEJS_API_URL || 'http://localhost:3001'}/api`;
 }
 
 /**
  * Get Python backend URL for data operations  
  */
 export function getDataApiUrl(): string {
-  return 'http://localhost:8000/api';
+  return `${import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000'}/api`;
 }
 
 /**

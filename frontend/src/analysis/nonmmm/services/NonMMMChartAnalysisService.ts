@@ -207,7 +207,7 @@ export class NonMMMChartAnalysisService {
       console.log('🔄 Chart Analysis Service - Starting chart generation');
       console.log('📤 Request:', request);
       
-             const apiUrl = `http://localhost:8000/api/nonmmm/chart-data/${request.filename}?brand=${encodeURIComponent(request.brand)}&target_variable=${encodeURIComponent(request.targetVariable)}&trendline_type=linear`;
+             const apiUrl = `${import.meta.env.VITE_PYTHON_API_URL || 'http://localhost:8000'}/api/nonmmm/chart-data/${request.filename}?brand=${encodeURIComponent(request.brand)}&target_variable=${encodeURIComponent(request.targetVariable)}&trendline_type=linear`;
       console.log('🌐 API URL:', apiUrl);
       
       // Call Python backend for chart data
