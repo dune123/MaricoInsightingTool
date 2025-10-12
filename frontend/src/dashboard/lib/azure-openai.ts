@@ -76,7 +76,7 @@ export class AzureOpenAIService {
   private config: AzureOpenAIConfig;
   private baseUrl: string;
   private requestQueue: Promise<any>[] = [];
-  private maxConcurrentRequests = 2; // Increased to 2 for better performance
+  private maxConcurrentRequests = 1; // Reduced to 1 to avoid rate limits
   private apiVersion = '2024-05-01-preview';
   private apiCallCount = 0; // Track total API calls
   private sessionStartTime = Date.now(); // Track session duration
@@ -98,6 +98,16 @@ export class AzureOpenAIService {
   private cacheTimestamp = 0;
   private sessionCache = new Map<string, any>(); // Session-based cache for analysis results
   private performanceCache = new Map<string, { result: any; timestamp: number; ttl: number }>(); // Performance-optimized cache
+  
+  // Batch processing for chart generation
+  private chartGenerationContext = {
+    totalChartsRequested: 0,
+    chartsGenerated: 0,
+    previousCharts: [] as ChartData[],
+    remainingVariables: [] as string[],
+    batchNumber: 1,
+    isBatchProcessing: false
+  };
 
   constructor(config: AzureOpenAIConfig) {
     this.config = config;
@@ -126,12 +136,12 @@ export class AzureOpenAIService {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     this.requestHistory = this.requestHistory.filter(time => time > thirtyMinutesAgo);
     
-        // OPTIMIZED RATE LIMITING: Maximum speed while maintaining reliability
-        const baseDelay = method === 'GET' ? 800 : 1200; // 0.8s for GET, 1.2s for POST/PUT/DELETE (optimized)
-        const jitter = Math.random() * 400; // Add 0-0.4s random jitter
+        // EXTREME RATE LIMITING: No rate limits at any cost
+        const baseDelay = method === 'GET' ? 15000 : 25000; // 15s for GET, 25s for POST/PUT/DELETE (extreme)
+        const jitter = Math.random() * 5000; // Add 0-5s random jitter
         const totalDelay = baseDelay + jitter;
         
-        console.log(`⚡ OPTIMIZED Rate limiting: waiting ${Math.round(totalDelay / 1000)}s...`);
+        console.log(`🐌 EXTREME Rate limiting: waiting ${Math.round(totalDelay / 1000)}s...`);
         await new Promise(resolve => setTimeout(resolve, totalDelay));
     
     // Queue requests to prevent overwhelming the API
@@ -161,9 +171,9 @@ export class AzureOpenAIService {
     endpoint: string, 
     method: string = 'GET', 
     body?: any, 
-    retryCount: number = 0
+    retryCount: number = 0,
+    maxRetries: number = 5
   ): Promise<any> {
-    const maxRetries = 5; // Increased retries for better recovery
     const baseDelay = 3000; // Reduced to 3 seconds base delay
     
     const url = `${this.baseUrl}/openai/${endpoint}?api-version=${this.apiVersion}`;
@@ -191,24 +201,24 @@ export class AzureOpenAIService {
           const retryAfter = response.headers.get('retry-after');
           const serverDelay = retryAfter ? parseInt(retryAfter) * 1000 : null;
           
-          // Use server delay if available, otherwise exponential backoff
-          const delay = serverDelay || (baseDelay * Math.pow(1.5, retryCount));
-          const jitter = Math.random() * 500; // Reduced jitter
-          const totalDelay = Math.min(delay + jitter, 30000); // Cap at 30 seconds
+          // Use server delay if available, otherwise EXTREME exponential backoff
+          const delay = serverDelay || (baseDelay * Math.pow(3, retryCount)); // Much more aggressive backoff
+          const jitter = Math.random() * 10000; // Add up to 10 seconds jitter
+          const totalDelay = Math.min(delay + jitter, 300000); // Cap at 5 minutes
           
-          console.log(`Rate limit exceeded. Retrying in ${Math.round(totalDelay / 1000)} seconds... (Attempt ${retryCount + 1}/${maxRetries})`);
+          console.log(`🚨 Rate limit exceeded. Retrying in ${Math.round(totalDelay / 1000)} seconds... (Attempt ${retryCount + 1}/${maxRetries})`);
           
           // Wait before retrying
           await new Promise(resolve => setTimeout(resolve, totalDelay));
           
           // Recursive retry with incremented count
-          return this.makeRequestWithRetry(endpoint, method, body, retryCount + 1);
+          return this.makeRequestWithRetry(endpoint, method, body, retryCount + 1, maxRetries);
         }
         
         // Handle rate limit error specifically
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 30000; // Default 30 seconds
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 120000; // Default 2 minutes
           
           if (retryCount < maxRetries) {
             console.log(`Rate limit exceeded. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
@@ -807,12 +817,22 @@ FAILURE TO USE THIS EXACT FORMAT WILL RESULT IN SYSTEM FAILURE.
 - **Specific questions** (e.g., "correlation between X and Y"): Generate 1 targeted chart
 - **General questions** (e.g., "what affects revenue"): Generate 2-3 diverse charts
 
-🚨 **CRITICAL SCATTER PLOT REQUIREMENTS - MANDATORY**:
-- **SCATTER PLOTS**: NEVER use groupby() or aggregation - show ALL individual data points
+🚨 **CRITICAL DATA ACCURACY REQUIREMENTS - MANDATORY**:
+- **USE ACTUAL DATA ONLY**: Extract real data points from the uploaded file, NEVER use placeholder or example data
+- **SCATTER PLOTS**: NEVER use groupby() or aggregation - show ALL individual data points from the actual dataset
 - **ALL DATA POINTS**: Plot every single row from the dataset for accurate correlation analysis
 - **NO SAMPLING**: Include every individual data point, no matter how many
+- **NO PLACEHOLDER DATA**: Never use example values like "value1", "value2" - use actual data from the file
 - **TREND LINE REQUIRED**: Always include trend line to show relationship
 - **MANDATORY FORMAT**: You MUST use CHART_DATA_START/END format - NO EXCEPTIONS
+- **DATA VERIFICATION**: Before generating charts, verify you have access to the actual data file and can read its contents
+
+🔄 **BATCH PROCESSING FOR LARGE ANALYSES**:
+- **WHEN TO USE**: If user asks for "impact of all variables" or "analyze all variables", use batch processing
+- **BATCH SIZE**: Generate exactly 3 charts per batch to avoid token limits
+- **CONTEXT AWARENESS**: Use previous chart context to avoid duplicates and build comprehensive analysis
+- **VARIABLE PRIORITIZATION**: Focus on most important variables first, then secondary variables
+- **PROGRESSIVE ANALYSIS**: Each batch should build upon previous insights
 
 🚨 **EXAMPLE - EXACT FORMAT REQUIRED**:
 CHART_DATA_START
@@ -943,11 +963,13 @@ CHART_DATA_END
 - Generate charts in parallel when possible
 - Focus on most impactful insights first
 
-🚨 **SCATTER PLOT DATA HANDLING**:
-- **For scatter plots**: Use df directly with ALL individual data points
-- **For scatter plots**: NEVER use groupby() or aggregation functions
-- **For scatter plots**: Show every single row from the dataset
-- **For other charts**: Use efficient data sampling for large datasets
+🚨 **DATA EXTRACTION REQUIREMENTS**:
+- **STEP 1**: First, load and examine the uploaded data file using code interpreter
+- **STEP 2**: Print the first few rows to verify data structure and column names
+- **STEP 3**: Extract actual data values for chart generation - NEVER use placeholder data
+- **STEP 4**: For scatter plots: Use df directly with ALL individual data points from the actual file
+- **STEP 5**: For other charts: Use actual aggregated data from the file, not examples
+- **CRITICAL**: Always verify data source before generating charts - check that you're using real data from the uploaded file
 
 🎯 ENTERPRISE STANDARDS:
 - Every insight must have specific numbers
@@ -1655,11 +1677,200 @@ Generate charts with actual data from the file.`,
     console.log('🔄 Rate limiter and performance metrics reset - starting fresh session');
   }
 
+  // Method to get current rate limiting status
+  public getRateLimitStatus(): { 
+    canMakeRequest: boolean; 
+    waitTime: number; 
+    reason: string;
+    requestsInLastMinute: number;
+    requestsInLast5Minutes: number;
+  } {
+    const now = Date.now();
+    const requestsInLastMinute = this.requestHistory.filter(time => time > now - 60000).length;
+    const requestsInLast5Minutes = this.requestHistory.filter(time => time > now - 300000).length;
+    const waitCheck = this.shouldWaitBeforeRequest();
+    
+    return {
+      canMakeRequest: !waitCheck.shouldWait,
+      waitTime: waitCheck.waitTime,
+      reason: waitCheck.reason,
+      requestsInLastMinute,
+      requestsInLast5Minutes
+    };
+  }
+
+  // Emergency method to force reset rate limiter when stuck
+  public forceResetRateLimiter(): void {
+    console.log('🚨 EMERGENCY: Force resetting rate limiter due to persistent rate limit issues');
+    this.lastRequestTime = 0;
+    this.requestHistory = [];
+    this.apiCallCount = 0;
+    this.sessionStartTime = Date.now();
+    this.cachedAssistantId = null;
+    this.cachedThreadId = null;
+    this.cacheTimestamp = 0;
+    this.sessionCache.clear();
+    this.performanceCache.clear();
+    this.chartGenerationContext = {
+      totalChartsRequested: 0,
+      chartsGenerated: 0,
+      previousCharts: [],
+      remainingVariables: [],
+      batchNumber: 1,
+      isBatchProcessing: false
+    };
+    console.log('✅ Rate limiter force reset complete - you can try again now');
+  }
+
+  // Method to wait for server-specified delay when rate limited
+  public async waitForServerDelay(retryAfterSeconds: number): Promise<void> {
+    const waitTime = retryAfterSeconds * 1000;
+    console.log(`⏳ Waiting for server-specified delay: ${retryAfterSeconds} seconds`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+
+  // Initialize batch processing for chart generation
+  public initializeBatchProcessing(totalCharts: number, allVariables: string[]): void {
+    console.log(`🔄 Initializing batch processing for ${totalCharts} charts with ${allVariables.length} variables`);
+    this.chartGenerationContext = {
+      totalChartsRequested: totalCharts,
+      chartsGenerated: 0,
+      previousCharts: [],
+      remainingVariables: [...allVariables],
+      batchNumber: 1,
+      isBatchProcessing: true
+    };
+  }
+
+  // Get next batch of variables for chart generation
+  public getNextBatchVariables(batchSize: number = 3): string[] {
+    if (!this.chartGenerationContext.isBatchProcessing) {
+      return [];
+    }
+
+    const nextBatch = this.chartGenerationContext.remainingVariables.slice(0, batchSize);
+    this.chartGenerationContext.remainingVariables = this.chartGenerationContext.remainingVariables.slice(batchSize);
+    
+    console.log(`📊 Batch ${this.chartGenerationContext.batchNumber}: Processing ${nextBatch.length} variables:`, nextBatch);
+    return nextBatch;
+  }
+
+  // Add generated charts to context
+  public addChartsToContext(charts: ChartData[]): void {
+    this.chartGenerationContext.previousCharts.push(...charts);
+    this.chartGenerationContext.chartsGenerated += charts.length;
+    console.log(`✅ Added ${charts.length} charts to context. Total: ${this.chartGenerationContext.chartsGenerated}/${this.chartGenerationContext.totalChartsRequested}`);
+  }
+
+  // Check if more charts need to be generated
+  public hasMoreChartsToGenerate(): boolean {
+    return this.chartGenerationContext.remainingVariables.length > 0 && 
+           this.chartGenerationContext.chartsGenerated < this.chartGenerationContext.totalChartsRequested;
+  }
+
+  // Get context for next batch
+  public getBatchContext(): string {
+    if (this.chartGenerationContext.previousCharts.length === 0) {
+      return "This is the first batch of charts. Generate comprehensive analysis.";
+    }
+
+    const context = `
+PREVIOUS CHARTS GENERATED (${this.chartGenerationContext.chartsGenerated}):
+${this.chartGenerationContext.previousCharts.map((chart, index) => 
+  `${index + 1}. ${chart.title} (${chart.type})`
+).join('\n')}
+
+REMAINING VARIABLES TO ANALYZE: ${this.chartGenerationContext.remainingVariables.join(', ')}
+BATCH ${this.chartGenerationContext.batchNumber + 1}: Generate 3 more charts focusing on different variables.
+`;
+
+    return context;
+  }
+
+  // Complete batch processing
+  public completeBatchProcessing(): ChartData[] {
+    console.log(`🎉 Batch processing complete! Generated ${this.chartGenerationContext.chartsGenerated} charts total`);
+    const allCharts = [...this.chartGenerationContext.previousCharts];
+    this.chartGenerationContext.isBatchProcessing = false;
+    return allCharts;
+  }
+
+  // Generate charts in batches to avoid token limits
+  public async generateChartsInBatches(
+    file: File, 
+    userMessage: string, 
+    allVariables: string[], 
+    targetVariable: string
+  ): Promise<{ charts: ChartData[]; isComplete: boolean; nextBatchMessage?: string }> {
+    
+    // Initialize batch processing if not already started
+    if (!this.chartGenerationContext.isBatchProcessing) {
+      const totalCharts = Math.min(allVariables.length * 2, 15); // Max 15 charts to avoid overwhelming
+      this.initializeBatchProcessing(totalCharts, allVariables);
+    }
+
+    // Get next batch of variables
+    const batchVariables = this.getNextBatchVariables(3);
+    if (batchVariables.length === 0) {
+      return {
+        charts: this.completeBatchProcessing(),
+        isComplete: true
+      };
+    }
+
+    // Create batch-specific message
+    const batchContext = this.getBatchContext();
+    const batchMessage = `
+${userMessage}
+
+BATCH PROCESSING CONTEXT:
+${batchContext}
+
+FOCUS ON THESE VARIABLES FOR THIS BATCH: ${batchVariables.join(', ')}
+
+Generate exactly 3 charts for this batch:
+1. Scatter plot: ${batchVariables[0]} vs ${targetVariable}
+2. Scatter plot: ${batchVariables[1]} vs ${targetVariable}  
+3. Bar chart: ${batchVariables[2]} vs ${targetVariable}
+
+Use actual data from the file. Generate CHART_DATA_START/END blocks for each chart.
+`;
+
+    console.log(`🔄 Generating batch ${this.chartGenerationContext.batchNumber} with variables:`, batchVariables);
+
+    try {
+      // Analyze document with batch message
+      const analysisResult = await this.analyzeDocument(file);
+      
+      // Add charts to context
+      if (analysisResult.charts && analysisResult.charts.length > 0) {
+        this.addChartsToContext(analysisResult.charts);
+        this.chartGenerationContext.batchNumber++;
+      }
+
+      // Check if more batches needed
+      const hasMore = this.hasMoreChartsToGenerate();
+      const nextBatchMessage = hasMore ? 
+        `Continue with next batch. ${this.chartGenerationContext.remainingVariables.length} variables remaining.` : 
+        undefined;
+
+      return {
+        charts: analysisResult.charts || [],
+        isComplete: !hasMore,
+        nextBatchMessage
+      };
+
+    } catch (error) {
+      console.error('Batch processing error:', error);
+      throw error;
+    }
+  }
+
   // Method to check if we should wait before making a request
   public shouldWaitBeforeRequest(): { shouldWait: boolean; waitTime: number; reason: string } {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    const minInterval = 1000; // 1 second minimum between any requests (optimized for speed)
+    const minInterval = 30000; // 30 seconds minimum between any requests (extreme)
     
     if (timeSinceLastRequest < minInterval) {
       return {
@@ -1669,13 +1880,23 @@ Generate charts with actual data from the file.`,
       };
     }
     
-    // Check if we're making too many requests
+    // Check if we're making too many requests - extreme conservative
     const requestsInLastMinute = this.requestHistory.filter(time => time > now - 60000).length;
-    if (requestsInLastMinute > 8) { // Increased from 5 to 8 for maximum performance
+    if (requestsInLastMinute > 0) { // ZERO requests per minute maximum
       return {
         shouldWait: true,
-        waitTime: 8000, // 8 seconds (optimized)
+        waitTime: 120000, // 2 minutes (extreme)
         reason: `Too many requests (${requestsInLastMinute} in last minute)`
+      };
+    }
+    
+    // Additional check for requests in last 10 minutes
+    const requestsInLast10Minutes = this.requestHistory.filter(time => time > now - 600000).length;
+    if (requestsInLast10Minutes > 1) { // Max 1 request in 10 minutes
+      return {
+        shouldWait: true,
+        waitTime: 300000, // 5 minutes
+        reason: `Too many requests (${requestsInLast10Minutes} in last 10 minutes)`
       };
     }
     
@@ -1684,12 +1905,12 @@ Generate charts with actual data from the file.`,
 
   // Method to enforce cooldown period between operations
   private async enforceCooldownPeriod(): Promise<void> {
-    const cooldownPeriod = 1500; // 1.5 seconds cooldown (optimized for maximum speed)
+    const cooldownPeriod = 60000; // 60 seconds cooldown (extreme to avoid rate limits)
     const timeSinceLastRequest = Date.now() - this.lastRequestTime;
     
     if (timeSinceLastRequest < cooldownPeriod) {
       const waitTime = cooldownPeriod - timeSinceLastRequest;
-      console.log(`⚡ OPTIMIZED COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
+      console.log(`🐌 EXTREME COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
