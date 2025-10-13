@@ -96,6 +96,24 @@ router.post('/suggestions', (req, res) => {
   });
 });
 
+// GET /:brandName/exists - Check if brand exists (mock response for Vercel)
+router.get('/:brandName/exists', (req, res) => {
+  const { brandName } = req.params;
+  const { analysisType } = req.query;
+  
+  res.json({
+    success: true,
+    data: {
+      exists: false,
+      message: `Brand '${brandName}' does not exist (mock response)`
+    },
+    note: 'This is a mock response. File operations require persistent storage.',
+    platform: 'vercel',
+    analysisType: analysisType || 'MMM',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // GET /analyses - List analyses (mock data for Vercel)
 router.get('/analyses', (req, res) => {
   res.json({
@@ -110,12 +128,24 @@ router.get('/analyses', (req, res) => {
 
 // POST /analyses - Create analysis (mock response for Vercel)
 router.post('/analyses', (req, res) => {
-  res.status(501).json({
-    success: false,
-    error: 'Analysis creation not supported in Vercel serverless environment',
-    message: 'This feature requires persistent file storage. Please use Railway or Render for full functionality.',
+  const { brandName, analysisType } = req.body;
+  
+  // Generate a mock analysis ID
+  const mockAnalysisId = `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  res.json({
+    success: true,
+    data: {
+      analysisId: mockAnalysisId,
+      brandName: brandName || 'Mock Brand',
+      analysisType: analysisType || 'MMM',
+      status: 'created',
+      message: 'Analysis created successfully (mock response)',
+      note: 'This is a mock analysis. File operations require persistent storage.',
+      createdAt: new Date().toISOString(),
+      currentStep: 1
+    },
     platform: 'vercel',
-    suggestion: 'Deploy to Railway or Render for analysis creation capabilities',
     timestamp: new Date().toISOString()
   });
 });
