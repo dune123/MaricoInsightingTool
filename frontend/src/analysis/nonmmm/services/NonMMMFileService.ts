@@ -58,7 +58,8 @@ export class NonMMMFileService {
     }
     
     // Use fetch directly for file upload as httpClient is designed for JSON
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/files/upload`, {
+    // Use Node.js backend for Vercel deployment
+    const response = await fetch(`${import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001'}/api/files/upload`, {
       method: 'POST',
       body: formData
     });
@@ -80,31 +81,41 @@ export class NonMMMFileService {
    * Get sheet information for Non-MMM analysis
    */
   static async getSheets(filename: string, brandName?: string): Promise<NonMMMSheetInfo[]> {
-    // Remove /api prefix since httpClient already adds it
-    const url = `/files/${encodeURIComponent(filename)}/sheets${brandName ? `?brand=${encodeURIComponent(brandName)}` : ''}`;
+    // Use Node.js backend for Vercel deployment
+    const url = `${import.meta.env.VITE_NODE_API_URL || 'http://localhost:3001'}/api/files/${encodeURIComponent(filename)}/sheets${brandName ? `?brand=${encodeURIComponent(brandName)}` : ''}`;
     
-    const response = await httpClient.get(url);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
     
-    // Check if the response was successful
-    if (!response.success) {
-      throw new Error(response.error || 'Failed to get sheets');
+    if (!response.ok) {
+      throw new Error(`Failed to get sheets: ${response.statusText}`);
     }
     
-    // Type-safe access to response data - the Python backend returns sheet data differently
-    const responseData = response.data as { 
+    const data = await response.json();
+    
+    // Check if the response was successful
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to get sheets');
+    }
+    
+    // Type-safe access to response data - the Node.js backend returns sheet data differently
+    const responseData = data.data as { 
       sheets?: { 
-        sheetName: string; 
+        name: string; 
         columns: string[]; 
-        totalRows?: number;
-        totalColumns?: number;
+        rows?: number;
       }[] 
     };
     
     if (responseData && responseData.sheets) {
       return responseData.sheets.map((sheet) => ({
-        name: sheet.sheetName,  // Backend uses 'sheetName', frontend expects 'name'
+        name: sheet.name,
         columns: sheet.columns || [],
-        rows: sheet.totalRows || 0  // Backend uses 'totalRows', frontend expects 'rows'
+        rows: sheet.rows || 0
       }));
     }
     

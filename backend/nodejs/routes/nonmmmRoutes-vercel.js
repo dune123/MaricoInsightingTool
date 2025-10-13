@@ -46,6 +46,26 @@ router.get('/state', (req, res) => {
   });
 });
 
+// GET /state/:analysisId - Get Non-MMM analysis state by ID (mock response for Vercel)
+router.get('/state/:analysisId', (req, res) => {
+  const { analysisId } = req.params;
+  
+  res.json({
+    success: true,
+    data: {
+      analysisId: analysisId,
+      currentStep: 2,
+      analysisType: 'non-mmm',
+      brandName: 'Demo Brand',
+      status: 'active',
+      message: `Non-MMM analysis state for ${analysisId} (mock response)`
+    },
+    note: 'This is mock data. File operations require persistent storage.',
+    platform: 'vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // POST /state - Save Non-MMM analysis state (mock response for Vercel)
 router.post('/state', (req, res) => {
   res.json({
