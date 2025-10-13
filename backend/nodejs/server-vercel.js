@@ -40,10 +40,13 @@ const corsOptions = {
     'http://localhost:3000',
     'http://localhost:5173', 
     'https://marico-insighting-tool.vercel.app',
+    'https://frontend-jj7cc0njz-sameers-projects-c785670d.vercel.app',
+    'https://frontend-f0rgowh4b-sameers-projects-c785670d.vercel.app',
     'https://frontend-4lj9zgiar-sameers-projects-c785670d.vercel.app',
     'https://frontend-q5yz1zc5s-sameers-projects-c785670d.vercel.app',
     'https://frontend-28mk4syu3-sameers-projects-c785670d.vercel.app',
-    'https://frontend-wn4aIZcW-sameers-projects-c785670d.vercel.app'
+    'https://frontend-wn4aIZcW-sameers-projects-c785670d.vercel.app',
+    'https://frontend-mj1bmu2jg-sameers-projects-c785670d.vercel.app'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
