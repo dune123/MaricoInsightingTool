@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage File Upload Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .file-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗂️ LocalStorage File Upload Test</h1>
+        <p>This demonstrates how CSV/Excel files are saved to localStorage for offline analysis.</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>📁 Drop your CSV/Excel file here or click to browse</p>
+            <p><small>Supports .csv, .xlsx, .xls files</small></p>
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+        </div>
+        
+        <div id="fileInfo" class="file-info" style="display: none;">
+            <h3>📊 File Information</h3>
+            <div id="fileDetails"></div>
+        </div>
+        
+        <div>
+            <button onclick="loadSavedData()">📁 Load Saved Data</button>
+            <button onclick="clearSavedData()">🗑️ Clear Saved Data</button>
+            <button onclick="showLocalStorage()">💾 Show localStorage</button>
+        </div>
+        
+        <div class="log" id="log">
+            <strong>Console Log:</strong><br>
+            <div id="logContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const log = (message, type = 'info') => {
+            const logContent = document.getElementById('logContent');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logContent.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logContent.scrollTop = logContent.scrollHeight;
+        };
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileDetails = document.getElementById('fileDetails');
+
+        // File upload handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        async function handleFile(file) {
+            log(`📤 Processing file: ${file.name}`, 'info');
+            
+            try {
+                // Read file content
+                const content = await readFileAsText(file);
+                log(`📖 File read successfully (${content.length} characters)`, 'success');
+                
+                // Parse file stats
+                const stats = parseFileStats(file, content);
+                log(`📊 Parsed stats: ${stats.rows} rows, ${stats.columns} columns`, 'info');
+                
+                // Save to localStorage
+                const fileData = {
+                    filename: `local_${Date.now()}_${file.name}`,
+                    originalName: file.name,
+                    size: file.size,
+                    type: file.type,
+                    content: content,
+                    totalRows: stats.rows,
+                    totalColumns: stats.columns,
+                    uploadedAt: new Date().toISOString(),
+                    brandName: 'test_brand',
+                    isLocalStorage: true
+                };
+                
+                const storageKey = `nonmmm_uploaded_file_test_brand`;
+                localStorage.setItem(storageKey, JSON.stringify(fileData));
+                log(`💾 File saved to localStorage with key: ${storageKey}`, 'success');
+                
+                // Show file info
+                showFileInfo(fileData);
+                
+            } catch (error) {
+                log(`❌ Error processing file: ${error.message}`, 'error');
+            }
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
+        }
+
+        function parseFileStats(file, content) {
+            try {
+                if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                    const lines = content.split('\n').filter(line => line.trim());
+                    const firstLine = lines[0];
+                    const columns = firstLine ? firstLine.split(',').length : 0;
+                    return { rows: lines.length, columns };
+                } else {
+                    return { rows: 100, columns: 5 };
+                }
+            } catch (error) {
+                return { rows: 100, columns: 5 };
+            }
+        }
+
+        function showFileInfo(fileData) {
+            fileDetails.innerHTML = `
+                <p><strong>Filename:</strong> ${fileData.filename}</p>
+                <p><strong>Original Name:</strong> ${fileData.originalName}</p>
+                <p><strong>Size:</strong> ${(fileData.size / 1024).toFixed(2)} KB</p>
+                <p><strong>Type:</strong> ${fileData.type}</p>
+                <p><strong>Rows:</strong> ${fileData.totalRows}</p>
+                <p><strong>Columns:</strong> ${fileData.totalColumns}</p>
+                <p><strong>Uploaded:</strong> ${new Date(fileData.uploadedAt).toLocaleString()}</p>
+                <p><strong>Storage:</strong> localStorage</p>
+            `;
+            fileInfo.style.display = 'block';
+        }
+
+        function loadSavedData() {
+            const storageKey = `nonmmm_uploaded_file_test_brand`;
+            const savedData = localStorage.getItem(storageKey);
+            
+            if (savedData) {
+                const fileData = JSON.parse(savedData);
+                log(`📁 Loaded saved data: ${fileData.originalName}`, 'success');
+                showFileInfo(fileData);
+            } else {
+                log(`📭 No saved data found`, 'error');
+            }
+        }
+
+        function clearSavedData() {
+            const storageKey = `nonmmm_uploaded_file_test_brand`;
+            localStorage.removeItem(storageKey);
+            log(`🗑️ Cleared saved data`, 'info');
+            fileInfo.style.display = 'none';
+        }
+
+        function showLocalStorage() {
+            const storageKey = `nonmmm_uploaded_file_test_brand`;
+            const savedData = localStorage.getItem(storageKey);
+            
+            if (savedData) {
+                const fileData = JSON.parse(savedData);
+                log(`💾 localStorage content:`, 'info');
+                log(JSON.stringify(fileData, null, 2), 'info');
+            } else {
+                log(`📭 No data in localStorage`, 'error');
+            }
+        }
+
+        // Initialize
+        log('🚀 LocalStorage File Upload Test initialized', 'success');
+        log('📝 Try uploading a CSV or Excel file to see it saved to localStorage', 'info');
+    </script>
+</body>
+</html>
