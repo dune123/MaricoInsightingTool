@@ -86,6 +86,37 @@ export function NonMMMDataUploadStep() {
     }
   }, [sheetsInfo]);
 
+  // Load saved analysis data from localStorage on component mount
+  useEffect(() => {
+    const loadSavedData = () => {
+      if (state.selectedBrand) {
+        const savedData = NonMMMFileService.getSavedAnalysisData(state.selectedBrand);
+        if (savedData) {
+          console.log('📁 Loading saved analysis data:', savedData);
+          
+          // Restore file information
+          if (savedData.filename) {
+            setProcessedFilename(savedData.filename);
+          }
+          
+          // Restore sheets information
+          if (savedData.sheetsData && savedData.sheetsData.length > 0) {
+            setSheetsInfo(savedData.sheetsData);
+            console.log('📊 Restored sheets data from localStorage:', savedData.sheetsData);
+          }
+          
+          // Show success message for restored data
+          toast({
+            title: "Analysis Restored",
+            description: `Found saved analysis for ${state.selectedBrand}. You can continue from where you left off.`,
+          });
+        }
+      }
+    };
+    
+    loadSavedData();
+  }, [state.selectedBrand, toast]);
+
   // Handler for individual sheet selection
   const handleSheetSelection = useCallback((sheetIndex: number, checked: boolean) => {
     setSelectedSheets(prev => {
@@ -136,6 +167,12 @@ export function NonMMMDataUploadStep() {
       return;
     }
 
+    // Clear any existing saved data for this brand when starting new upload
+    if (state.selectedBrand) {
+      NonMMMFileService.clearSavedFileData(state.selectedBrand);
+      console.log('🗑️ Cleared existing saved data for new upload');
+    }
+
     setUploadedFile(file);
     
     // Auto-upload immediately after file selection (like MMM)
@@ -172,6 +209,26 @@ export function NonMMMDataUploadStep() {
         setSheetsInfo([]);
         // Don't throw here - let the upload complete even if sheets fail
       }
+
+      // Save analysis data to localStorage
+      const analysisData = {
+        analysisId: currentAnalysisId,
+        brandName: state.selectedBrand,
+        filename: uploadResult.filename,
+        originalFilename: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        totalRows: uploadResult.totalRows,
+        totalColumns: uploadResult.totalColumns,
+        sheetsData: sheetsData,
+        uploadedAt: new Date().toISOString(),
+        currentStep: 2,
+        status: 'in_progress'
+      };
+      
+      // Save to localStorage using NonMMMFileService
+      NonMMMFileService.saveAnalysisData(state.selectedBrand, analysisData);
+      console.log('💾 Analysis data saved to localStorage:', analysisData);
 
       // Update analysis metadata after successful upload
       if (currentAnalysisId) {
