@@ -70,10 +70,33 @@ export class NonMMMFileService {
     
     const data = await response.json();
     
-    return {
-      filename: data.data?.file?.processedName || data.data?.file?.originalName || data.filename,
+    // Debug logging to help identify response structure issues
+    console.log('📤 File upload response:', data);
+    
+    const filename = data.data?.filename || data.data?.file?.processedName || data.data?.file?.originalName || data.filename;
+    console.log('📁 Extracted filename:', filename);
+    
+    // Save uploaded file data to localStorage for persistence
+    const fileData = {
+      filename: filename,
+      originalName: file.name,
+      size: file.size,
+      type: file.type,
       totalRows: data.data?.fileStats?.totalRows || data.data?.totalRows || data.totalRows || 0,
-      totalColumns: data.data?.fileStats?.totalColumns || data.data?.totalColumns || data.totalColumns || 0
+      totalColumns: data.data?.fileStats?.totalColumns || data.data?.totalColumns || data.totalColumns || 0,
+      uploadedAt: new Date().toISOString(),
+      brandName: brandName
+    };
+    
+    // Save to localStorage with brand-specific key
+    const storageKey = `nonmmm_uploaded_file_${brandName || 'default'}`;
+    localStorage.setItem(storageKey, JSON.stringify(fileData));
+    console.log('💾 File data saved to localStorage:', fileData);
+    
+    return {
+      filename: filename,
+      totalRows: fileData.totalRows,
+      totalColumns: fileData.totalColumns
     };
   }
 
@@ -129,6 +152,82 @@ export class NonMMMFileService {
     const response = await httpClient.get(`/nonmmm/data-summary/${encodeURIComponent(filename)}?brand=${encodeURIComponent(brand)}`);
     
     return response.data;
+  }
+
+  /**
+   * Get saved file data from localStorage
+   */
+  static getSavedFileData(brandName?: string): any | null {
+    try {
+      const storageKey = `nonmmm_uploaded_file_${brandName || 'default'}`;
+      const savedData = localStorage.getItem(storageKey);
+      
+      if (savedData) {
+        const fileData = JSON.parse(savedData);
+        console.log('📁 Retrieved saved file data from localStorage:', fileData);
+        return fileData;
+      }
+      
+      console.log('📭 No saved file data found for brand:', brandName);
+      return null;
+    } catch (error) {
+      console.error('❌ Error retrieving saved file data:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear saved file data from localStorage
+   */
+  static clearSavedFileData(brandName?: string): void {
+    try {
+      const storageKey = `nonmmm_uploaded_file_${brandName || 'default'}`;
+      localStorage.removeItem(storageKey);
+      console.log('🗑️ Cleared saved file data for brand:', brandName);
+    } catch (error) {
+      console.error('❌ Error clearing saved file data:', error);
+    }
+  }
+
+  /**
+   * Save analysis data to localStorage
+   */
+  static saveAnalysisData(brandName: string, analysisData: any): void {
+    try {
+      const storageKey = `nonmmm_analysis_data_${brandName}`;
+      const dataToSave = {
+        ...analysisData,
+        savedAt: new Date().toISOString(),
+        brandName: brandName
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+      console.log('💾 Analysis data saved to localStorage:', dataToSave);
+    } catch (error) {
+      console.error('❌ Error saving analysis data:', error);
+    }
+  }
+
+  /**
+   * Get saved analysis data from localStorage
+   */
+  static getSavedAnalysisData(brandName: string): any | null {
+    try {
+      const storageKey = `nonmmm_analysis_data_${brandName}`;
+      const savedData = localStorage.getItem(storageKey);
+      
+      if (savedData) {
+        const analysisData = JSON.parse(savedData);
+        console.log('📊 Retrieved saved analysis data from localStorage:', analysisData);
+        return analysisData;
+      }
+      
+      console.log('📭 No saved analysis data found for brand:', brandName);
+      return null;
+    } catch (error) {
+      console.error('❌ Error retrieving saved analysis data:', error);
+      return null;
+    }
   }
 
   /**
