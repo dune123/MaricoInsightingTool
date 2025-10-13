@@ -29,7 +29,70 @@ const vercelFileError = (req, res) => {
   });
 };
 
-// All non-MMM routes disabled in Vercel
+// GET /state - Get Non-MMM analysis state (mock response for Vercel)
+router.get('/state', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      currentStep: 2,
+      analysisType: 'non-mmm',
+      brandName: 'Demo Brand',
+      status: 'active',
+      message: 'Non-MMM analysis state (mock response)'
+    },
+    note: 'This is mock data. File operations require persistent storage.',
+    platform: 'vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// POST /state - Save Non-MMM analysis state (mock response for Vercel)
+router.post('/state', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: 'State saved successfully (mock response)',
+      savedAt: new Date().toISOString()
+    },
+    note: 'This is a mock response. File operations require persistent storage.',
+    platform: 'vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// GET /data - Get Non-MMM analysis data (mock response for Vercel)
+router.get('/data', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      variables: [],
+      targetVariable: null,
+      dataSummary: null,
+      charts: [],
+      models: [],
+      message: 'No data available (mock response)'
+    },
+    note: 'This is mock data. File operations require persistent storage.',
+    platform: 'vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// POST /data - Save Non-MMM analysis data (mock response for Vercel)
+router.post('/data', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      message: 'Data saved successfully (mock response)',
+      savedAt: new Date().toISOString()
+    },
+    note: 'This is a mock response. File operations require persistent storage.',
+    platform: 'vercel',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// All other non-MMM routes disabled in Vercel
 router.use('*', (req, res) => {
   vercelFileError(req, res);
 });
