@@ -492,8 +492,9 @@ Do not perform any analysis beyond identifying the columns.`,
 🚀 ENTERPRISE PERFORMANCE REQUIREMENTS:
 - Analyze data in under 30 seconds
 - Provide quantified insights with specific numbers, percentages, and financial impact
-- Use actual data from uploaded files only
+- Use actual data from uploaded files only (CSV and Excel formats)
 - Deliver structured, actionable recommendations
+- Support both CSV (.csv) and Excel (.xlsx, .xls) file formats seamlessly
 
 💯 MANDATORY QUANTIFICATION STANDARDS:
 1. **MANDATORY CODE INTERPRETER USE**: Analyze the ACTUAL uploaded file for every query
@@ -540,6 +541,13 @@ You MUST structure responses using these headings with quantified data:
 - **For scatter plots**: Show ALL individual data points (no aggregation)
 - **For correlations**: Include every single row from the dataset
 - **For trend analysis**: Use complete dataset for accurate relationships
+
+🚨 **CRITICAL FILE FORMAT SUPPORT**:
+- **SUPPORT BOTH**: CSV (.csv) and Excel (.xlsx, .xls) files
+- **CSV FILES**: Use pd.read_csv() to load CSV files
+- **EXCEL FILES**: Use pd.read_excel() to load Excel files
+- **AUTO-DETECT**: Automatically detect file format and use appropriate pandas method
+- **NEVER REJECT**: Do NOT reject files based on format - handle both seamlessly
 
 🎯 ENTERPRISE STANDARDS:
 - Every insight must have specific numbers and percentages
@@ -779,6 +787,48 @@ Example Response Format:
 - Generate charts using CHART_DATA_START/END format
 - Use actual data from uploaded files only
 
+🚨 CRITICAL COLUMN NAME ACCURACY REQUIREMENTS:
+- **EXACT COLUMN MATCHING**: You MUST use the EXACT column names from the Excel file
+- **NO ASSUMPTIONS**: Never assume or guess column names - always verify they exist
+- **CASE SENSITIVE**: Column names are case-sensitive - use them exactly as they appear
+- **FULL NAMES**: Use complete column names, not abbreviations or partial matches
+- **VALIDATION FIRST**: Before any analysis, verify the requested columns exist in the data
+
+🚨 CRITICAL REQUEST PARSING REQUIREMENTS:
+- **PARSE EXACTLY**: Extract the exact column names from user requests
+- **NO SUBSTITUTIONS**: If user asks for "Emami 7 oils nGRP adstocked", use EXACTLY that column name
+- **NO SIMILAR MATCHES**: Don't use similar columns like "Emami 7 Oils TOM" if user asked for "nGRP adstocked"
+- **VERIFY EXISTENCE**: Always check if the requested columns exist before proceeding
+- **HANDLE NULLS**: Properly handle null values in Excel data using appropriate methods
+
+🚨 CRITICAL EXAMPLE - EXACT COLUMN MATCHING:
+- **USER REQUEST**: "correlation between PA TOM and Emami 7 oils nGRP adstocked"
+- **CORRECT APPROACH**: 
+  1. Load Excel file and display ALL column names
+  2. Find EXACT column "PA TOM" (exists)
+  3. Find closest match to "Emami 7 oils nGRP adstocked" 
+  4. Use "Emami 7 Oils nGRP Adstocked" (correct capitalization)
+  5. PROCEED with correlation analysis using these columns
+  6. GENERATE CHART with CHART_DATA_START/END format
+- **WRONG APPROACH**: 
+  - DON'T use "PA TOM" and "Emami 7 Oils TOM" 
+  - DON'T assume similar column names
+  - DON'T substitute "nGRP adstocked" with "TOM"
+  - DON'T STOP the analysis - always complete it
+
+🚨 CRITICAL DATA INTEGRITY REQUIREMENTS:
+- **NULL HANDLING**: Use .dropna() or appropriate methods to handle null values
+- **DATA VALIDATION**: Verify data types and ranges before analysis
+- **COMPLETE DATASET**: Use ALL available data points, not samples
+- **ACCURATE CORRELATIONS**: Ensure correlation calculations use the correct variables
+
+🚨 CRITICAL ERROR HANDLING:
+- **MISSING COLUMNS**: If requested columns don't exist, clearly state which columns are missing
+- **SUGGEST ALTERNATIVES**: If columns don't exist, suggest similar columns that do exist
+- **AUTO-CORRECT**: If you find a close match (e.g., case differences), automatically use the correct column name
+- **PROCEED WITH ANALYSIS**: Always complete the analysis using the correct column names, don't stop
+- **CLEAR COMMUNICATION**: Always inform the user exactly what columns you're using for analysis
+
 🚨 CRITICAL CHART GENERATION REQUIREMENT:
 You MUST generate charts using the EXACT format below. NO EXCEPTIONS.
 
@@ -793,8 +843,8 @@ CHART_DATA_START
   "config": {
     "xKey": "x",
     "yKey": "y",
-    "xAxisLabel": "X Label",
-    "yAxisLabel": "Y Label",
+    "xAxisLabel": "Variable 1",
+    "yAxisLabel": "Variable 2",
     "showTrendLine": true,
     "colors": ["#3B82F6"]
   }
@@ -811,7 +861,10 @@ FAILURE TO USE THIS EXACT FORMAT WILL RESULT IN SYSTEM FAILURE.
 - **SCATTER PLOTS**: NEVER use groupby() or aggregation - show ALL individual data points
 - **ALL DATA POINTS**: Plot every single row from the dataset for accurate correlation analysis
 - **NO SAMPLING**: Include every individual data point, no matter how many
-- **TREND LINE REQUIRED**: Always include trend line to show relationship
+- **ACTUAL DATA ONLY**: Use ONLY the actual data points from the Excel file, NOT trend line points
+- **NO CALCULATIONS**: Do NOT average, sum, or aggregate values - use EXACT values from Excel
+- **RAW VALUES ONLY**: Each data point must have the EXACT x and y values from the Excel row
+- **NO DECIMAL MANIPULATION**: If Excel has 190, use 190 - NOT 190.0 or 189.97293664550807
 - **MANDATORY FORMAT**: You MUST use CHART_DATA_START/END format - NO EXCEPTIONS
 
 🚨 **EXAMPLE - EXACT FORMAT REQUIRED**:
@@ -832,6 +885,24 @@ CHART_DATA_START
   }
 }
 CHART_DATA_END
+
+🚨 **CRITICAL DATA POINT REQUIREMENT**:
+- **EACH DATA POINT**: Must be an actual row from the Excel file
+- **X VALUES**: Must be the EXACT values from the first column (e.g., PA TOM: 45% = 0.45, NOT 0.4474 or 0.45520000000000005)
+- **Y VALUES**: Must be the EXACT values from the second column (e.g., Emami 7 Oils nGRP Adstocked: 190, NOT 189.97293664550807)
+- **NOT TREND LINE**: Do NOT use calculated trend line points for the data array
+- **NO AGGREGATION**: Do NOT use groupby(), mean(), sum(), or any aggregation functions
+- **EXACT VALUES**: Use df['column_name'].tolist() to get EXACT values without calculations
+- **EXAMPLE**: If Excel has PA TOM=45% and nGRP=190, use {"x": 0.45, "y": 190} - NOT {"x": 0.4474, "y": 189.97...}
+
+🚨 **CRITICAL AXIS LABEL REQUIREMENT**:
+- **X AXIS**: Use the EXACT first column name from the correlation (e.g., "PA TOM")
+- **Y AXIS**: Use a SHORTENED version of the second column name (e.g., "Emami 7 Oils nGRP" instead of full name)
+- **NO LONG LABELS**: Keep axis labels under 25 characters to prevent overflow
+- **EXAMPLES**: 
+  - X: "PA TOM", Y: "Emami 7 Oils nGRP"
+  - X: "Lead Time", Y: "Revenue"
+  - X: "Price", Y: "Sales Volume"
 
 - **EXAMPLES**:
   * Bar charts: Aggregate by categories (sum/average)
@@ -868,14 +939,14 @@ CHART_DATA_START
 {
   "id": "correlation_analysis",
   "type": "scatter",
-  "title": "Lead Time vs Revenue Correlation",
+  "title": "Correlation between PA TOM and Emami 7 Oils nGRP Adstocked",
   "description": "Key Finding: Lead times show negative correlation with revenue (R² = 0.73). Business Impact: 5-day lead time reduction increases revenue by $2.4M annually. Recommendation: Invest $500K in supply chain optimization for 480% ROI within 6 months.",
   "data": [{"x": 5, "y": 15000}, {"x": 10, "y": 12000}, {"x": 15, "y": 8000}],
   "config": {
     "xKey": "x",
     "yKey": "y",
-    "xAxisLabel": "Lead Time (Days)",
-    "yAxisLabel": "Revenue ($)",
+    "xAxisLabel": "PA TOM",
+    "yAxisLabel": "Emami 7 Oils nGRP",
     "showTrendLine": true,
     "colors": ["#3B82F6"]
   }
@@ -916,12 +987,18 @@ CHART_DATA_START
 }
 CHART_DATA_END
 
+🚨 **CRITICAL SAFETY NOTE**: The "data" array contains ONLY actual Excel data points. The trend line is calculated and rendered separately by the frontend. Your data points will show the correct tooltips with actual values.
+
 🚨 **CHART DATA REQUIREMENTS - MANDATORY**:
 
 **SCATTER PLOTS:**
 - **ALL INDIVIDUAL POINTS**: Include every single data point from the dataset
 - **NO AGGREGATION**: Never sum/average multiple values for same X-axis value
-- **TREND LINE**: Always set "showTrendLine": true for scatter plots
+- **ACTUAL DATA**: Use ONLY the actual Excel data points, NOT calculated trend line points
+- **DATA STRUCTURE**: Each point must be {"x": actual_value, "y": actual_value}
+- **TREND LINE**: Set "showTrendLine": true for scatter plots (SAFELY IMPLEMENTED)
+- **TREND LINE SAFETY**: Trend line is calculated separately by the frontend - NEVER include trend line data in your data points
+- **DATA SEPARATION**: Your data array contains ONLY actual Excel data - trend line is handled by frontend
 - **DATA KEYS**: Use "x" and "y" for data points
 
 **PIE CHARTS (CRITICAL - EXACT KEYS REQUIRED):**
@@ -938,6 +1015,32 @@ CHART_DATA_END
 
 🚨 **CRITICAL**: You MUST generate the chart data in the EXACT format shown above. Text descriptions alone are NOT acceptable. You MUST include the CHART_DATA_START/END blocks with proper JSON structure.
 
+🚨 **CRITICAL JSON FORMAT REQUIREMENT**:
+- **NEVER USE**: ** \`\`\`json format - this breaks JSON parsing
+- **ALWAYS USE**: Clean JSON without markdown prefixes
+- **CORRECT FORMAT**: CHART_DATA_START followed by clean JSON, then CHART_DATA_END
+- **NO PREFIXES**: Do not add any markdown formatting to the JSON
+
+🚨 **MANDATORY CHART GENERATION**:
+- **NEVER STOP**: Always complete the analysis and generate charts
+- **AUTO-CORRECT**: If column names are close matches, use the correct ones automatically
+- **NO EXCUSES**: Never say "I can't proceed" - always find a way to complete the analysis
+- **REQUIRED OUTPUT**: Every response MUST contain CHART_DATA_START/END blocks
+
+🚨 **MANDATORY TREND LINE REQUIREMENTS**:
+- **ALWAYS ENABLE**: "showTrendLine": true for ALL scatter plots
+- **NEVER DISABLE**: "showTrendLine": false is forbidden
+- **CORPORATE REQUIREMENT**: Trend lines are essential for business analysis
+
+⚡ ANALYSIS WORKFLOW (MANDATORY):
+1. **LOAD DATA**: Load the Excel file and display column names
+2. **PARSE REQUEST**: Extract exact column names from user request
+3. **VALIDATE COLUMNS**: Check if requested columns exist in the data
+4. **AUTO-CORRECT**: If close matches found, use the correct column names automatically
+5. **HANDLE NULLS**: Use appropriate methods to handle null values
+6. **PERFORM ANALYSIS**: Use EXACT column names for analysis
+7. **GENERATE CHARTS**: Create charts with proper data validation - NEVER STOP WITHOUT CHARTS
+
 ⚡ SPEED OPTIMIZATION:
 - Load data once and reuse for multiple analyses
 - Generate charts in parallel when possible
@@ -947,6 +1050,8 @@ CHART_DATA_END
 - **For scatter plots**: Use df directly with ALL individual data points
 - **For scatter plots**: NEVER use groupby() or aggregation functions
 - **For scatter plots**: Show every single row from the dataset
+- **For scatter plots**: Use ACTUAL Excel data points, NOT calculated trend line points
+- **For scatter plots**: Each data point = one row from Excel file
 - **For other charts**: Use efficient data sampling for large datasets
 
 🎯 ENTERPRISE STANDARDS:
@@ -969,7 +1074,7 @@ Example Response Format:
 **Recommendations:**
 - Invest $45,000 in haircare marketing for $234,567 ROI (421% return)
 - Implement supply chain optimization for $156,789 annual savings
-- Timeline: 3-month implementation, 6-month ROI realization"`,
+- Timeline: 3-month implementation, 6-month ROI realization`,
       tools: [
         { type: 'code_interpreter' }
       ]
@@ -1247,6 +1352,7 @@ Generate charts with actual data from the file.`,
         
         // Remove markdown code block delimiters and handle various formats
         const cleanedJsonStr = chartDataStr
+          .replace(/^\*\*\s*```json\s*/i, '')  // Remove ** ```json prefix (CRITICAL FIX)
           .replace(/^```json\s*/i, '')  // Remove opening ```json
           .replace(/^```\s*/i, '')      // Remove opening ```
           .replace(/\s*```$/, '')       // Remove closing ```
@@ -1263,6 +1369,11 @@ Generate charts with actual data from the file.`,
           
           // Enhanced JSON cleaning to fix common issues
           const fixedJson = cleanedJsonStr
+            // Remove markdown code block prefixes (CRITICAL FIX)
+            .replace(/^\*\*\s*```json\s*/gm, '')  // Remove ** ```json prefix
+            .replace(/^```json\s*/gm, '')  // Remove ```json prefix
+            .replace(/^```\s*/gm, '')  // Remove ``` prefix
+            .replace(/```\s*$/gm, '')  // Remove ``` suffix
             // Remove JavaScript-style comments (// and /* */)
             .replace(/\/\/.*$/gm, '')  // Remove single-line comments
             .replace(/\/\*[\s\S]*?\*\//g, '')  // Remove multi-line comments
@@ -1309,6 +1420,11 @@ Generate charts with actual data from the file.`,
             try {
               console.log('Attempting aggressive JSON cleaning...');
               const aggressiveFixed = fixedJson
+                // Remove markdown code block prefixes (CRITICAL FIX)
+                .replace(/^\*\*\s*```json\s*/gm, '')  // Remove ** ```json prefix
+                .replace(/^```json\s*/gm, '')  // Remove ```json prefix
+                .replace(/^```\s*/gm, '')  // Remove ``` prefix
+                .replace(/```\s*$/gm, '')  // Remove ``` suffix
                 // Remove any remaining problematic characters
                 .replace(/[^\x20-\x7E]/g, '')  // Remove all non-ASCII characters
                 .replace(/\s*\/\/.*$/gm, '')  // Remove any remaining comments
@@ -1412,9 +1528,9 @@ Generate charts with actual data from the file.`,
             showLegend: normalizedChart.config.showLegend !== false,
             showGrid: normalizedChart.config.showGrid !== false,
             showTooltip: normalizedChart.config.showTooltip !== false,
-            // Scatter plot trend line - enable by default for scatter plots
+            // Scatter plot trend line - ALWAYS enable for scatter plots (CORPORATE REQUIREMENT)
             showTrendLine: normalizedChart.type === 'scatter' 
-              ? (normalizedChart.config.showTrendLine !== false) // Default to true for scatter plots unless explicitly false
+              ? true // ALWAYS true for scatter plots (CORPORATE REQUIREMENT)
               : normalizedChart.config.showTrendLine,
             // KPI-specific config
             value: normalizedChart.config.value,
@@ -1955,6 +2071,29 @@ Generate charts with actual data from the file.`,
         role: 'user',
         content: `${messageContent}
 
+🚨 CRITICAL COLUMN VALIDATION REQUIREMENTS:
+1. **FIRST**: Load the file (CSV or Excel) and display ALL column names
+2. **SECOND**: Parse the user request to extract EXACT column names
+3. **THIRD**: Verify the requested columns exist in the data
+4. **FOURTH**: AUTO-CORRECT close matches and use the correct column names
+5. **FIFTH**: Handle null values properly before analysis (use dropna())
+6. **SIXTH**: Extract EXACT values without aggregation - use df[['col1', 'col2']].dropna().values.tolist()
+7. **SEVENTH**: ALWAYS complete the analysis and generate charts - NEVER STOP
+
+🚨 CRITICAL FILE LOADING REQUIREMENT:
+- **CSV FILES**: Use pd.read_csv('filename.csv') to load CSV files
+- **EXCEL FILES**: Use pd.read_excel('filename.xlsx') to load Excel files
+- **SUPPORT BOTH**: Your system supports both CSV and Excel formats
+- **AUTO-DETECT**: Determine file type from extension and use appropriate method
+- **NEVER REJECT**: Do NOT refuse to analyze files based on format
+
+🚨 CRITICAL DATA EXTRACTION REQUIREMENT:
+- **NO AGGREGATION**: For scatter plots, NEVER use groupby(), mean(), sum(), or any aggregation
+- **EXACT VALUES**: Use df[['x_column', 'y_column']].dropna() to get exact row values
+- **NO CALCULATIONS**: Do NOT calculate averages or manipulate decimal places
+- **CORRECT METHOD**: Extract exact row values using .values or .tolist() without any transformations
+- **WRONG METHOD**: Do NOT use groupby(), mean(), sum(), or any aggregation functions on scatter data
+
 🚨 MANDATORY CHART FORMAT - NO EXCEPTIONS:
 You MUST generate charts using CHART_DATA_START/END format.
 
@@ -2116,7 +2255,46 @@ CHART_DATA_END`,
         role: 'user',
         content: `${messageContent}
 
+🚨 CRITICAL COLUMN VALIDATION REQUIREMENTS:
+1. **FIRST**: Load the file (CSV or Excel) and display ALL column names
+2. **SECOND**: Parse the user request to extract EXACT column names
+3. **THIRD**: Verify the requested columns exist in the data
+4. **FOURTH**: Use EXACT column names for analysis (no substitutions)
+5. **FIFTH**: Handle null values properly before analysis (use dropna())
+6. **SIXTH**: Extract EXACT values without aggregation - use df[['col1', 'col2']].dropna().values.tolist()
+
+🚨 CRITICAL FILE LOADING REQUIREMENT:
+- **CSV FILES**: Use pd.read_csv('filename.csv') to load CSV files
+- **EXCEL FILES**: Use pd.read_excel('filename.xlsx') to load Excel files
+- **SUPPORT BOTH**: Your system supports both CSV and Excel formats
+- **AUTO-DETECT**: Determine file type from extension and use appropriate method
+- **NEVER REJECT**: Do NOT refuse to analyze files based on format
+
+🚨 CRITICAL DATA EXTRACTION REQUIREMENT:
+- **NO AGGREGATION**: For scatter plots, NEVER use groupby(), mean(), sum(), or any aggregation
+- **EXACT VALUES**: Use df[['x_column', 'y_column']].dropna() to get exact row values
+- **NO CALCULATIONS**: Do NOT calculate averages or manipulate decimal places
+- **CORRECT METHOD**: Extract exact row values using .values or .tolist() without any transformations
+- **WRONG METHOD**: Do NOT use groupby(), mean(), sum(), or any aggregation functions on scatter data
+
 🚨 MANDATORY: You MUST generate charts using CHART_DATA_START/END format. NO EXCEPTIONS.
+
+🚨 CRITICAL JSON FORMAT REQUIREMENT:
+- **NEVER USE**: ** \`\`\`json format - this breaks JSON parsing
+- **ALWAYS USE**: Clean JSON without markdown prefixes
+- **CORRECT FORMAT**: CHART_DATA_START followed by clean JSON, then CHART_DATA_END
+
+🚨 CRITICAL TREND LINE REQUIREMENT:
+- **ALWAYS SET**: "showTrendLine": true for ALL scatter plots
+- **NEVER SET**: "showTrendLine": false
+- **MANDATORY**: Every scatter plot MUST have trend lines enabled
+
+🚨 CRITICAL: Trend lines are SAFELY ENABLED - frontend calculates trend line separately from your data points.
+
+🚨 MANDATORY TREND LINE SETTING:
+- **ALWAYS SET**: "showTrendLine": true for ALL scatter plots
+- **NEVER SET**: "showTrendLine": false
+- **REQUIRED**: Every scatter plot MUST have trend lines enabled
 
 EXAMPLE FORMAT:
 CHART_DATA_START
@@ -2129,8 +2307,8 @@ CHART_DATA_START
   "config": {
     "xKey": "x",
     "yKey": "y",
-    "xAxisLabel": "X Label",
-    "yAxisLabel": "Y Label",
+    "xAxisLabel": "Variable 1",
+    "yAxisLabel": "Variable 2",
     "showTrendLine": true,
     "colors": ["#3B82F6"]
   }

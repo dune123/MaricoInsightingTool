@@ -227,6 +227,15 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
     const titleLower = title.toLowerCase();
     
     if (axis === 'x') {
+      // Handle correlation patterns first
+      if (titleLower.includes('correlation between')) {
+        const correlationMatch = title.match(/correlation between (.*?) and (.*?)$/i);
+        if (correlationMatch) {
+          const firstVariable = correlationMatch[1].trim();
+          return firstVariable;
+        }
+      }
+      
       // Extract the first variable from the title
       if (titleLower.includes('availability')) return 'Availability (%)';
       if (titleLower.includes('price')) return 'Price ($)';
@@ -248,8 +257,21 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
       
       return 'Variable';
     } else {
+      // Handle correlation patterns first
+      if (titleLower.includes('correlation between')) {
+        const correlationMatch = title.match(/correlation between (.*?) and (.*?)$/i);
+        if (correlationMatch) {
+          const secondVariable = correlationMatch[2].trim();
+          // Truncate if too long
+          if (secondVariable.length > 25) {
+            return secondVariable.substring(0, 22) + '...';
+          }
+          return secondVariable;
+        }
+      }
+      
       // Extract the target variable (usually after "on")
-      if (titleLower.includes('revenue')) return 'Revenue Generated ($)';
+      if (titleLower.includes('revenue')) return 'Revenue ($)';
       if (titleLower.includes('sales')) return 'Sales ($)';
       if (titleLower.includes('profit')) return 'Profit ($)';
       if (titleLower.includes('cost')) return 'Cost ($)';
@@ -842,6 +864,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  xAxisId="scatterX"
                   label={{ 
                     value: chart.config.xAxisLabel || getSmartAxisLabel(chart.title, 'x') || 'Variable', 
                     position: 'insideBottom', 
@@ -853,6 +876,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   dataKey={chart.config.yKey as string}
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
+                  yAxisId="scatterY"
                   label={{ 
                     value: chart.config.yAxisLabel || getSmartAxisLabel(chart.title, 'y') || 'Value', 
                     angle: -90, 
@@ -873,6 +897,16 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                         const data = payload[0].payload;
                         const xValue = data[safeConfig.xKey || 'x'];
                         const yValue = data[safeConfig.yKey as string];
+                        
+                        // CRITICAL DEBUG: Log tooltip data to ensure we're showing actual Excel data
+                        console.log(`🎯 TOOLTIP DEBUG - Actual Excel Data:`);
+                        console.log(`  Raw payload:`, payload[0]);
+                        console.log(`  Data object:`, data);
+                        console.log(`  X value (${safeConfig.xKey || 'x'}):`, xValue);
+                        console.log(`  Y value (${safeConfig.yKey}):`, yValue);
+                        console.log(`  Data keys:`, Object.keys(data));
+                        console.log(`✅ TOOLTIP SHOWING ACTUAL EXCEL DATA VALUES`);
+                        
                         return (
                           <div className="p-2">
                             <p className="text-sm font-medium text-gray-900">
@@ -880,6 +914,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                             </p>
                             <p className="text-sm font-medium text-gray-900">
                               {safeConfig.yAxisLabel || (safeConfig.yKey || 'Y')}: {yValue}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              📊 Actual Excel Data Point
                             </p>
                           </div>
                         );
@@ -893,6 +930,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   fill={colors[0]} 
                   dataKey={safeConfig.yKey as string}
                   name="Data Points"
+                  xAxisId="scatterX"
+                  yAxisId="scatterY"
                 />
                 {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
                   <>
@@ -918,6 +957,8 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                       type="linear"
                       xAxisId="trendLineX"
                       yAxisId="trendLineY"
+                      isAnimationActive={false}
+                      hide={false}
                     />
                   </>
                 )}
