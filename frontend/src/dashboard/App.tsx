@@ -15,10 +15,18 @@ import {
   Folder,
   History,
   HelpCircle,
-  LayoutDashboard
+  LayoutDashboard,
+  Loader2,
+  XCircle
 } from 'lucide-react';
 import { DashboardBot } from './components/DashboardBot';
 import { AddChartToDashboardModal } from './components/AddChartToDashboardModal';
+import { AutoAnalyzingUpload } from './components/AutoAnalyzingUpload';
+import { AutoAnalysisService } from './lib/auto-analysis-service';
+import { AnalysisDebugger } from './components/AnalysisDebugger';
+import { DataPointDebugger } from './components/DataPointDebugger';
+import { RateLimitStatus } from './components/RateLimitStatus';
+import { NuclearProtectionStatus } from './components/NuclearProtectionStatus';
 
 
 export interface Document {
@@ -32,6 +40,8 @@ export interface Document {
   threadId?: string;
   file?: File;
   analysis?: AnalysisResult;
+  autoAnalyzed?: boolean; // Track if auto-analyzed on upload
+  analysisType?: 'quick' | 'comprehensive' | 'custom'; // Type of analysis performed
 }
 
 function App() {
@@ -44,6 +54,8 @@ function App() {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [showAddChartModal, setShowAddChartModal] = useState(false);
   const [chartToAdd, setChartToAdd] = useState<ChartData | null>(null);
+  const [rateLimitStatus, setRateLimitStatus] = useState<{ visible: boolean; waitTime: number }>({ visible: false, waitTime: 0 });
+  const [nuclearProtectionStatus, setNuclearProtectionStatus] = useState<{ visible: boolean }>({ visible: true });
   const [firstUserMessage, setFirstUserMessage] = useState<string>('');
   const [azureConfig, setAzureConfig] = useState({
     apiKey: import.meta.env.VITE_AZURE_API_KEY || 'REPLACE_WITH_YOUR_API_KEY',
@@ -53,7 +65,7 @@ function App() {
 
   // NOTE: We intentionally avoid restoring any state on reload for demo. A fresh reload starts clean.
 
-  const handleDocumentUpload = (file: File) => {
+  const handleDocumentUpload = async (file: File) => {
     // Allow only CSV or Excel files
     const fileName = file.name.toLowerCase();
     const isCsv = fileName.endsWith('.csv');
@@ -71,14 +83,58 @@ function App() {
       type: file.type,
       size: file.size,
       uploadDate: new Date(),
-      status: 'ready',
+      status: 'analyzing', // Start as analyzing
       file: file
     };
     
     // Keep only one CSV/Excel document at a time: replace any existing
     setDocuments([newDoc]);
     setSelectedDocument(newDoc);
-    // Don't auto-switch panels - let user stay in current bot
+
+    // NEW: Automatically analyze the document
+    try {
+      const autoAnalysisService = new AutoAnalysisService(azureConfig);
+      
+      // Analyze document immediately upon upload
+      const analysisResult = await autoAnalysisService.analyzeFileOnUpload(file);
+      
+      // Check if analysis was successful
+      if (analysisResult.metadata?.error) {
+        console.warn('Analysis completed with errors:', analysisResult.metadata.errorMessage);
+        // Still show the result but mark it as having issues
+      }
+      
+      // Update document with analysis results
+      const completedDoc = {
+        ...newDoc,
+        status: 'completed' as const,
+        assistantId: analysisResult.assistantId || '',
+        threadId: analysisResult.threadId || '',
+        analysis: analysisResult,
+        autoAnalyzed: true,
+        analysisType: 'quick' as const
+      };
+      
+      setDocuments([completedDoc]);
+      setSelectedDocument(completedDoc);
+      
+      // Add initial analysis to dashboard history only if we have valid results
+      if (analysisResult.charts && analysisResult.charts.length > 0) {
+        handleNewAnalysis(
+          "Automatic data analysis", 
+          analysisResult
+        );
+      }
+      
+    } catch (error) {
+      console.error('Auto-analysis failed:', error);
+      const errorDoc = {
+        ...newDoc,
+        status: 'error' as const
+      };
+      setDocuments([errorDoc]);
+      setSelectedDocument(errorDoc);
+    }
   };
 
   const handleDocumentUpdate = (updatedDoc: Document) => {
@@ -130,7 +186,7 @@ function App() {
     // Normalize KPI charts so they render consistently in dashboards
     const normalizeKpi = (c: ChartData): ChartData => {
       if (c.type !== 'kpi') return c;
-      const cfg = { ...(c.config || {}) } as any;
+      const cfg = { ...(c.config || {}) } as Record<string, unknown>;
       // If value not set, try to parse from description
       if (!cfg.value) {
         const m = (c.description || '').match(/\$?([\d,]+(?:\.\d+)?)/);
@@ -216,7 +272,7 @@ function App() {
                         recommendation: 'recommendation'
                       };
                       const keyToDelete = keyMap[insightType];
-                      delete (newInsights as any)[keyToDelete];
+                      delete (newInsights as Record<string, unknown>)[keyToDelete];
                       return Object.keys(newInsights).length > 0 ? newInsights : undefined;
                     })() : undefined
                   }
@@ -250,23 +306,13 @@ function App() {
         </button>
 
         {/* Create/Upload Button */}
-        <label className={`mb-8 ${uploadDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} title={uploadDisabled ? 'A file is already uploaded' : 'Upload a file'}>
-          <input
-            type="file"
-            className="sr-only"
-            accept=".pdf,.csv,.xlsx,.xls,.txt,.docx"
+        <div className="mb-8">
+          <AutoAnalyzingUpload
+            onFileUpload={handleDocumentUpload}
             disabled={uploadDisabled}
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                handleDocumentUpload(e.target.files[0]);
-              }
-            }}
           />
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors duration-200 group ${uploadDisabled ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
-            <Plus className={`w-5 h-5 ${uploadDisabled ? 'text-gray-500' : 'text-white'}`} />
-          </div>
-          <div className="text-xs text-center text-gray-600 mt-1">Create</div>
-        </label>
+          <div className="text-xs text-center text-gray-600 mt-1">Analyze</div>
+        </div>
 
         {/* Navigation Buttons */}
         <div className="flex flex-col space-y-4 flex-1">
@@ -441,7 +487,7 @@ function App() {
             {dashboardHistory.length > 0 && selectedDashboardIndex !== null && (
               <div className="flex items-center space-x-2">
                 <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                  {dashboardHistory[selectedDashboardIndex].analysis.charts.length} Charts
+                  {dashboardHistory[selectedDashboardIndex]?.analysis?.charts?.length || 0} Charts
                 </div>
               </div>
             )}
@@ -476,6 +522,117 @@ function App() {
               isLoading={false}
               onAddChartRequest={handleAddChartRequest}
             />
+          ) : selectedDocument?.autoAnalyzed && selectedDocument?.analysis ? (
+            <div className="space-y-6">
+              {/* Auto-Analysis Header */}
+              <div className={`border rounded-lg p-4 ${
+                selectedDocument.analysis.metadata?.error 
+                  ? 'bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200' 
+                  : 'bg-gradient-to-r from-green-50 to-blue-50 border-green-200'
+              }`}>
+                <div className="flex items-center space-x-3 mb-2">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    selectedDocument.analysis.metadata?.error 
+                      ? 'bg-yellow-100' 
+                      : 'bg-green-100'
+                  }`}>
+                    <BarChart3 className={`w-4 h-4 ${
+                      selectedDocument.analysis.metadata?.error 
+                        ? 'text-yellow-600' 
+                        : 'text-green-600'
+                    }`} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {selectedDocument.analysis.metadata?.error ? 'Analysis Issues' : 'Auto-Generated Analysis'}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedDocument.analysis.metadata?.error 
+                        ? 'Analysis encountered issues but your file is ready for questions'
+                        : 'Your file has been automatically analyzed with AI insights'
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4 text-sm text-gray-600">
+                  <span className="flex items-center space-x-1">
+                    <div className={`w-2 h-2 rounded-full ${
+                      selectedDocument.analysis.metadata?.error 
+                        ? 'bg-yellow-500' 
+                        : 'bg-green-500'
+                    }`}></div>
+                    <span>{selectedDocument.analysis.metadata?.error ? 'Analysis Issues' : 'Analysis Complete'}</span>
+                  </span>
+                  <span className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span>{selectedDocument.analysis?.charts?.length || 0} Charts Generated</span>
+                  </span>
+                </div>
+                {selectedDocument.analysis.metadata?.error && (
+                  <div className="mt-3 p-3 bg-yellow-100 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Note:</strong> {String(selectedDocument.analysis.metadata.errorMessage || 'Analysis encountered issues. You can still ask specific questions about your data.')}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Auto-Analysis Results - only show if we have charts */}
+              {selectedDocument.analysis?.charts && selectedDocument.analysis.charts.length > 0 ? (
+                <DashboardCharts 
+                  analysis={selectedDocument.analysis}
+                  isLoading={false}
+                  onAddChartRequest={handleAddChartRequest}
+                />
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BarChart3 className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Analysis</h3>
+                  <p className="text-gray-600 mb-6">
+                    Your file is uploaded and ready. Ask specific questions to generate visualizations and insights.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : selectedDocument?.status === 'analyzing' ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-xl">
+                <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Loader2 className="w-8 h-8 text-yellow-600 animate-spin" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Analyzing Your Data</h3>
+                <p className="text-gray-600 mb-6">
+                  AI is analyzing your file and generating insights. This may take a few moments...
+                </p>
+                <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  <span>Processing data structure and patterns</span>
+                </div>
+              </div>
+            </div>
+          ) : selectedDocument?.status === 'error' ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-xl">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <XCircle className="w-8 h-8 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Analysis Failed</h3>
+                <p className="text-gray-600 mb-6">
+                  There was an error analyzing your file. Please try uploading again.
+                </p>
+                <button
+                  onClick={() => {
+                    setDocuments([]);
+                    setSelectedDocument(null);
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
           ) : selectedDocument ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center max-w-xl">
@@ -557,6 +714,33 @@ function App() {
           onCreateNewDashboard={handleCreateNewDashboard}
         />
       )}
+
+      {/* Debug Components - Only show in development */}
+      {import.meta.env.DEV && (
+        <>
+          <AnalysisDebugger 
+            analysis={selectedDocument?.analysis}
+            showDebug={true}
+          />
+          <DataPointDebugger 
+            analysis={selectedDocument?.analysis}
+            showDebug={true}
+          />
+        </>
+      )}
+
+      {/* Rate Limit Status */}
+      <RateLimitStatus
+        isVisible={rateLimitStatus.visible}
+        waitTime={rateLimitStatus.waitTime}
+        onClose={() => setRateLimitStatus({ visible: false, waitTime: 0 })}
+      />
+
+      {/* Nuclear Protection Status */}
+      <NuclearProtectionStatus
+        isVisible={nuclearProtectionStatus.visible}
+        onClose={() => setNuclearProtectionStatus({ visible: false })}
+      />
     </div>
   );
 }

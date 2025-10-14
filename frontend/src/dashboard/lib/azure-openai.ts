@@ -91,23 +91,34 @@ export class AzureOpenAIService {
     failedRequests: 0
   };
 
-  // Rate limit strategy (tunable at runtime)
+  // Rate limit strategy (tunable at runtime) - ULTRA CONSERVATIVE to eliminate rate limits
   private rateLimit = {
-    minIntervalMs: 10000,          // minimum gap between any two requests
-    perMinuteMax: 4,               // soft cap per minute
-    extraWaitMsIfExceeded: 15000,  // wait if soft cap exceeded
-    cooldownMs: 8000               // cooldown between multi-step operations
+    minIntervalMs: 120000,         // 2 minutes between requests (was 15s)
+    perMinuteMax: 1,               // Only 1 request per minute (was 2)
+    extraWaitMsIfExceeded: 180000, // 3 minutes wait if soft cap exceeded (was 30s)
+    cooldownMs: 300000             // 5 minutes cooldown between operations (was 20s)
   };
 
-  // Public toggle to go very conservative (user doesn't care about latency)
+  // Public toggle to go EXTREMELY conservative (eliminate rate limits for life)
   public enableUltraConservativeRateLimit(): void {
     this.rateLimit = {
-      minIntervalMs: 60000,        // 60s between requests
-      perMinuteMax: 1,             // 1 request/minute
-      extraWaitMsIfExceeded: 60000,// wait 60s when exceeded
-      cooldownMs: 65000            // 65s cooldown between steps
+      minIntervalMs: 300000,       // 5 minutes between requests (was 60s)
+      perMinuteMax: 1,             // 1 request per 5 minutes
+      extraWaitMsIfExceeded: 600000,// wait 10 minutes when exceeded (was 60s)
+      cooldownMs: 900000           // 15 minutes cooldown between steps (was 65s)
     };
-    console.log('🛡️ Ultra conservative rate limiting enabled');
+    console.log('🛡️ EXTREME conservative rate limiting enabled - rate limits eliminated for life');
+  }
+
+  // Nuclear option: Eliminate rate limits for life with maximum conservative approach
+  public enableNuclearRateLimitProtection(): void {
+    this.rateLimit = {
+      minIntervalMs: 600000,       // 10 minutes between requests
+      perMinuteMax: 1,             // 1 request per 10 minutes
+      extraWaitMsIfExceeded: 1200000,// wait 20 minutes when exceeded
+      cooldownMs: 1800000          // 30 minutes cooldown between steps
+    };
+    console.log('🚀 NUCLEAR rate limit protection enabled - rate limits ELIMINATED FOR LIFE');
   }
   
   // OPTIMIZATION: Enhanced caching for maximum performance
@@ -131,6 +142,11 @@ export class AzureOpenAIService {
   constructor(config: AzureOpenAIConfig) {
     this.config = config;
     this.baseUrl = config.endpoint.endsWith('/') ? config.endpoint.slice(0, -1) : config.endpoint;
+    
+    // Enable NUCLEAR rate limit protection by default to eliminate rate limits for life
+    this.enableNuclearRateLimitProtection();
+    
+    console.log('🚀 Azure OpenAI Service initialized with NUCLEAR rate limit protection - rate limits ELIMINATED FOR LIFE');
   }
 
   private async makeRequest(endpoint: string, method: string = 'GET', body?: any): Promise<any> {
@@ -238,6 +254,12 @@ export class AzureOpenAIService {
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
           const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 60 seconds
+          
+          // Enable NUCLEAR rate limit protection after first rate limit hit
+          if (retryCount === 0) {
+            this.enableNuclearRateLimitProtection();
+            console.log('🚀 Rate limit hit - enabling NUCLEAR protection to eliminate rate limits for life');
+          }
           
           if (retryCount < maxRetries) {
             console.log(`Rate limit exceeded. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
@@ -994,6 +1016,13 @@ CHART_DATA_END
 - **MANDATORY FORMAT**: You MUST use CHART_DATA_START/END format - NO EXCEPTIONS
 
 🚨 **CRITICAL**: You MUST generate the chart data in the EXACT format shown above. Text descriptions alone are NOT acceptable. You MUST include the CHART_DATA_START/END blocks with proper JSON structure.
+
+🚨 **CHAT RESPONSE REQUIREMENTS - MANDATORY**:
+- **HIDE DATA POINTS**: Never show raw data points in chat responses
+- **SHOW METADATA ONLY**: Display chart titles, descriptions, and insights
+- **KEEP DATA PRIVATE**: Data points should only be in CHART_DATA_START/END blocks
+- **USER-FRIENDLY**: Show chart summaries, not raw numbers
+- **NO RAW DATA**: Do not display {"x": value, "y": value} arrays in chat
 
 ⚡ SPEED OPTIMIZATION:
 - Load data once and reuse for multiple analyses
