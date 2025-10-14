@@ -15,7 +15,8 @@ import {
   Folder,
   History,
   HelpCircle,
-  LayoutDashboard
+  LayoutDashboard,
+  Brain
 } from 'lucide-react';
 import { DashboardBot } from './components/DashboardBot';
 import { AddChartToDashboardModal } from './components/AddChartToDashboardModal';
@@ -234,7 +235,7 @@ function App() {
   };
 
   const sidebarButtons = [
-    //{ id: 'insightsBot', icon: Brain, label: 'Insights Bot' },
+    { id: 'insightsBot', icon: Brain, label: 'Insights Bot' },
     { id: 'documents', icon: Folder, label: 'Documents' },
     { id: 'dashboardBot', icon: LayoutDashboard, label: 'Dashboards' },
     { id: 'history', icon: History, label: 'History' }
@@ -311,9 +312,9 @@ function App() {
         <div className="p-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
-              {/*activePanel === 'insightsBot' ? (
+              {activePanel === 'insightsBot' ? (
                 <Brain className="w-5 h-5 text-white" />
-              ) :*/ activePanel === 'dashboardBot' ? (
+              ) : activePanel === 'dashboardBot' ? (
                 <LayoutDashboard className="w-5 h-5 text-white" />
               ) : (
                 <MessageCircle className="w-5 h-5 text-white" />
