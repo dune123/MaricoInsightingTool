@@ -415,7 +415,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
               <LineChart data={sortedLineData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
-                {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
+                {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={lineXKey} 
                   tick={{ fontSize: 12 }}
@@ -437,7 +437,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
                   }}
                 />
-                {chart.config.showTooltip && (
+                {safeConfig.showTooltip && (
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
@@ -491,7 +491,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
               <AreaChart data={sortedAreaData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
-                {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
+                {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={chart.config.xKey} 
                   tick={{ fontSize: 12 }}
@@ -513,7 +513,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
                   }}
                 />
-                {chart.config.showTooltip && (
+                {safeConfig.showTooltip && (
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
@@ -750,6 +750,9 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         
         console.log(`  Sorted data length:`, sortedScatterData.length);
         console.log(`  First sorted point:`, sortedScatterData[0]);
+        console.log(`  Data keys in first point:`, sortedScatterData[0] ? Object.keys(sortedScatterData[0]) : 'No data');
+        console.log(`  X key being used:`, safeConfig.xKey || 'x');
+        console.log(`  Y key being used:`, safeConfig.yKey);
         
         // Calculate proper trend line using linear regression
         const calculateTrendLine = (data: any[]) => {
@@ -837,30 +840,30 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
               <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
-                {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
+                {safeConfig.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
-                  dataKey={chart.config.xKey} 
+                  dataKey={safeConfig.xKey || 'x'} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.xAxisLabel || getSmartAxisLabel(chart.title, 'x') || 'Variable', 
+                    value: safeConfig.xAxisLabel || getSmartAxisLabel(chart.title, 'x') || 'Variable', 
                     position: 'insideBottom', 
                     offset: -5,
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
                   }}
                 />
                 <YAxis 
-                  dataKey={chart.config.yKey as string}
+                  dataKey={safeConfig.yKey as string}
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
-                    value: chart.config.yAxisLabel || getSmartAxisLabel(chart.title, 'y') || 'Value', 
+                    value: safeConfig.yAxisLabel || getSmartAxisLabel(chart.title, 'y') || 'Value', 
                     angle: -90, 
                     position: 'insideLeft',
                     style: { textAnchor: 'middle', fontSize: '12px', fill: '#374151' }
                   }}
                 />
-                {chart.config.showTooltip && (
+                {safeConfig.showTooltip && (
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: '#fff', 
@@ -889,10 +892,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   />
                 )}
                 <Scatter 
-                  data={sortedScatterData}
                   fill={colors[0]} 
                   dataKey={safeConfig.yKey as string}
                   name="Data Points"
+                  r={4}
                 />
                 {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
                   <>

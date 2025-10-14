@@ -90,6 +90,25 @@ export class AzureOpenAIService {
     successfulRequests: 0,
     failedRequests: 0
   };
+
+  // Rate limit strategy (tunable at runtime)
+  private rateLimit = {
+    minIntervalMs: 10000,          // minimum gap between any two requests
+    perMinuteMax: 4,               // soft cap per minute
+    extraWaitMsIfExceeded: 15000,  // wait if soft cap exceeded
+    cooldownMs: 8000               // cooldown between multi-step operations
+  };
+
+  // Public toggle to go very conservative (user doesn't care about latency)
+  public enableUltraConservativeRateLimit(): void {
+    this.rateLimit = {
+      minIntervalMs: 60000,        // 60s between requests
+      perMinuteMax: 1,             // 1 request/minute
+      extraWaitMsIfExceeded: 60000,// wait 60s when exceeded
+      cooldownMs: 65000            // 65s cooldown between steps
+    };
+    console.log('🛡️ Ultra conservative rate limiting enabled');
+  }
   
   // OPTIMIZATION: Enhanced caching for maximum performance
   private cachedAssistantId: string | null = null;
@@ -136,12 +155,12 @@ export class AzureOpenAIService {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     this.requestHistory = this.requestHistory.filter(time => time > thirtyMinutesAgo);
     
-        // EXTREME RATE LIMITING: No rate limits at any cost
-        const baseDelay = method === 'GET' ? 15000 : 25000; // 15s for GET, 25s for POST/PUT/DELETE (extreme)
-        const jitter = Math.random() * 5000; // Add 0-5s random jitter
+        // OPTIMIZED RATE LIMITING: Balanced approach for speed
+        const baseDelay = method === 'GET' ? 2000 : 3000; // 2s for GET, 3s for POST/PUT/DELETE (much faster)
+        const jitter = Math.random() * 1000; // Add 0-1s random jitter
         const totalDelay = baseDelay + jitter;
         
-        console.log(`🐌 EXTREME Rate limiting: waiting ${Math.round(totalDelay / 1000)}s...`);
+        console.log(`⚡ OPTIMIZED Rate limiting: waiting ${Math.round(totalDelay / 1000)}s...`);
         await new Promise(resolve => setTimeout(resolve, totalDelay));
     
     // Queue requests to prevent overwhelming the API
@@ -172,9 +191,9 @@ export class AzureOpenAIService {
     method: string = 'GET', 
     body?: any, 
     retryCount: number = 0,
-    maxRetries: number = 5
+    maxRetries: number = 10
   ): Promise<any> {
-    const baseDelay = 3000; // Reduced to 3 seconds base delay
+    const baseDelay = 1000; // 1 second base delay for backoff
     
     const url = `${this.baseUrl}/openai/${endpoint}?api-version=${this.apiVersion}`;
     
@@ -201,10 +220,10 @@ export class AzureOpenAIService {
           const retryAfter = response.headers.get('retry-after');
           const serverDelay = retryAfter ? parseInt(retryAfter) * 1000 : null;
           
-          // Use server delay if available, otherwise EXTREME exponential backoff
-          const delay = serverDelay || (baseDelay * Math.pow(3, retryCount)); // Much more aggressive backoff
-          const jitter = Math.random() * 10000; // Add up to 10 seconds jitter
-          const totalDelay = Math.min(delay + jitter, 300000); // Cap at 5 minutes
+          // Use server delay if available, otherwise exponential backoff with jitter
+          const delay = serverDelay || (baseDelay * Math.pow(2.2, retryCount));
+          const jitter = Math.random() * 3000; // Add up to 3 seconds jitter
+          const totalDelay = Math.min(delay + jitter, 60000); // Cap at 60 seconds
           
           console.log(`🚨 Rate limit exceeded. Retrying in ${Math.round(totalDelay / 1000)} seconds... (Attempt ${retryCount + 1}/${maxRetries})`);
           
@@ -218,7 +237,7 @@ export class AzureOpenAIService {
         // Handle rate limit error specifically
         if (response.status === 429) {
           const retryAfter = response.headers.get('retry-after');
-          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 120000; // Default 2 minutes
+          const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : 60000; // Default 60 seconds
           
           if (retryCount < maxRetries) {
             console.log(`Rate limit exceeded. Waiting ${waitTime}ms before retry ${retryCount + 1}/${maxRetries}`);
@@ -253,7 +272,7 @@ export class AzureOpenAIService {
     }
   }
 
-  async analyzeDocument(file: File): Promise<DocumentAnalysisResult> {
+  async analyzeDocument(file: File, extraUserMessage?: string): Promise<DocumentAnalysisResult> {
     try {
       console.log('Starting document analysis with ULTRA-AGGRESSIVE rate limit protection...');
       
@@ -272,9 +291,9 @@ export class AzureOpenAIService {
       console.log('Getting thread...');
       const thread = await this.getCachedThread();
       
-      // Step 4: Add message to thread with file attachment
+      // Step 4: Add message to thread with file attachment (optionally include batch instructions)
       console.log('Adding message to thread...');
-      await this.addMessageToThread(thread.id, file.name, uploadedFile.id);
+      await this.addMessageToThread(thread.id, file.name, uploadedFile.id, extraUserMessage);
       
       // Step 5: Create and run the assistant
       console.log('Creating and running assistant...');
@@ -652,6 +671,7 @@ Example Response Format:
 
   async sendInsightsChatMessage(threadId: string, assistantId: string, messageContent: string, fileId?: string): Promise<ChatMessage> {
     try {
+      const tryOnce = async () => {
       console.log('Sending insights chat message...');
       
       const messagePayload = {
@@ -728,7 +748,24 @@ Example Response Format:
         charts: [], // No charts for insights bot
         timestamp: new Date(latestMessage.created_at * 1000)
       };
+      };
 
+      // Auto-retry on rate limits surfaced from deeper layers
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          return await tryOnce();
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          const waitMatch = msg.match(/wait\s+(\d+)\s*seconds?/i);
+          if (msg.includes('Rate limit exceeded') && (attempt < 2)) {
+            const waitSeconds = waitMatch ? parseInt(waitMatch[1], 10) : 15;
+            console.warn(`🕒 Waiting ${waitSeconds}s due to 429 (attempt ${attempt + 1}/3)...`);
+            await new Promise(res => setTimeout(res, waitSeconds * 1000));
+            continue;
+          }
+          throw err;
+        }
+      }
     } catch (error) {
       console.error('Insights chat message failed:', error);
       
@@ -1060,7 +1097,7 @@ Example Response Format:
     return this.makeRequest('threads', 'POST', {});
   }
 
-  private async addMessageToThread(threadId: string, fileName: string, fileId: string): Promise<Message> {
+  private async addMessageToThread(threadId: string, fileName: string, fileId: string, extraUserMessage?: string): Promise<Message> {
     console.log('🔍 DEBUG: Adding message to thread', {
       threadId,
       fileName,
@@ -1068,15 +1105,22 @@ Example Response Format:
       messageType: 'file_analysis'
     });
     
-    return this.makeRequest(`threads/${threadId}/messages`, 'POST', {
-      role: 'user',
-      content: `Please analyze this file: ${fileName}
+    const baseContent = `Please analyze this file: ${fileName}
 
 Use code interpreter to load the data and create charts using CHART_DATA_START/END format.
 
 For scatter plots: Show ALL individual data points (no aggregation)
 For other charts: Aggregate data appropriately
-Generate charts with actual data from the file.`,
+Generate charts with actual data from the file.`;
+
+    const content = extraUserMessage ? `${baseContent}
+
+ADDITIONAL INSTRUCTIONS:
+${extraUserMessage}` : baseContent;
+
+    return this.makeRequest(`threads/${threadId}/messages`, 'POST', {
+      role: 'user',
+      content,
       attachments: [
         {
           file_id: fileId,
@@ -1095,17 +1139,17 @@ Generate charts with actual data from the file.`,
   private async waitForRunCompletion(threadId: string, runId: string): Promise<Run> {
     let run: Run;
     let attempts = 0;
-    const maxAttempts = 15; // Increased attempts with optimized polling
+    const maxAttempts = 20; // Increased attempts for reliability
     const startTime = Date.now();
     
     do {
-      // MAXIMUM SPEED OPTIMIZATION: Aggressive but reliable polling
-      const baseDelay = 4000; // 4 seconds base delay (optimized for speed)
-      const exponentialDelay = Math.min(baseDelay * Math.pow(1.2, attempts), 15000); // Cap at 15 seconds (optimized)
-      const jitter = Math.random() * 1000; // Add 0-1s random jitter
+      // ULTRA-FAST POLLING: Much faster polling for speed
+      const baseDelay = 1500; // 1.5 seconds base delay (much faster)
+      const exponentialDelay = Math.min(baseDelay * Math.pow(1.1, attempts), 5000); // Cap at 5 seconds (much faster)
+      const jitter = Math.random() * 500; // Add 0-0.5s random jitter
       const totalDelay = exponentialDelay + jitter;
       
-      console.log(`⚡ OPTIMIZED Polling (${attempts + 1}/${maxAttempts}) - waiting ${Math.round(totalDelay / 1000)}s...`);
+      console.log(`⚡ ULTRA-FAST Polling (${attempts + 1}/${maxAttempts}) - waiting ${Math.round(totalDelay / 1000)}s...`);
       
       await new Promise(resolve => setTimeout(resolve, totalDelay));
       run = await this.makeRequest(`threads/${threadId}/runs/${runId}`);
@@ -1446,6 +1490,8 @@ Generate charts with actual data from the file.`,
             unit: normalizedChart.config.unit,
             target: normalizedChart.config.target
           };
+
+          // Do NOT remap scatter data; keep actual assistant output intact
           
           charts.push({
             id: normalizedChart.id,
@@ -1507,18 +1553,19 @@ Generate charts with actual data from the file.`,
   }
 
   private cleanContentForDisplay(content: string, chartsCount?: number): string {
-    // Remove CHART_DATA_START/END blocks but keep surrounding text
-    const countText = typeof chartsCount === 'number'
-      ? `${chartsCount} chart${chartsCount !== 1 ? 's' : ''} generated`
-      : 'Charts generated';
-    let cleanedContent = content.replace(
-      /(?:CHART_DATA_START|CHARTDATASTART)\s*[\s\S]*?(?:CHART_DATA_END|CHARTDATAEND)/gi,
-      `[${countText}]`
-    );
-    
-    // Clean up any extra whitespace
+    // Remove ALL CHART_DATA blocks and insert a single summary once
+    const chartBlockRegex = /(?:CHART_DATA_START|CHARTDATASTART)\s*[\s\S]*?(?:CHART_DATA_END|CHARTDATAEND)/gi;
+    let cleanedContent = content.replace(chartBlockRegex, '').trim();
+
+    // Clean up excessive blank lines after removal
     cleanedContent = cleanedContent.replace(/\n{3,}/g, '\n\n').trim();
-    
+
+    // Prepend a single summary line if we know the count
+    if (typeof chartsCount === 'number' && chartsCount > 0) {
+      const countText = `${chartsCount} chart${chartsCount !== 1 ? 's' : ''} generated`;
+      cleanedContent = `[${countText}]` + (cleanedContent ? `\n\n${cleanedContent}` : '');
+    }
+
     return cleanedContent;
   }
 
@@ -1755,6 +1802,88 @@ Generate charts with actual data from the file.`,
     return nextBatch;
   }
 
+  // Helper: sleep
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Helper: chunk an array into fixed-size batches
+  private chunkArray<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  /**
+   * High-level API: Generate scatter plots in batches of 3-5 variables, with delay between calls.
+   * Ensures assistant uses ALL rows (no aggregation) and outputs x/y keys.
+   * Emits optional progress callbacks so UI can show loading between batches.
+   */
+  public async generateChartsForVariables(
+    file: File,
+    targetVariable: string,
+    variables: string[],
+    options?: {
+      batchSize?: number;   // default 5
+      delayMs?: number;     // default 5000
+      onProgress?: (payload: { stage: 'starting' | 'batch-start' | 'batch-complete' | 'complete'; batchIndex?: number; totalBatches?: number; charts?: ChartData[] }) => void;
+      userMessage?: string;
+    }
+  ): Promise<ChartData[]> {
+    const batchSize = Math.min(Math.max(options?.batchSize ?? 5, 3), 10);
+    const delayMs = options?.delayMs ?? 5000;
+    const userMessage = options?.userMessage ?? 'Analyze variable impact on lead time.';
+    const batches = this.chunkArray(variables, batchSize);
+    const allCharts: ChartData[] = [];
+
+    options?.onProgress?.({ stage: 'starting', totalBatches: batches.length });
+
+    for (let i = 0; i < batches.length; i++) {
+      const batchVariables = batches[i];
+      options?.onProgress?.({ stage: 'batch-start', batchIndex: i + 1, totalBatches: batches.length });
+
+      const batchContext = `
+PROCESS BATCH ${i + 1}/${batches.length}:
+Variables: ${batchVariables.join(', ')}
+Target: ${targetVariable}
+
+STRICT REQUIREMENTS (MANDATORY):
+1) Generate one scatter plot per variable listed above vs ${targetVariable}.
+2) CRITICAL: Use ALL 100+ rows from the dataset for each plot. NO SAMPLING, NO AGGREGATION, NO FILTERING.
+3) For each scatter plot:
+   - X-axis: The variable from the list above
+   - Y-axis: ${targetVariable}
+   - Data points: { "x": <variable_value>, "y": <target_value> }
+   - MUST include every single row from the CSV file
+4) Set config: { "xKey": "x", "yKey": "y", "showTrendLine": true, "xAxisLabel": "<Variable Name>", "yAxisLabel": "${targetVariable}" }.
+5) Title must be "${targetVariable} vs <Variable>" (target on Y-axis, variable on X-axis).
+6) IMPORTANT: Use the actual column names from the CSV headers. Do not swap or rename columns.
+7) VERIFICATION: Each chart must show 100+ data points (one per CSV row). If you see fewer points, you are sampling incorrectly.
+`;
+
+      // Run one analysis call for this batch
+      const analysis = await this.analyzeDocument(file, `${userMessage}\n\n${batchContext}`);
+      if (analysis?.analysis?.charts?.length) {
+        allCharts.push(...analysis.analysis.charts);
+        options?.onProgress?.({ stage: 'batch-complete', batchIndex: i + 1, totalBatches: batches.length, charts: analysis.analysis.charts });
+      } else if ((analysis as any)?.charts?.length) {
+        // Fallback for earlier return shape
+        allCharts.push(...(analysis as any).charts);
+        options?.onProgress?.({ stage: 'batch-complete', batchIndex: i + 1, totalBatches: batches.length, charts: (analysis as any).charts });
+      } else {
+        options?.onProgress?.({ stage: 'batch-complete', batchIndex: i + 1, totalBatches: batches.length, charts: [] });
+      }
+
+      // Delay before next batch to avoid rate limits
+      if (i < batches.length - 1) {
+        await this.sleep(delayMs);
+      }
+    }
+
+    options?.onProgress?.({ stage: 'complete', totalBatches: batches.length });
+    return allCharts;
+  }
+
   // Add generated charts to context
   public addChartsToContext(charts: ChartData[]): void {
     this.chartGenerationContext.previousCharts.push(...charts);
@@ -1805,12 +1934,12 @@ BATCH ${this.chartGenerationContext.batchNumber + 1}: Generate 3 more charts foc
     
     // Initialize batch processing if not already started
     if (!this.chartGenerationContext.isBatchProcessing) {
-      const totalCharts = Math.min(allVariables.length * 2, 15); // Max 15 charts to avoid overwhelming
+      const totalCharts = Math.min(allVariables.length, 50); // Up to 50 charts (one per variable)
       this.initializeBatchProcessing(totalCharts, allVariables);
     }
 
     // Get next batch of variables
-    const batchVariables = this.getNextBatchVariables(3);
+    const batchVariables = this.getNextBatchVariables(6);
     if (batchVariables.length === 0) {
       return {
         charts: this.completeBatchProcessing(),
@@ -1826,21 +1955,23 @@ ${userMessage}
 BATCH PROCESSING CONTEXT:
 ${batchContext}
 
-FOCUS ON THESE VARIABLES FOR THIS BATCH: ${batchVariables.join(', ')}
+FOR THIS BATCH, GENERATE SCATTER PLOTS ONLY (ONE PER VARIABLE):
+- Variables in this batch: ${batchVariables.join(', ')}
+- Target variable: ${targetVariable}
 
-Generate exactly 3 charts for this batch:
-1. Scatter plot: ${batchVariables[0]} vs ${targetVariable}
-2. Scatter plot: ${batchVariables[1]} vs ${targetVariable}  
-3. Bar chart: ${batchVariables[2]} vs ${targetVariable}
-
-Use actual data from the file. Generate CHART_DATA_START/END blocks for each chart.
+STRICT REQUIREMENTS (MANDATORY):
+1) Use ALL rows from the dataset for each scatter plot (no aggregation, no sampling)
+2) Data keys must be { "x": <variable value>, "y": <target value> }
+3) Set config.xKey = "x", config.yKey = "y", and showTrendLine = true
+4) One CHART_DATA block per variable listed above
+5) Titles must clearly state "<Variable> vs ${targetVariable}"
 `;
 
     console.log(`🔄 Generating batch ${this.chartGenerationContext.batchNumber} with variables:`, batchVariables);
 
     try {
-      // Analyze document with batch message
-      const analysisResult = await this.analyzeDocument(file);
+      // Analyze document with batch message to enforce scatter-only with all points
+      const analysisResult = await this.analyzeDocument(file, batchMessage);
       
       // Add charts to context
       if (analysisResult.charts && analysisResult.charts.length > 0) {
@@ -1870,7 +2001,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
   public shouldWaitBeforeRequest(): { shouldWait: boolean; waitTime: number; reason: string } {
     const now = Date.now();
     const timeSinceLastRequest = now - this.lastRequestTime;
-    const minInterval = 30000; // 30 seconds minimum between any requests (extreme)
+    const minInterval = this.rateLimit.minIntervalMs; // configurable minimum interval
     
     if (timeSinceLastRequest < minInterval) {
       return {
@@ -1880,23 +2011,23 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
       };
     }
     
-    // Check if we're making too many requests - extreme conservative
+    // Check if we're making too many requests - balanced approach
     const requestsInLastMinute = this.requestHistory.filter(time => time > now - 60000).length;
-    if (requestsInLastMinute > 0) { // ZERO requests per minute maximum
+    if (requestsInLastMinute > this.rateLimit.perMinuteMax) { // configurable per-minute cap
       return {
         shouldWait: true,
-        waitTime: 120000, // 2 minutes (extreme)
+        waitTime: this.rateLimit.extraWaitMsIfExceeded,
         reason: `Too many requests (${requestsInLastMinute} in last minute)`
       };
     }
     
-    // Additional check for requests in last 10 minutes
-    const requestsInLast10Minutes = this.requestHistory.filter(time => time > now - 600000).length;
-    if (requestsInLast10Minutes > 1) { // Max 1 request in 10 minutes
+    // Additional check for requests in last 5 minutes
+    const requestsInLast5Minutes = this.requestHistory.filter(time => time > now - 300000).length;
+    if (requestsInLast5Minutes > 10) { // Max 10 requests in 5 minutes
       return {
         shouldWait: true,
-        waitTime: 300000, // 5 minutes
-        reason: `Too many requests (${requestsInLast10Minutes} in last 10 minutes)`
+        waitTime: 30000, // 30 seconds
+        reason: `Too many requests (${requestsInLast5Minutes} in last 5 minutes)`
       };
     }
     
@@ -1905,12 +2036,12 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
 
   // Method to enforce cooldown period between operations
   private async enforceCooldownPeriod(): Promise<void> {
-    const cooldownPeriod = 60000; // 60 seconds cooldown (extreme to avoid rate limits)
+    const cooldownPeriod = this.rateLimit.cooldownMs; // configurable cooldown
     const timeSinceLastRequest = Date.now() - this.lastRequestTime;
     
     if (timeSinceLastRequest < cooldownPeriod) {
       const waitTime = cooldownPeriod - timeSinceLastRequest;
-      console.log(`🐌 EXTREME COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
+      console.log(`⚡ FAST COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -2320,6 +2451,7 @@ CHART_DATA_END`,
 
   async sendChatMessage(threadId: string, assistantId: string, messageContent: string): Promise<ChatMessage> {
     try {
+      const tryOnce = async () => {
       console.log('🔍 DEBUG: sendChatMessage called', {
         threadId,
         assistantId,
@@ -2453,7 +2585,24 @@ CHART_DATA_END`
         charts: charts,
         timestamp: new Date(latestMessage.created_at * 1000)
       };
+      };
 
+      // Auto-retry on 429 surfaced as thrown errors with wait hints
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          return await tryOnce();
+        } catch (err: any) {
+          const msg = String(err?.message || err);
+          const waitMatch = msg.match(/wait\s+(\d+)\s*seconds?/i);
+          if (msg.includes('Rate limit exceeded') && (attempt < 2)) {
+            const waitSeconds = waitMatch ? parseInt(waitMatch[1], 10) : 15;
+            console.warn(`🕒 Waiting ${waitSeconds}s due to 429 (attempt ${attempt + 1}/3)...`);
+            await new Promise(res => setTimeout(res, waitSeconds * 1000));
+            continue;
+          }
+          throw err;
+        }
+      }
     } catch (error) {
       console.error('Chat message failed:', error);
       
