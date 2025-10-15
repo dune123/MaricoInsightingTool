@@ -10,6 +10,7 @@ import {
   Area,
   ScatterChart,
   Scatter,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -836,10 +837,10 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
+              <ComposedChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
-                  dataKey={chart.config.xKey} 
+                  dataKey={safeConfig.xKey || 'x'} 
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
@@ -850,7 +851,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                   }}
                 />
                 <YAxis 
-                  dataKey={chart.config.yKey as string}
+                  dataKey={safeConfig.yKey as string}
                   tick={{ fontSize: 12 }}
                   stroke="#6b7280"
                   label={{ 
@@ -940,7 +941,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     })()}
                   </>
                 )}
-              </ScatterChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </ChartWrapper>
         );

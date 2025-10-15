@@ -3,6 +3,7 @@ import { InsightsChatbot } from './components/InsightsChatbot';
 import { ChartingChatbot } from './components/ChartingChatbot';
 import { Settings } from './components/Settings';
 import { DashboardCharts } from './components/DashboardCharts';
+import DataPreview from './components/DataPreview';
 import { AnalysisResult, DashboardHistoryItem, Dashboard, ChartData } from './types/chart';
 import { 
   FileText, 
@@ -78,6 +79,8 @@ function App() {
     // Keep only one CSV/Excel document at a time: replace any existing
     setDocuments([newDoc]);
     setSelectedDocument(newDoc);
+    // Set to initial analysis by default when uploading a new document
+    setSelectedDashboardIndex(-1);
     // Don't auto-switch panels - let user stay in current bot
   };
 
@@ -130,7 +133,7 @@ function App() {
     // Normalize KPI charts so they render consistently in dashboards
     const normalizeKpi = (c: ChartData): ChartData => {
       if (c.type !== 'kpi') return c;
-      const cfg = { ...(c.config || {}) } as any;
+      const cfg = { ...(c.config || {}) } as Record<string, unknown>;
       // If value not set, try to parse from description
       if (!cfg.value) {
         const m = (c.description || '').match(/\$?([\d,]+(?:\.\d+)?)/);
@@ -216,7 +219,7 @@ function App() {
                         recommendation: 'recommendation'
                       };
                       const keyToDelete = keyMap[insightType];
-                      delete (newInsights as any)[keyToDelete];
+                      delete (newInsights as Record<string, unknown>)[keyToDelete];
                       return Object.keys(newInsights).length > 0 ? newInsights : undefined;
                     })() : undefined
                   }
@@ -438,26 +441,43 @@ function App() {
               </div>
             </div>
             
-            {dashboardHistory.length > 0 && selectedDashboardIndex !== null && (
+            {selectedDocument && (
               <div className="flex items-center space-x-2">
-                <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                  {dashboardHistory[selectedDashboardIndex].analysis.charts.length} Charts
-                </div>
+                {selectedDashboardIndex === -1 ? (
+                  <div className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                    📊 Initial Analysis
+                  </div>
+                ) : dashboardHistory.length > 0 && selectedDashboardIndex !== null && selectedDashboardIndex >= 0 ? (
+                  <div className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                    {dashboardHistory[selectedDashboardIndex].analysis.charts.length} Charts
+                  </div>
+                ) : (
+                  <div className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                    📊 Initial Analysis
+                  </div>
+                )}
               </div>
             )}
           </div>
           
           {/* Question History Dropdown */}
-          {dashboardHistory.length > 0 && (
+          {selectedDocument && (
             <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Change File
+                Change Analysis
               </label>
               <select
-                value={selectedDashboardIndex ?? ''}
-                onChange={(e) => setSelectedDashboardIndex(e.target.value ? parseInt(e.target.value) : null)}
+                value={selectedDashboardIndex === -1 ? 'initial' : selectedDashboardIndex ?? ''}
+                onChange={(e) => {
+                  if (e.target.value === 'initial') {
+                    setSelectedDashboardIndex(-1);
+                  } else {
+                    setSelectedDashboardIndex(e.target.value ? parseInt(e.target.value) : null);
+                  }
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
               >
+                <option value="initial">📊 Initial Analysis</option>
                 {dashboardHistory.map((item, index) => (
                   <option key={index} value={index}>
                     {item.question}
@@ -470,26 +490,22 @@ function App() {
 
         {/* Charts Content */}
         <div className="flex-1 overflow-y-auto p-6 min-h-0">
-          {dashboardHistory.length > 0 && selectedDashboardIndex !== null ? (
+          {selectedDashboardIndex === -1 && selectedDocument ? (
+            <DataPreview 
+              selectedDocument={selectedDocument}
+              azureConfig={azureConfig}
+            />
+          ) : dashboardHistory.length > 0 && selectedDashboardIndex !== null && selectedDashboardIndex >= 0 ? (
             <DashboardCharts 
               analysis={dashboardHistory[selectedDashboardIndex].analysis}
               isLoading={false}
               onAddChartRequest={handleAddChartRequest}
             />
           ) : selectedDocument ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-xl">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BarChart3 className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">File uploaded</h3>
-                <p className="text-gray-600 mb-6">
-                  Your CSV/Excel has been uploaded{selectedDocument?.name ? (<>
-                  : <span className="font-medium"> {selectedDocument.name}</span></>) : null}. You can now ask a question to generate visualizations.
-                </p>
-                {/* Intentionally no CTA button here per requirement */}
-              </div>
-            </div>
+            <DataPreview 
+              selectedDocument={selectedDocument}
+              azureConfig={azureConfig}
+            />
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">

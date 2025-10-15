@@ -136,13 +136,8 @@ export class AzureOpenAIService {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     this.requestHistory = this.requestHistory.filter(time => time > thirtyMinutesAgo);
     
-        // EXTREME RATE LIMITING: No rate limits at any cost
-        const baseDelay = method === 'GET' ? 15000 : 25000; // 15s for GET, 25s for POST/PUT/DELETE (extreme)
-        const jitter = Math.random() * 5000; // Add 0-5s random jitter
-        const totalDelay = baseDelay + jitter;
-        
-        console.log(`🐌 EXTREME Rate limiting: waiting ${Math.round(totalDelay / 1000)}s...`);
-        await new Promise(resolve => setTimeout(resolve, totalDelay));
+        // Rate limiting removed for faster chart generation
+        // No artificial delays - let the API handle rate limits naturally
     
     // Queue requests to prevent overwhelming the API
     return this.queueRequest(() => this.makeRequestWithRetry(endpoint, method, body));
@@ -805,7 +800,7 @@ CHART_DATA_START
     "yKey": "y",
     "xAxisLabel": "X Label",
     "yAxisLabel": "Y Label",
-    "showTrendLine": true,
+    "showTrendLine": false,
     "colors": ["#3B82F6"]
   }
 }
@@ -847,7 +842,7 @@ CHART_DATA_START
     "yKey": "y",
     "xAxisLabel": "Lead Time (Days)",
     "yAxisLabel": "Revenue ($)",
-    "showTrendLine": true,
+    "showTrendLine": false,
     "colors": ["#3B82F6"]
   }
 }
@@ -896,7 +891,7 @@ CHART_DATA_START
     "yKey": "y",
     "xAxisLabel": "Lead Time (Days)",
     "yAxisLabel": "Revenue ($)",
-    "showTrendLine": true,
+    "showTrendLine": false,
     "colors": ["#3B82F6"]
   }
 }
@@ -941,7 +936,7 @@ CHART_DATA_END
 **SCATTER PLOTS:**
 - **ALL INDIVIDUAL POINTS**: Include every single data point from the dataset
 - **NO AGGREGATION**: Never sum/average multiple values for same X-axis value
-- **TREND LINE**: Always set "showTrendLine": true for scatter plots
+- **TREND LINE**: Do not include trend lines for scatter plots (set "showTrendLine": false or omit the property)
 - **DATA KEYS**: Use "x" and "y" for data points
 
 **PIE CHARTS (CRITICAL - EXACT KEYS REQUIRED):**
@@ -1434,9 +1429,9 @@ Generate charts with actual data from the file.`,
             showLegend: normalizedChart.config.showLegend !== false,
             showGrid: normalizedChart.config.showGrid !== false,
             showTooltip: normalizedChart.config.showTooltip !== false,
-            // Scatter plot trend line - enable by default for scatter plots
+            // Scatter plot trend line - disabled by default for scatter plots
             showTrendLine: normalizedChart.type === 'scatter' 
-              ? (normalizedChart.config.showTrendLine !== false) // Default to true for scatter plots unless explicitly false
+              ? (normalizedChart.config.showTrendLine === true) // Default to false for scatter plots unless explicitly true
               : normalizedChart.config.showTrendLine,
             // KPI-specific config
             value: normalizedChart.config.value,
@@ -1843,8 +1838,8 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
       const analysisResult = await this.analyzeDocument(file);
       
       // Add charts to context
-      if (analysisResult.charts && analysisResult.charts.length > 0) {
-        this.addChartsToContext(analysisResult.charts);
+      if (analysisResult.analysis.charts && analysisResult.analysis.charts.length > 0) {
+        this.addChartsToContext(analysisResult.analysis.charts);
         this.chartGenerationContext.batchNumber++;
       }
 
@@ -1855,7 +1850,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
         undefined;
 
       return {
-        charts: analysisResult.charts || [],
+        charts: analysisResult.analysis.charts || [],
         isComplete: !hasMore,
         nextBatchMessage
       };
@@ -1868,51 +1863,15 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
 
   // Method to check if we should wait before making a request
   public shouldWaitBeforeRequest(): { shouldWait: boolean; waitTime: number; reason: string } {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
-    const minInterval = 30000; // 30 seconds minimum between any requests (extreme)
-    
-    if (timeSinceLastRequest < minInterval) {
-      return {
-        shouldWait: true,
-        waitTime: minInterval - timeSinceLastRequest,
-        reason: `Minimum ${minInterval / 1000}s interval between requests`
-      };
-    }
-    
-    // Check if we're making too many requests - extreme conservative
-    const requestsInLastMinute = this.requestHistory.filter(time => time > now - 60000).length;
-    if (requestsInLastMinute > 0) { // ZERO requests per minute maximum
-      return {
-        shouldWait: true,
-        waitTime: 120000, // 2 minutes (extreme)
-        reason: `Too many requests (${requestsInLastMinute} in last minute)`
-      };
-    }
-    
-    // Additional check for requests in last 10 minutes
-    const requestsInLast10Minutes = this.requestHistory.filter(time => time > now - 600000).length;
-    if (requestsInLast10Minutes > 1) { // Max 1 request in 10 minutes
-      return {
-        shouldWait: true,
-        waitTime: 300000, // 5 minutes
-        reason: `Too many requests (${requestsInLast10Minutes} in last 10 minutes)`
-      };
-    }
-    
+    // Rate limiting removed for faster chart generation
+    // Let the API handle rate limits naturally
     return { shouldWait: false, waitTime: 0, reason: 'OK to proceed' };
   }
 
   // Method to enforce cooldown period between operations
   private async enforceCooldownPeriod(): Promise<void> {
-    const cooldownPeriod = 60000; // 60 seconds cooldown (extreme to avoid rate limits)
-    const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-    
-    if (timeSinceLastRequest < cooldownPeriod) {
-      const waitTime = cooldownPeriod - timeSinceLastRequest;
-      console.log(`🐌 EXTREME COOLDOWN: Waiting ${Math.round(waitTime / 1000)}s before next operation...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
+    // Cooldown period removed for faster chart generation
+    // No artificial delays - let the API handle rate limits naturally
   }
 
   // Create fallback chart when AI fails to provide valid JSON
@@ -1945,7 +1904,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
         yKey: 'y',
         xAxisLabel: 'Variable',
         yAxisLabel: 'Value',
-        showTrendLine: true,
+        showTrendLine: false,
         showGrid: true,
         showTooltip: true,
         showLegend: true,
@@ -1978,7 +1937,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
             yKey: 'y',
             xAxisLabel: `Variable ${i}`,
             yAxisLabel: 'Impact',
-            showTrendLine: true,
+            showTrendLine: false,
             showGrid: true,
             showTooltip: true,
             showLegend: true,
@@ -2054,7 +2013,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
             yKey: "Revenue generated", 
             xAxisLabel: "Lead Time (Days)",
             yAxisLabel: "Revenue Generated ($)",
-            showTrendLine: true,
+            showTrendLine: false,
             colors: ["#3B82F6"]
           };
         }
@@ -2117,7 +2076,7 @@ Use actual data from the file. Generate CHART_DATA_START/END blocks for each cha
         yKey: 'y',
         xAxisLabel: 'Variable',
         yAxisLabel: 'Value',
-        showTrendLine: true,
+        showTrendLine: false,
         showGrid: true,
         showTooltip: true,
         showLegend: true,
@@ -2352,7 +2311,7 @@ CHART_DATA_START
     "yKey": "y",
     "xAxisLabel": "X Label",
     "yAxisLabel": "Y Label",
-    "showTrendLine": true,
+    "showTrendLine": false,
     "colors": ["#3B82F6"]
   }
 }
