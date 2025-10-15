@@ -705,6 +705,18 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         if (Array.isArray(chart.data) && chart.data.length > 0) {
           console.log(`  First data point:`, chart.data[0]);
           console.log(`  Sample data points (first 3):`, chart.data.slice(0, 3));
+          
+          // Check if data points have the expected structure
+          const firstPoint = chart.data[0];
+          const hasX = firstPoint && (firstPoint.x !== undefined || firstPoint[safeConfig.xKey || 'x'] !== undefined);
+          const hasY = firstPoint && (firstPoint.y !== undefined || firstPoint[safeConfig.yKey as string] !== undefined);
+          console.log(`  Data structure check:`, {
+            hasX,
+            hasY,
+            xValue: firstPoint?.x || firstPoint?.[safeConfig.xKey || 'x'],
+            yValue: firstPoint?.y || firstPoint?.[safeConfig.yKey as string],
+            allKeys: firstPoint ? Object.keys(firstPoint) : []
+          });
         } else {
           console.error(`❌ ERROR: No data points found in chart.data!`);
         }
@@ -751,6 +763,18 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         
         console.log(`  Sorted data length:`, sortedScatterData.length);
         console.log(`  First sorted point:`, sortedScatterData[0]);
+        
+        // Additional debugging for sorted data
+        if (sortedScatterData.length > 0) {
+          const firstSorted = sortedScatterData[0];
+          console.log(`  Sorted data structure check:`, {
+            hasX: firstSorted[safeConfig.xKey || 'x'] !== undefined,
+            hasY: firstSorted[safeConfig.yKey as string] !== undefined,
+            xValue: firstSorted[safeConfig.xKey || 'x'],
+            yValue: firstSorted[safeConfig.yKey as string],
+            allKeys: Object.keys(firstSorted)
+          });
+        }
         
         // Calculate proper trend line using linear regression
         const calculateTrendLine = (data: any[]) => {
@@ -837,7 +861,7 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
         return (
           <ChartWrapper>
             <ResponsiveContainer width="100%" height={chartHeight}>
-              <ComposedChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
+              <ScatterChart data={sortedScatterData} margin={{ top: 20, right: 30, left: 20, bottom: 30 }}>
                 {chart.config.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />}
                 <XAxis 
                   dataKey={safeConfig.xKey || 'x'} 
@@ -889,59 +913,25 @@ export const DashboardCharts: React.FC<DashboardChartsProps> = ({ analysis, isLo
                     }}
                   />
                 )}
+                {(() => {
+                  console.log(`🎯 FINAL SCATTER RENDER DEBUG:`);
+                  console.log(`  Data being passed to Scatter:`, sortedScatterData.slice(0, 3));
+                  console.log(`  Data length:`, sortedScatterData.length);
+                  console.log(`  X key:`, safeConfig.xKey || 'x');
+                  console.log(`  Y key:`, safeConfig.yKey);
+                  console.log(`  Fill color:`, colors[0]);
+                  return null;
+                })()}
                 <Scatter 
                   data={sortedScatterData}
                   fill={colors[0]} 
                   dataKey={safeConfig.yKey as string}
                   name="Data Points"
+                  r={6}
+                  stroke={colors[0]}
+                  strokeWidth={2}
                 />
-                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length > 0 && (
-                  <>
-                    {(() => {
-                      console.log(`🎨 RENDERING TREND LINE:`);
-                      console.log(`  Config showTrendLine: ${chart.config.showTrendLine}`);
-                      console.log(`  Trend line data length: ${trendLineData.length}`);
-                      console.log(`  Start point: (${trendLineData[0].x}, ${trendLineData[0].y})`);
-                      console.log(`  End point: (${trendLineData[1].x}, ${trendLineData[1].y})`);
-                      console.log(`  Line style: Red dashed, 2px width`);
-                      console.log(`✅ TREND LINE RENDERED SUCCESSFULLY`);
-                      return null;
-                    })()}
-                    <Line 
-                      data={trendLineData}
-                      dataKey="y"
-                      stroke="#ef4444"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      dot={false}
-                      activeDot={false}
-                      connectNulls={false}
-                      type="linear"
-                      xAxisId="trendLineX"
-                      yAxisId="trendLineY"
-                    />
-                  </>
-                )}
-                {((chart.config.showTrendLine ?? true) !== false) && trendLineData.length === 0 && (
-                  <>
-                    {(() => {
-                      console.warn(`⚠️ TREND LINE NOT RENDERED:`);
-                      console.warn(`  Config showTrendLine: ${chart.config.showTrendLine}`);
-                      console.warn(`  Trend line data length: ${trendLineData.length} (expected > 0)`);
-                      console.warn(`  Reason: Insufficient data for trend line calculation`);
-                      return null;
-                    })()}
-                  </>
-                )}
-                {(chart.config.showTrendLine ?? true) === false && (
-                  <>
-                    {(() => {
-                      console.log(`ℹ️ TREND LINE DISABLED: showTrendLine is ${chart.config.showTrendLine}`);
-                      return null;
-                    })()}
-                  </>
-                )}
-              </ComposedChart>
+              </ScatterChart>
             </ResponsiveContainer>
           </ChartWrapper>
         );
